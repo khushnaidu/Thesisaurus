@@ -1,0 +1,785 @@
+ 
+ 
+ 
+ 
+ 
+ 
+ GS-LTS: 3 D Gaussian Splatting-Based Adaptive Modeling 
+ for Long-Term Service Robots 
+ 
+ 
+ Bin Fu 1 and Jialin Li 1 and Bin Zhang 1 and Ruiping Wang 1,(cid:12) and Xilin Chen 1
+ 
+ 
+ Abstract—3 D Gaussian Splatting (3 DGS) has garnered sig- 
+ nificant attention in robotics for its explicit, high fidelity 
+ dense scene representation, demonstrating strong potential for 
+ roboticapplications.However,3 DGS-basedmethodsinrobotics 
+ primarily focus on static scenes, with limited attention to the 
+ dynamic scene changes essential for long-term service robots. 
+ These robots demand sustained task execution and efficient 
+ scene updates—challenges current approaches fail to meet. 
+ To address these limitations, we propose GS-LTS (Gaussian 
+ Splatting for Long-Term Service), a 3 DGS-based system en- 
+ abling indoor robots to manage diverse tasks in dynamic 
+ environments over time. GS-LTS detects scene changes (e.g., 
+ object addition or removal) via single-image change detection, 
+ employs a rule-based policy to autonomously collect multi- 
+ Addition Removal Relocation 
+ view observations, and efficiently updates the scene represen- 
+ tation through Gaussian editing. Additionally, we propose a Fig.1. Threecommontypesofscenechangesinindoorscenes.
+ simulation-basedbenchmark that automaticallygeneratesscene 
+ objects may be added, removed, or relocated over time. In
+ change data ascompactconfigurationscripts,providingastan- 
+ dardized, user-friendly evaluation benchmark. Experimental such environments, the robot must continuously observe the
+ results demonstrate GS-LTS’s advantages in reconstruction, scene, autonomously detect changes, and update its scene
+ navigation, and superior scene updates—faster and higher representation to maintain accuracy.
+ quality than the image training baseline—advancing 3 DGS 
+ A straight for ward approach to handling scene changes
+ for long-term robotic operations. Code and benchmark are 
+ available at: https://vipl-vsu.github.io/3 DGS-LTS would be to periodically recollect images and retrain or
+ fine-tune the 3 DGSrepresentationwhenever the environment
+ I. INTRODUCTION is modified. However, this method is computationally ex-
+ 3 D Gaussian Splatting (3 DGS) [1] is an explicit radiance pensive, requiring frequent reprocessing of large-scale data,
+ field representation based on 3 D Gaussians. It has been and lacks efficiency for real-time or long-term deployment.
+ widely applied in fields such as dense visual SLAM [2] and To address this task, we propose GS-LTS, a 3 DGS-based
+ 3 D reconstruction [3], benefiting from its explicit geometric system designed for Long-Term Service robots in indoor
+ structure and real-time high-quality rendering. By further environments. The GS-LTS framework integrates four key
+ embedding low-dimensional vision-semantic features into modules: (1) Gaussian Mapping Engine, which constructs
+ each 3 DGaussian[4],acomprehensivescenerepresentation asemantic-aware 3 DGSrepresentation,integratinggeometry,
+ integrating geometry, vision, andsemantics can be achieved, visualappearance,andsemantics;(2)Multi-Task Executor,
+ which shows great potential in robotics applications, such which helps robots perform downstream tasks like object
+ as navigation and instruction following. However, current navigation using the informative 3 DGS representation; (3)
+ 3 DGSattemptsin the sefieldsprimarilyfocusonstaticscenes Change Detection Unit, a long-running module that detects
+ [5], which fail to align with the dynamic nature of real- scene changes at a specified frequency by comparing the
+ world environments involving object changes, as illustrated robot’s current RGB observations with historical 3 DGS-
+ in Fig. 1, making these approaches inadequate for long- rendered images, locating altered regions and analyzing
+ term service robots working in dynamic settings. A more change types and positions; and (4) Active Scene Updater,
+ realistic scenario involves a robot utilizing a prebuilt 3 DGS which is guided by a rule-based policy, directs the robot to
+ representation to perform tasks in an environment where collectmulti-viewimagesarounddetectedareas,andapplies
+ pre-editing and fine-tuning to dynamically update the 3 DGS
+ *This work is partially supported by National Key R&D Program of representation based on the detect change type and new
+ China No.2021 ZD 0111901,and Natural Science Foundationof Chinaunder 
+ observations. Together, these components enable the robot
+ contracts Nos.62495082,U 21 B 2025. 
+ 1 The authors are with the Key Laboratory of AI Safety of CAS, to adapt to evolving surroundings while maintaining robust
+ Instituteof Computing Technology,Chinese Academyof Sciences(CAS), per for mance over extended periods.
+ Beijing,100190,China,andalso with the Universityof Chinese Academy 
+ Evaluating this system places significant demands on
+ of Sciences, Beijing, 100049, China. {bin.fu, jialin.li, 
+ bin.zhang}@vipl.ict.ac.cn, {wangruiping, both data availability and environmental support. Real-
+ xlchen}@ict.ac.cn world settings struggle to support both robotic task execu-
+ (cid:12)Correspondingauthor. tion and extensive variations, hindering large-scale dataset
+ 5202 
+ ra M 
+ 22 
+ ]OR.sc[ 
+ 1 v 33771.3052:vi Xra 
+
+ 
+ 
+ 
+ 
+ creation and standardized evaluation. To address this, we Gaussians [11]. This adaptability makes 3 DGS suited for
+ propose a simulation-based benchmark that supports task modeling dynamic environments. Leveraging these proper-
+ execution and policy learning via 3 DGS representations ties, this work explores the integration of 3 DGS with long-
+ while enabling systematic generation of large-scale scene term service robot systems operating in dynamic settings.
+ change data throughobjectinteractions.Thisbenchmarknot 
+ only facilitates large-scale evaluation but also serves as a B. Long-Term Robot Autonomy and Change Detection
+ bridge for sim-to-real transfer, allowing models trained in 
+ Long-Term Autonomy (LTA) is a critical research area
+ simulation to achieve enhanced per for mance in real-world 
+ in robotics, aimed at enabling robots to operate reliably
+ environments. Our approach features two innovations: (1) 
+ in complex environments over extended periods [12]. This
+ automated generation of customizable scene change data, 
+ capability is essential across various domains, including
+ combining objects (e.g., cups), containers (e.g., tables), and 
+ underwater exploration [13], and service robotics [14]. A
+ positions to produce diverse scene change tasks; and (2) 
+ major challenge in LTA is adapting to scene changes.
+ storing scene change setups and environment meta data in 
+ Our work focuses on medium-term changes [12] in indoor
+ configuration scripts, which ensures efficient storage, easy 
+ service environments, where robots must effectively model
+ configuration,andaccuratereproductionofscenes.Thisscal- 
+ and update representations of daily object variations. While
+ able, reproducible benchmark reduces data acquisition costs 
+ many LTA robotic systems have been deployed in service
+ and provides standardized evaluation, advancing research on 
+ scenarios [14], [15], our work introduces a novel approach
+ 3 DGS adaptability in dynamic environments. 
+ leveraging 3 DGS for scene representation to enable efficient
+ We conduct extensive validation of the GS-LTS system 
+ adaptation to dynamic environments. 
+ through a series of experiments. First, we evaluate scene 
+ Scenechangedetectionisakeyresearch are aincomputer
+ representation quality via image rendering for visual fidelity 
+ vision, aiming to identify scene changes such as object
+ and 3 D localization for semantic accuracy. Additionally, ob- 
+ appearance, disappearance, or modifications. It is broadly
+ jectnavigationresultsonanexistingbenchmark[6]highlight 
+ classified into 2 D and 3 D approaches based on data type.
+ the potential of 3 DGS for embodied tasks. Finally, on our 
+ 2 D change detection employs pairs of before-and-after RGB
+ custom Scene Change Adaptation Benchmark, we comp are 
+ images [16], leveraging models from CNNs to foundation
+ our Gaussian editing-based method with the baseline of 
+ models for feature extraction and change identification.
+ direct image fine-tuning. Our approach signifi can tly reduces 
+ Conversely, 3 D change detection incorporates spatial infor-
+ scene update time while enhancing update quality. These 
+ mation, relying on multi-view RGB images [17] or point
+ comprehensive experiments fully demonstrate the efficiency 
+ clouds [18]. Recent advances in 3 DGS-based novel-view
+ and robustness of the GS-LTS system in scene reconstruc- 
+ syn the sis [19] have demonstrated strong potential, whereas
+ tion, embodied applications, and scene adaptability. 
+ our GS-LTS system adopts a distinct approach, leveraging a
+ Insummary,thisworkintroduces GS-LTS,deliveringthree 
+ single egocentric RGB image for change detection to reduce
+ key contributions: 
+ data and computational demands. 
+ • A 3 DGS-basedsystemenablingindoorrobotstohandle 
+ diverse tasks in dynamic environments over time. III. SYSTEMOVERVIEW 
+ • An automatic framework for object-level change detec- 
+ In this section, we first introduce the task formulation
+ tion and adaptive scene update via Gaussian editing. 
+ for long-term service robot system working in dynamic
+ • A scalable method for constructing a simulation bench- 
+ environments base don 3 DGaussian Splatting(3 DGS)scene
+ mark for object-level scene change detection. 
+ representation. Subsequently, we present the overall frame-
+ Together, these advancements enhance 3 DGS applications 
+ work of our proposed system designed to address this task.
+ for long-term robotic operations in dynamic environments. 
+ II. RELATEDWORK A. Task Formulation 
+ A. 3 D Scene Representation The core objectives of the task are twofold: (1) in a
+ Building accurate scene representations is crucial for dynamic environment, construct a 3 DGS representation of
+ robotics, with various methods, such as semantic maps [7], the scene and utilize this representation to control the robot
+ SLAM [8], and Ne RF [9] being widely used. Compared inaccomplishingdownstreamembodiedtasks,suchasobject
+ to these representations, 3 D Gaussian Splatting (3 DGS) navigation; (2) enable the robot to detect object changes in
+ provides an explicit, high-fidelity, and real-time renderable thescene and autonomouslycollect data toupdate the 3 DGS
+ dense representation. Its ability to simultaneously encode representation. 
+ geometric, visual, and semantic information has driven its We focus on dynamic indoor settings where primary
+ adoptionin task ssuchas 3 Dreconstruction[3],3 DGS-based structures (e.g., room layouts, large furniture like cabinets
+ SLAM [2], and navigation [10]. However, most existing andrefrigerators)staystatic,whilecertainobjects(e.g.,cups,
+ applications are restricted to static environments [5], where laptops)exhibitperiodicchanges.Weconsiderthreetypesof
+ maps quickly become outdated in the face of scene changes. scene changes: relocation, addition, or removal of objects,
+ Akeyadvantageof 3 DGSisitsinherentlyeditablenature, whichencompass the predominant for msofobjectdynamics
+ enabling dynamic updates through direct modifications of in real world environments.
+
+ 
+ 
+ 
+ 
+ Gaussian Mapping Engine Multi-Task Executor 
+ Semantic Map ((𝐶+2)×𝑀×𝑀) 
+ SAM CLIP obstacles 
+ Segmentation category-wise 
+ binary grids 
+ Object Nav. 
+ Autoencoder 
+ Encoder Decoder 
+ RGB-D Position Feature 
+ 3 D Gaussians 𝑠 𝜙!"#,𝜙$! 
+ Query: 
+ Pose GS-LTS Coffee Machine 3 D Localization 
+ Change Detection Unit Long-Term Active Scene Updater 
+ Adaptive Modeling 
+ Pixel Diff. Original 
+ Egocentric 
+ Gaussians Removal 
+ RGB obs. Scene Change 
+ Mask 
+ ? Addition 
+ 3 DGS Change Type Relocation 
+ rendering Change Position 
+ Feature Diff. Active Data Collecting 
+ Fig. 2. System Overview. GS-LTS is a modular system designed for long-term service robots, which can adapt to object changes in the dynamic
+ environments and update the 3 DGSrepresentationthroughperiodic,automatedoperationof the Change Detection Unit and the Active Scene Updater.
+ During task execution, the robot can only access current methods such as object navigation.
+ RGB-Ddata and poses from the environment.Consequently, Change Detection Unit. Since the robot must au-
+ the robot must rely on single egocentric observations to tonomously detect scene changes relying solely on single
+ actively perform change detection and determine whether egocentric observations, we develop the Change Detection
+ objects in the scene have changed. Upon detecting scene Unit, a lightweight module designed for long-term standby
+ alterations, the robot is further required to autonomously running in parallel with other downstream embodied tasks.
+ collect data to update the 3 DGS scene representation. This module compares the robot’s current RGB observation
+ with a rendered image generated from the 3 DGS at the
+ B. GS-LTS System corresponding pose. By employing a dual-branch strategy
+ To address the aforementioned challenges, we propose that analyzes both pixel-level differences and feature-level
+ GS-LTS, a 3 DGS-based system tailored for Long-Term differences, the module effectively identifies the type and
+ Servicerobotsoperatinginindoorenvironments.Thesystem location of changes between the two compared frames.
+ integrates four key modules as shown in Fig. 2. In the fol- Active Scene Updater. Upon detecting scene changes
+ lowing, we provide an overview of the system’s operational and their locations, the Active Scene Updater module au-
+ workflow,withdetailsofeachmoduleelaboratedin Sec.IV. tonomously collects data and updates the long-term scene
+ Gaussian Mapping Engine. This module is tasked with representation.Initially,therobotfollowsarule-basedheuris-
+ generating the 3 DGS scene representation for the robot tic policy to navigate around the scene change region,
+ during the system’sinitializationphase.Givenasetofmulti- capturing multi-view images. Next, it applies 3 DGS editing
+ view RGB images, depth maps, and their corresponding strategies to edit the target region. Finally, the 3 DGS repre-
+ camera poses, the module trains a 3 DGS model to effec- sentationisrefinedbyfine-tuning with collectedimages.This
+ tively capture the scene’s geometric and visual character- moduleenables GS-LTStoper for msceneupdatesefficiently
+ istics. In addition, to incorporate semantic information, we with minimal computational overhead.
+ leverage the Segment Anything Model (SAM) [20] and 
+ IV. METHODOLOGY 
+ open-vocabulary vision-language models (e.g., CLIP [21]) 
+ to embed semantic features into the 3 DGS representation. In this section, we introduce the implementation and
+ Multi-Task Executor. This module serves as an interface technical details of the GS-LTS system.
+ between the dense 3 DGS representation and downstream 
+ A. 3 DGS Mapping Engine 
+ tasks, enabling the robot to leverage the high-fidelity scene 
+ information encoded in the 3 DGS for task planning and In this module, we employ semantic-aware 3 D Gaussian
+ execution. For instance, by matching textual features with Splatting (3 DGS) for scene reconstruction. 3 DGS provides
+ 3 D Gaussian semantic features, this module facilitates 3 D an explicit scene representation through anisotropic Gaus-
+ localization for arbitrary text queries. Additionally, it adapts sians characterized by center position µ ∈ R 3, covariance
+ the 3 DGSintoa 2 Dsemanticmap for mattosupportexisting matrix Σ ∈ R 3×3, opacity o ∈ R, and color c ∈ SH
+
+ 
+ 
+ 
+ 
+ represented by spherical harmonics. Through differentiable semantic point cloud is voxelized and flattened along the Z-
+ rendering,3 DGSsyn the sizespixelcolorsviaalphablending: axistoforma 2 Dsemanticmap,enablingpathplanning and
+ navigation to target categories. 
+ N i−1 
+ (cid:88) (cid:89) 
+ C = c α (1−α ), (1) 
+ i i j 
+ C. Change Detection Unit 
+ i=1 j=1 
+ where i ≥ 2 and α depends on o and the projected 2 D Asmentionedin Sec.III-A,thismoduleisdesignedto:(1)
+ i i 
+ Gaussian’s contribution to the current pixel. detect and classify three types of scene changes; (2) localize
+ We refer [4] to extend 3 DGS for semantic fields. First, the target position p world in world coordinates.
+ construct the vanilla 3 DGS scene representation. Second, 1) 3 DGS-based Change Detection: The most intuitive
+ embedsemanticfeaturesbyleveraging SAM[20]togenerate method for detecting scene change is to analyze the discrep-
+ multi-level masks {Ml}3 and extract high-dimensional anciesbetween the real-worldimage and the 3 DGSrendered
+ l=1 
+ CLIP [21] features Fl = CLIP(I ⊙ Ml) ∈ RD. An image,although 3 DGSenablesphoto-realisticimagerender-
+ autoencoder is used to compresses these features into low- ing, there often exist pixel-wise errors with the real-world
+ dimensional semantic features Sl = Encoder(Fl) ∈ Rd observation,making the directcomputationofabsolutepixel
+ while preserving semantics through reconstruction regular- differencesbetween the twoimagesyieldsub-optimalresults.
+ ization Fˆl = Decoder(Sl). The low-dimensional semantic Therefore, following the practice of [19], we employ a
+ features are used to supervise the Gaussians’ semantic at- dual-branch strategy for scene change detection. As shown
+ tribute sl ∈Rd using view-consistent alpha blending: in Fig.2,given the the real-worldcameracapturedimage I real
+ and 3 DGS rendered image I from the current viewpoint,
+ N i−1 GS 
+ Sˆl = (cid:88) slα (cid:89) (1−α ). (2) wefirstcalculate the sumofabsolutepixeldifferencesacross
+ i i j all 3 channels between the two images, which is truncated
+ i=1 j=1 
+ via threshold τ to obtain the pixel-level binary mask:
+ GS 
+ Thus, we obtain the semantic-aware 3 DGS representation 
+ (cid:18) (cid:19) 
+ G = {g }N which enables explicit 3 D semantic repre- (cid:88)3 
+ i i=1 M = |I −I |>τ . (4) 
+ sentation while maintaining real-time rendering capabilities pixel chn=1 real,chn GS,chn GS
+ through the Gaussian representation. 
+ Next, we compute normalized Efficient SAM [22] feature
+ B. GS Multi-Task Executor maps I and I thatrobustlyrepresentsignificant
+ real,SAM GS,SAM 
+ regions, then calculate their cosine similarity truncated by
+ Below, we illustrate how the 3 DGS representation can be 
+ τ to obtain the feature-level binary mask:
+ applied to robotic tasks, including 3 D localization and ob- feat 
+ ject navigation, which are critical capabilities for numerous 
+ M =(⟨I ,I ⟩>τ ). (5) 
+ applications and serve to assess the geometric and semantic feat GS,SAM real,SAM feat
+ accuracy of 3 DGS scene representation. 
+ Finally, the combined binary mask can be obtained using
+ 1) Semantic Querying and Localization: For an arbitrary 
+ pixel-by-pixelmultiplicationof the dual-branchbinarymasks
+ textquery,therelevancescorer(ϕ ,ϕ )between the CLIP 
+ embeddingϕ and the semanticf q e r a y tur g e i ϕ =Decoder(sl) M comb =M pixel ⊙M feat . We hypo the size that when the total
+ qry gi i area of M 
+ comb 
+ exceeds the threshold τ 
+ change 
+ , a scene change
+ of each 3 D Gaussian is defined as: 
+ occurs, thereby triggering scene change prediction.
+ min exp(ϕ gi ·ϕ qry ) , (3) 2) Scene Change Prediction: We posit that all potential
+ (cid:16) (cid:17) 
+ j exp(ϕ ·ϕ )+exp ϕ ·ϕj change regions reside within M comp , where noise areas con-
+ gi qry gi canon 
+ stitute a small portion. Therefore, we first extract connected
+ where ϕj canon is the CLIP embedding of a predefined set components {R i }N i=1 from M comp , sorted in descending
+ of canonical phrases, including “object”, “things”, “stuff”, order by their area. Based on the distinct change types, we
+ and “texture”. The localization of the query is achieved by hypo the size that: (i) relocation operations are geometrically
+ calculating the bounding box of matched Gaussians {g | constrained to the first two largest connected components
+ i 
+ r(ϕ qry ,ϕ gi ) > τ sim }, where τ sim is a predefined threshold. (R 1 and R 2 ), while (ii) addition/removal operations mani-
+ Dueto the largenumberof 3 DGaussiansin the scene,sparse fest exclusively within the dominant connected components
+ samplingisappliedinpracticetoper for msemanticquerying. (R 1 ). We first formulate the following dual-region matching
+ 2) 2 D Semantic Mapping and Navigation: The 3 DGS criterion to identify relocation operation:
+ representation can beseamlesslyconvertedintoa 2 Dseman- 
+ min(A(R ),A(R )) 
+ tic map, ensuring compatibility with existing navigation and Γ match = max(A(R 1 ),A(R 2 )) >τ a (6)
+ pathplanningmethods.The 2 Dsemanticmapisrepresented 1 2 
+ (cid:124) (cid:123)(cid:122) (cid:125)
+ as a (L+2)×M×M matrix, where M×M represents the Areasimilarity 
+ map size, L is the number of semantic categories, and the ∧ ∥η(R )−η(R )∥ <τ ,
+ 1 2 2 d 
+ additionallayersrepresentobstacles and exploredarea.For L (cid:124) (cid:123)(cid:122) (cid:125)
+ Spatialdistance 
+ navigation-relevant categories, we assign each 3 D Gaussian 
+ the category with the highest relevance score. The resulting where A(·)denotesregionarea,η(·)forcentroidcoordinates.
+
+ 
+ 
+ 
+ 
+ Then, for the largest connected components R , we com- where π(·) is the projection function, the target Gaussians
+ 1 
+ pute its centroid p =(u ,v ), and sample depth from real- are selected based on the proportion ρ of its presence within
+ c c c 
+ world depth map D and 3 DGS rendered depth map D : the mask region: G ={g |V(g )>ρ·K}.
+ cam GS target i i 
+ (cid:40) The workflow of our pre-editing method is as follows:
+ d =D (p ) 
+ real real c (7) For addition: 
+ d =D (p ) 
+ GS GS c i. Generate object points P = {p } via depth map
+ add j 
+ The change type is determined through depth difference: {D real,k ⊙M comb,k }K k=1 .
+ ii. Pass new semantic feature s . 
+  manual 
+  Addition, ∆d<−ϵ iii. Find nearest neighbors and inherit attributes:
+ ∆d=d real −d GS ⇒Type= Removal, ∆d>ϵ (8) a) For each p j ∈P add : g n j n =argmin∥µ m −p j ∥ 2 ,
+ Unchanged, 
+ |∆d|≤ϵ gm∈G 
+ b) Extract covariance matrix Σj , opacity oj and color
+ nn nn 
+ To obtain p world , here we construct a pseudo depth map cj nn from g n j n .
+ D (u,v) = min(D (u,v),D (u,v)), then generate 
+ pseudo real GS iv. Create new Gaussians G and insert to G:
+ camera-coordinate key point p ∈R 3 based on event type: add 
+  cam Addition/ G add = (cid:8) g i (cid:12) (cid:12)(p j ,Σj nn ,oj nn ,cj nn ,s manual ) (cid:9) . (12)
+  [u 
+ c 
+ ,v 
+ c 
+ ,D 
+ pseudo 
+ (u 
+ c 
+ ,v 
+ c 
+ )]⊤, 
+ Removal For removal: 
+ p cam =  1 2 
+ + 
+ (cid:0) 
+ [ 
+ [ 
+ c 
+ c 
+ ( 
+ ( 
+ R 
+ R 1 
+ ) 
+ ) 
+ ; 
+ ; 
+ D 
+ D pseudo 
+ ( 
+ ( 
+ c 
+ c 
+ ( 
+ ( 
+ R 
+ R 1 
+ ) 
+ ) 
+ ) 
+ ) 
+ ] 
+ ] 
+ (cid:1)⊤ 
+ , Relocation (9) i i i . . D 
+ m 
+ G e e 
+ a 
+ l n 
+ p 
+ e e t 
+ { 
+ r e a 
+ D 
+ t G e ta h rg o et le 
+ ⊙ 
+ fr i o n 
+ M 
+ m pa G in . tin 
+ } 
+ g 
+ K 
+ poi 
+ . 
+ nts P 
+ fill 
+ = {p 
+ j 
+ } via depth 
+ 2 pseudo 2 real,k comb,k k=1 
+ iii. Find nearest neighbors and inherit attributes:
+ Then, p can be calculated using camera-to-world 
+ trans for mat w io or n ld matrix Tworld: a) For each p j ∈P fill : g n j n =argmin∥µ m −p j ∥ 2 ,
+ cam 
+ (cid:20) p (cid:21) b) Extract covariance matrix Σ g j m , ∈ o G pacity oj , color cj
+ p =Tworld· cam . (10) nn nn nn 
+ world cam 1 and semantic sj from gj . 
+ nn nn 
+ D. Active Scene Updater iv. Create new Gaussians G add and insert into G:
+ 1) Active Data Collection: Wedesignarule-basedheuris- G 
+ add 
+ = (cid:8) g 
+ i 
+ (cid:12) (cid:12)(p 
+ j 
+ ,Σj 
+ nn 
+ ,oj 
+ nn 
+ ,cj 
+ nn 
+ ,sj 
+ nn 
+ ) (cid:9) . (13)
+ ticpolicytoenable the robottoautonomouslycaptureimages 
+ For relocation: 
+ of scene change regions. The core of this policy involves 
+ i. Obtain G and extract colors and semantics C,S =
+ positioningtherobottoface the targetregion,with the region target 
+ {c ,s |g ∈G }. 
+ as the circle’s center, and moving left or right along the j j j target 
+ ii. Delete G and generate target points P via depth
+ tangential direction. The robot first adjusts its distance from target dest 
+ map {D ⊙M }K at destination. 
+ thetargetregiontoensureasuccessfultangentialmovement. real,k comb,k k=1 
+ After each movement, the robot reorients its viewpoint iii. For each p j ∈P dest , g n j n =argmin∥µ m −p j ∥ 2 , create
+ toward the target and readjustsitsdistancetocaptureimages. new Gaussians G and inse g rt m i ∈ n G to G:
+ add 
+ Following this policy, the robot first moves K/2 steps to the 
+ left, then K steps to the right, collecting images {I real,i }K i=1 , G add = (cid:8) g i (cid:12) (cid:12)(p i ,Σj nn ,oj nn ,c nn ∼C,s nn ∼S) (cid:9) . (14)
+ depth maps {D }K and camera poses {T }K from K 
+ real,i i=1 i i=1 iv. Hole inpainting to source region as aforementioned.
+ viewpoints of the scene change region during the process. 
+ Finally, we perform post-training to further fine-tune the
+ Next,therobotobtainscombinedmasks{M }K using 
+ comb,k k=1 Gaussians and refine the reconstruct quality.
+ the method in Sec. IV-C.2. 
+ 2) Gaussian Editing based Scene Update: We adopt a V. EXPERIMENTS 
+ pre-editing and fine-tuning strategy to achieve scene update. 
+ Thissectiondetailsacomprehensiveevaluationof GS-LTS
+ Distinct pre-editing protocols are implemented for different 
+ across simulation and real-world settings.
+ scene change types: (i) For Addition, we directly instanti- 
+ ate new Gaussians in target region; (ii) For Removal, we A. Scene Change Adaptation Benchmark
+ first localize target objects and then prune the associated 1) Settings: To assess the robot’s ability to adapt to
+ Gaussians followed by scene inpainting to fix the hole; scene changes in dynamic environments, we present a novel
+ (iii) For Relocation, we execute a delete-then-add strategy Scene Change Adaptation Benchmark constructed on the
+ that removes the associated Gaussians and then instantiate AI 2-THOR simulation platform [23]. AI 2-THOR offers a
+ new Gaussians in target region. To identify the associated comprehensive suite of APIs such as Initial Random Spawn,
+ Gaussians, we refer to [11] for defining a voting function V Disable Object, and Place Object At Point that facilitate direct
+ that localizes target Gaussians within {M comb,k }K k=1 , manipulation of scene objects, which we exploit to design
+ three distinct types of scene update tasks: relocation, ad-
+ K 
+ V(g )= (cid:88) I(cid:2) π(T µ )∈{M }K (cid:3) , (11) dition, and removal of objects. The benchmark is gener-
+ i k i comb,k k=1 
+ ated by automatically traversing combinations of editable
+ k=1 
+
+ 
+ 
+ 
+ 
+ TABLEI 
+ SCENEUPDATEQUALITYEVALUATEDBYIMAGERENDERINGMETRICS(250 FINE-TUNINGITERATIONS).
+ addition relocation removal overall 
+ Method View 
+ SSIM↑ PSNR↑ LPIPS↓ SSIM↑ PSNR↑ LPIPS↓ SSIM↑ PSNR↑ LPIPS↓ SSIM↑ PSNR↑ LPIPS↓
+ near 0.87 24.74 0.24 0.89 25.94 0.22 0.91 29.79 0.20 0.89 27.20 0.22 
+ Baseline 
+ far 0.88 25.52 0.20 0.89 26.23 0.19 0.91 28.64 0.17 0.89 27.04 0.19 
+ near 0.88 26.60 0.22 0.91 28.58 0.19 0.93 32.08 0.17 0.91 29.40 0.19 
+ GS-LTS 
+ far 0.89 26.93 0.18 0.90 28.04 0.17 0.92 30.55 0.15 0.90 28.74 0.16 
+    
+    
+    
+    
+    
+    
+                      
+  , W H U D W L R Q 
+  5 1 6 3 
+  1 H D U  ) D U 
+    
+    
+    
+    
+    
+  % D V H O L Q H  % D V H O L Q H 
+  * 6  / 7 6     * 6  / 7 6 
+                      
+  , W H U D W L R Q 
+ Fig.3. Impactoffine-tuningiterationsonsceneupdatequality. 
+ objects, containers, and placement positions, which enables 
+ GT Baseline 100 Iter GS-LTS 100 Iter Baseline 250 Iter GS-LTS 250 Iter
+ the sampling of an extensive range of scene changes. Each 
+ scene change task is recorded via a configuration script 
+ containing environment meta data (e.g., initial viewpoint) 
+ and a sequential action list specifying the operations to 
+ trans for mobjects from theirdefaultstateto the updatedstate. 
+ Additionally,each task involves 20 testviewpointscapturing 
+ the scene change region (10 near-range and 10 far-range). 
+ As changed objects typically occupy a small fraction of the 
+ field of view, we generate test images by exp and ing ground- 
+ truth change bounding boxes by 50 pixels in all directions. 
+ Scene update quality is then assessed using PSNR, SSIM, 
+ and LPIPS metrics. 
+ For evaluation, the robot is initialized at the starting pose 
+ of each scene change task. The Change Detection Unit is 
+ first executed to generate predictions, after which we assess 
+ whetherthepredictedscenechangetypematches the ground- 
+ truth type and whether the prediction error of the scene 
+ change region is within 1 meter. For tasks with accurate 
+ predictions,active data collection and Gaussianediting-based 
+ scene update are per for med. During scene representation 
+ updates, GS-LTS first employs pre-editing method, followed 
+ by fine-tuning of 3 DGS to refine object geometry and visual 
+ details. In contrast, the baseline method directly fine-tunes 
+ 3 DGS using multi-view data collected by GS-LTS. 
+ In this experiment, we sample 459 scene change tasks, 
+ achieving a 74.5% accuracy in predicting change type and 
+ target region with GS-LTS. Scene updates are tested on 342 
+ tasks,withresultsafter 250 fine-tuningiterationsreportedin 
+ Table I. Experimental results demonstrate that our method 
+ achieves superior per for mance for both type of viewpoints, 
+ outper for ming the baseline across all metrics. 
+ Additionally,asshownin Fig.3,weevaluatevariousfine- 
+ tuning iterations and statistically analyze the overall PSNR 
+ metrics for both type of viewpoints. The results demon- 
+ strate that ourapproachconsistentlyoutperforms the baseline 
+ across all settings. Notably, GS-LTS achieves superior scene 
+ update quality with fewer fine-tuning iterations, highlighting 
+ noitidd A 
+ noitacole R 
+ lavome R 
+ Fig.4. Renderingresultsafterdifferentfine-tuningiterations.
+ TABLEII 
+ 3 DLOCALIZATIONRESULTS(BOTTOMPART FOR ABLATIONSTUDY).
+ Feature Source m Io U Acc(Io U>0.5) Acc(Io U>0.3)
+ CLIP 40.6 42.9 52.1 
+ GT 60.9 73.6 81.8 
+ CLIP(300×300 res) 24.6 29.0 30.7 
+ CLIP(8 dim) 32.2 35.7 43.3 
+ CLIP(60%data) 36.6 41.1 46.1 
+ its ability to deliver efficient, low-cost scene updates. Fig. 4
+ presents the quantitative results of GS-LTS, showcasing one
+ representative case from each of three scene changes. The
+ rendering results more intuitively demonstrate that GS-LTS
+ achieves superior and faster scene update capabilities, while
+ the baseline method requires signifi can tly more iterations to
+ obtain comparable outcomes. 
+ B. Multi-Task Experiment 
+ To assess the geometry and semantic fidelity of GS-LTS,
+ we conduct experiments on 3 D localization and object nav-
+ igation. We evaluate two 3 DGS representations embedding
+ ground-truth semantics and CLIP semantics, denoted as GS-
+ LTS (GT) and GS-LTS (CLIP), respectively.
+ 1) 3 D Localization: For the 3 D localization task, se-
+ mantic quality is quantitatively assessed by calculating the
+ Intersection over Union (Io U) of the 3 D bounding boxes.
+ A 3 D bounding box is deemed accurately localized if its
+ Io U with the ground-truth bounding box exceeds a pre-
+ defined threshold. Based on this criterion, we compute
+ the Acc (Io U>threshold) metric to evaluate localization
+ accuracy. We evaluate localization per for mance across 12
+ differentobjectcategories,including Alarm Clock,Arm Chair,
+ Bed, Bread, Chair, Coffee Machine, Desk Lamp, Dining Table,
+ Dresser, Dumbbell, Remote Control and Sofa.
+ Asshownin the toppartof Table II,GS-LTS(GT)signif-
+ icantly outperforms GS-LTS (CLIP) in terms of both m Io U
+
+ 
+ 
+ 
+ 
+ Bread Laptop Alarm Clock 
+ 
+ Robot 
+ View 
+ Fig. 5. 3 D Localization Examples. Red bounding boxes indicate the 
+ results from GS-LTS(GT),whilegreenones from GS-LTS(CLIP). 
+ TABLEIII 
+ OBJECTNAVIGATIONRESULTSACROSSTHREEROOMTYPES. 
+ kitchen livingroom bedroom overall 
+ Method 
+ SPL SR SPL SR SPL SR SPL SR 
+ SAVN[6] 17.8 43.6 7.7 21.6 8.7 29.2 11.4 31.5 
+ GVE[24] 17.9 45.6 9.4 25.2 8.1 27.6 11.8 32.8 
+ HZG[25] 48.7 74.6 41.5 60.7 32.2 59.1 40.8 64.8 
+ GS-LTS(CLIP) 45.7 59.0 40.0 52.2 41.5 54.6 42.2 55.3 
+ GS-LTS(GT) 64.0 86.4 68.4 90.3 44.8 56.4 59.1 77.7 
+ Fig. 6. Object Navigation Examples. The mid row displays semantic
+ and accuracy metrics, highlighting the critical importance maps and navigationtrajectoriesgeneratedby GS-LTS(CLIP),thebottom
+ rowillustrates the correspondingoutputsof GS-LTS(GT).
+ of precise semantic cues. Fig. 5 presents qualitative results 
+ for the 3 D localization task. The 3 D bounding boxes gener- Step 1: Change Detection Step 3: 3 DGS Update
+ 3 DGS Rendered Image Current Observation Old GS
+ ated by GS-LTS (GT) generally exhibit a closer alignment 
+ with the objects compared to those generated by GS-LTS Change 
+ Detection 
+ (CLIP). These precise bounding boxes further highlight the 
+ advantages and potential of employing 3 DGS as a scene 
+ representation. 
+ 2) Object Navigation: For the object navigation task, we Change Detection Unit
+ update 
+ adopt the experimental protocol proposed by SAVN [6], 
+ with a modification to limit the evaluation to three scene 
+ types: kitchens, living rooms, and bedrooms. Bathrooms are 
+ excludeddueto the irconstrainedspatial scale and simplistic 
+ layouts.Per for manceisassessedusing the Successweighted 
+ by Path Length (SPL) and Success Rate (SR). Step 2: Active Data Collection 
+ We comp are GS-LTS with classical methods. Notably, New GS 
+ these classical methods trained on the AI 2 THOR involve Fig.7. Realrobotper for mingscenechangeadaptation.
+ exploration and navigation within a single episode. In con- 
+ an average of 670 images to 60% of the data lowers m Io U
+ trast, GS-LTS leverages prebuilt 3 DGS representations and 
+ by 4.0%. Notably, CLIP features computed from SAM-
+ performs training-free navigation directly from a 2 D seman- 
+ segmented masks rely heavily on high-resolution images for
+ tic map, employing a deterministic policy (Fast Marching 
+ small object recognition. While smaller data volume affect
+ Method). This experimental setup is designed to validate the 
+ fine details, the impact is minimal for objects visible from
+ feasibility of 3 DGS-based robotic navigation using existing 
+ multiple viewpoints, such that overall per for mance decline
+ benchmark. As shown in Table III, GS-LTS (GT) outper- 
+ remains limited. 
+ forms other approaches across most metrics, while GS-LTS 
+ (CLIP) also demonstrates competitive per for mance, particu- 
+ D. Application in Real-world Robot System
+ larly on the SPL metric. Semantic maps and trajectories for 
+ three example navigation tasks are illustrated in Fig. 6. Todemonstrate the real-worldapplicabilityof the GS-LTS
+ system, we conducted experiments with a real robot. We
+ C. Ablation Study 
+ utilize a Microsoft Azure Kinect DK camera to scan a pre-
+ To examine the effect of initial training data on 3 DGS arrangedroom,capturing data totraina 3 DGSrepresentation
+ representations, we perform an ablation study on the 3 D of the scene. Unlike simulation environments, where precise
+ localization task, with results reported in the bottom part robot poses can be obtained directly from an environment
+ of Table II. We analyze how reduced image resolution, API, such information is unavailable in real-world settings.
+ feature dimension and data volume affect GS-LTS (CLIP) To address this, we augment the GS-LTS system with a
+ per for mance. Experiments reveal that lowering resolution relocalizationmoduletailored for real-worldoperation.Here,
+ from 1,000×1,000 to 300×300 decreases m Io U by 16.0% we first obtain a coarse pose estimation through ORB visual
+ andsignifi can tlyreducesaccuracy.Decreasing the featuredi- featurematching,thenemployi Com Ma[26]toper for mpose
+ mension from 32 to 8 resultsinaper for mancedropofm Io U refinement to obtain an optimized precise pose estimation.
+ from 40.6%to 32.2%,indicating that lower-dimensionalrep- To assess the robot’s ability to adapt to scene changes,
+ resentationsdegradethequalityof the learnedlatentspace,as we reposition three stacked colored storage bins within the
+ convergenceofautoencodersbecomesmorechallenging with room. As the robot approaches the vicinity of the bins,
+ 8-dimensional features. Reducing the training dataset from the Change Detection Unit identifies discrepancies in the
+
+ 
+ 
+ 
+ 
+ current scene. It then actively collects multi-view images to [4] M. Qin, W. Li, J. Zhou, H. Wang, and H. Pfister, “Langsplat: 3 d
+ update 3 DGS. Fig. 7 illustrates the changes in the 3 DGS languagegaussiansplatting,”in CVPR,2024,pp.20051–20060.
+ [5] S. Zhu, G. Wang, D. Kong, and H. Wang, “3 d gaussian splatting in
+ representation and rendered images before and after the 
+ robotics:Asurvey,”ar Xivpreprintar Xiv:2410.12262,2024.
+ adaptation. These results validate that the GS-LTS system [6] M.Wortsman,K.Ehsani,M.Rastegari,A.Farhadi,and R.Mottaghi,
+ caneffectivelyoperateinreal-worldenvironments and adapt “Learningtolearnhowtolearn:Self-adaptivevisualnavigationusing
+ meta-learning,”in CVPR,2019,pp.6750–6759.
+ todynamicscenechanges.Foradetailedexperimentalvideo, 
+ [7] D. S. Chaplot, D. P. Gandhi, A. Gupta, and R. R. Salakhutdinov,
+ please refer to our website. “Objectgoalnavigationusinggoal-orientedsemanticexploration,”in
+ Neur IPS,2020,pp.4247–4258. 
+ VI. DISCUSSION [8] X.Chen,A.Milioto,E.Palazzolo,P.Giguere,J.Behley,and C.Stach-
+ niss, “Suma++: Efficient lidar-based semantic slam,” in IROS, 2019,
+ A. Resource Overhead pp.4530–4537. 
+ [9] B.Mildenhall,P.P.Srinivasan,M.Tancik,J.T.Barron,R.Ramamoor-
+ Theentiresystemoperatesefficientlyonasingle NVIDIA 
+ thi, and R. Ng, “Nerf: Representing scenes as neural radiance fields
+ Ge Force RTX 4090 GPU. The GS-LTS system completes forviewsyn the sis,”Communicationsof the ACM,vol.65,no.1,pp.
+ vanilla 3 DGS reconstruction in ∼15 minutes, with subse- 99–106,2021. 
+ [10] R.Jin,Y.Gao,Y.Wang,Y.Wu,H.Lu,C.Xu,and F.Gao,“Gs-planner:
+ quent 32 dimensional Gaussian semantic learning requiring 
+ Agaussian-splatting-basedplanningframework for activehigh-fidelity
+ ∼1 hour. Our experiments show 250 training iterations reconstruction,”in IROS. IEEE,2024,pp.11202–11209.
+ achieve superior scene updates (0.91 SSIM / 29.07 PSNR) [11] Y. Chen, Z. Chen, C. Zhang, F. Wang, X. Yang, Y. Wang, Z. Cai,
+ L.Yang,H.Liu,and G.Lin,“Gaussianeditor:Swift and controllable
+ versus 1,000-iteration baselines, with ≤10 s training. 
+ 3 dediting with gaussiansplatting,”in CVPR,2024,pp.21476–21485.
+ [12] L. Kunze, N. Hawes, T. Duckett, M. Hanheide, and T. Krajn´ık,
+ B. Limitation and Future Work 
+ “Artificialintelligence for long-termrobotautonomy:Asurvey,”RAL,
+ vol.3,no.4,pp.4023–4030,2018. 
+ The GS-LTS system advances adaptive modeling for 
+ [13] C.P.Jones,“Slocumgliderpersistentoceanography,”in AUV. IEEE,
+ 3 DGS-based robotic systems in long-term dynamic envi- 2012,pp.1–6. 
+ ronments, yet several challenges remain before achieving [14] N. Hawes, C. Burbridge, F. Jovan, L. Kunze, B. Lacerda, L. Mu-
+ drova, J. Young, J. Wyatt, D. Hebesberger, T. Kortner, et al., “The
+ widespread real-world deployment. Below, we discuss key 
+ str and sproject:Long-termautonomyineverydayenvironments,”IEEE
+ limitations and promising directions for improvement. Robotics&Automation Magazine,vol.24,no.3,pp.146–156,2017.
+ First, efficient large-scale representation is a challenge for [15] M.Hanheide,D.Hebesberger,and T.Krajn´ık,“Thewhen,where,and
+ how: An adaptive robotic info-terminal for care home residents,” in
+ vanilla 3 DGS, which struggles with expansive scenes like 
+ HRI,2017,pp.341–349. 
+ factories, requiring more storage-efficient solutions. [16] P.F.Alcantarilla,S.Stent,G.Ros,R.Arroyo,and R.Gherardi,“Street-
+ Second, robot control could be improved with learning- view change detection with deconvolutional networks,” Autonomous
+ Robots,vol.42,pp.1301–1322,2018. 
+ based policies to enhance adaptability in complex scenarios. 
+ [17] E. Palazzolo and C. Stachniss, “Fast image-based geometric change
+ Finally, highly dynamic environments present an addi- detectiongivena 3 dmodel,”in ICRA. IEEE,2018,pp.6308–6315.
+ tional challenge. GS-LTS focuses on medium-term changes, [18] J.Wald,A.Avetisyan,N.Navab,F.Tombari,and M.Nießner,“Rio:
+ 3 d object instance re-localization in changing indoor environments,”
+ not real-time dynamics like moving objects or human in- 
+ in ICCV,2019,pp.7658–7667. 
+ teractions. Future 3 DGS-based dynamic reconstruction will [19] Z. Lu, J. Ye, and J. Leonard, “3 dgs-cd: 3 d gaussian splatting-based
+ enhance support for tasks like cooking or household assis- change detection for physical object rearrangement,” IEEE Robotics
+ and Automation Letters,2025. 
+ tance, improving more realistic long-term autonomy. 
+ [20] A. Kirillov, E. Mintun, N. Ravi, H. Mao, C. Roll and, L. Gustafson,
+ T. Xiao, S. Whitehead, A. C. Berg, W.-Y. Lo, et al., “Segment
+ VII. CONCLUSIONS 
+ anything,”in ICCV,2023,pp.4015–4026. 
+ In this work, we introduce GS-LTS, a 3 DGS-based sys- [21] A.Radford,J.W.Kim,C.Hallacy,A.Ramesh,G.Goh,S.Agarwal,
+ G.Sastry,A.Askell,P.Mishkin,J.Clark,etal.,“Learningtransferable
+ tem designed for long-term service robots operating in 
+ visualmodels from naturallanguagesupervision,”in ICML. Pm LR,
+ dynamic environments. By integrating object-level change 2021,pp.8748–8763. 
+ detection, multi-view observation, and efficient Gaussian [22] Y.Xiong,B.Varadarajan,L.Wu,X.Xiang,F.Xiao,C.Zhu,X.Dai,
+ D.Wang,F.Sun,F.Iandola,etal.,“Efficientsam:Leveragedmasked
+ editing-basedsceneupdates,GS-LTSenablesrobotstoadapt 
+ imagepretraining for efficientsegmentanything,”in CVPR,2024,pp.
+ to scene variations over time. Additionally, we propose a 16111–16121. 
+ scalable simulation benchmark for evaluating object-level [23] E. Kolve, R. Mottaghi, W. Han, E. Vander Bilt, L. Weihs, A. Her-
+ rasti, D. Gordon, Y. Zhu, A. Gupta, and A. Farhadi, “AI 2-THOR:
+ scenechanges,facilitatingsystematicassessment and sim-to- 
+ An Interactive 3 D Environment for Visual AI,” ar Xiv preprint
+ real transfer. Experimental results demonstrate that GS-LTS ar Xiv:1712.05474,2017.
+ achieves faster and higher-quality scene updates, advancing [24] M. K. Moghaddam, Q. Wu, E. Abbasnejad, and J. Shi, “Optimistic
+ agent: Accurate graph-based value estimation for more successful
+ the applicability of 3 DGS for long-term robotic operations. 
+ visualnavigation,”in WACV,2021,pp.3733–3742.
+ [25] Y. He and K. Zhou, “Relation-wise trans for mer network and re-
+ REFERENCES inforcement learning for visual navigation,” Neural Computing and
+ Applications,vol.36,no.21,pp.13205–13221,2024.
+ [1] B.Kerbl,G.Kopanas,T.Leimku¨hler,and G.Drettakis,“3 dgaussian 
+ [26] Y.Sun,X.Wang,Y.Zhang,J.Zhang,C.Jiang,Y.Guo,and F.Wang,
+ splatting for real-timeradiancefieldrendering.”ACMTrans.Graph., 
+ “icomma:Inverting 3 dgaussiansplatting for cameraposeestimation
+ vol.42,no.4,pp.139–1,2023. viacomparing and matching,”ar Xivpreprintar Xiv:2312.09031,2023.
+ [2] N. Keetha, J. Karhade, K. M. Jatavallabhula, G. Yang, S. Scherer, 
+ D.Ramanan,and J.Luiten,“Splatam:Splattrack&map 3 dgaussians 
+ fordensergb-dslam,”in CVPR,2024,pp.21357–21366. 
+ [3] K. Wu, K. Zhang, Z. Zhang, M. Tie, S. Yuan, J. Zhao, Z. Gan, and 
+ W.Ding,“Hgs-mapping:Onlinedensemappingusinghybridgaussian 
+ representationinurbanscenes,”RAL,2024. 

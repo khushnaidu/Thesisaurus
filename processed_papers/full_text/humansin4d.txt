@@ -1,0 +1,1426 @@
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Humans in 4 D: Reconstructing and Tracking Humans with Trans for mers 
+ 
+ 
+ Shubham Goel Georgios Pavlakos Jathushan Rajasegaran Angjoo Kanazawa Jitendra Malik
+ ∗ ∗ 
+ shubham-goel, pavlakos, jathushan, kanazawa @berkeley.edu, malik@eecs.berkeley.edu
+ { } 
+ Universityof Cali for nia,Berkeley 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Figure 1: A “trans for merized” view of Human Mesh Recovery. We describe HMR 2.0, a fully trans for mer-based approach for 3 D
+ humanpose and shapereconstruction from asingleimage.Besidesimpressiveper for manceacrossawidevarietyofposes and viewpoints,
+ HMR 2.0 alsoactsas the backboneofanimprovedsystem for jointlyreconstructing and tracking Humansin 4 D(4 DHumans). Here,we
+ seeoutputreconstructions from HMR 2.0 foreach 2 Ddetectionin the leftimage. 
+ 
+ Abstract 1.Introduction 
+ 
+ In this paper, we present a fully trans for mer-based ap-
+ Wepresentanapproachtoreconstructhumans and track proach for recovering 3 Dmeshesofhumanbodies from sin-
+ them over time. At the core of our approach, we propose gleimages,andtracking the movertimeinvideo.Weobtain
+ a fully “trans for merized” version of a network for human unprecedentedaccuracyin our single-image 3 Dreconstruc-
+ meshrecovery. Thisnetwork,HMR 2.0,advances the state tions(see Figure 1)even for unusualposeswhereprevious
+ oftheart and shows the capabilitytoanalyzeunusualposes approachesstruggle.Invideo,welink the sereconstructions
+ that have in the past been difficult to reconstruct from sin- overtimeby 3 Dtracking,intheprocessbridginggapsdue
+ gle images. To analyze video, we use 3 D reconstructions toocclusionordetectionfailures.These 4 Dreconstructions
+ from HMR 2.0 as input to a tracking system that operates can beseenon the projectwebpage.
+ in 3 D. This enables us to deal with multiple people and Ourproblem for mulation and approach can beconceived
+ maintainidentitiesthroughocclusionevents. Ourcomplete as the “trans for merization” of previous work on human
+ approach, 4 DHumans, achieves state-of-the-art results for mesh recovery, HMR [30] and 3 D tracking, PHALP [65].
+ tracking people from monocular video. Fur the rmore, we Since the pioneering Vi Tpaper[15],theprocessof“trans-
+ demonstrate the effectiveness of HMR 2.0 on the down- formerization”, i.e., converting models from CNNs or
+ stream task ofactionrecognition,achievingsignifi can tim- LSTMs to trans for mer backbones, has advanced rapidly
+ provements over previous pose-based action recognition across multiple computer vision tasks, e.g., [8, 16, 24, 40,
+ approaches. Our code and models are available on the 61,77]. Specifically for 2 Dpose(2 Dbodykeypoints)this
+ project website: https://shubham-goel.github. has already been done by Vi TPose [81]. We take that as a
+ io/4 dhumans/. startingpoint and wedevelopa new versionof HMR,which
+ wecall HMR 2.0 toacknowledgeitsantecedent. 
+ 3202 
+ gu A 
+ 13 
+ ]VC.sc[ 
+ 3 v 19002.5032:vi Xra 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ We use HMR 2.0 to build a system that can simultane- many improvements have been proposed for the original
+ ously reconstruct and track humans from videos. We rely method. Notably, many works have proposed alternative
+ on the recent 3 D tracking system, PHALP [65], which we methods for pseudo-groundtruthgeneration, includingus-
+ simplify and improveusing our poserecovery. Thissystem ingtemporalin for mation[3],multipleviews[39],oritera-
+ canreconstruct Humansin 4 D,whichgives the nameto our tive optimization [35, 29, 57]. SPIN [35] proposed an in-
+ method, 4 DHumans. 4 DHumans can be deployed on any the-loopoptimization that incorporated SMPLify[7]inthe
+ video and can jointlytrack and reconstructpeopleinvideo. HMR training. Here, we also rely on pseudo-ground truth
+ Thefunctionalityofcreatingatrackingentity for everyper- fits for training,andwe use[37]for the offlinefitting.
+ son is fundamental towards analyzing and underst and ing Morerecently,there have beenworks that proposemore
+ humansinvideo. Besidesachievingstate-of-the-artresults specializeddesigns for the HMRarchitecture. Py MAF[89,
+ for tracking on the Pose Track dataset [1], we also apply 88] incorporates a mesh alignment module for the regres-
+ HMR 2.0 onthedownstreamapplicationofactionrecogni- sion of the SMPL parameters. PARE [34] proposes a
+ tion. Wefollow the systemdesignofrecentwork,[63],and body-part-guidedattentionmechanism for betterocclusion
+ we show that the use of HMR 2.0 can achieve impressive handling. HKMR [20] performs a prediction that is in-
+ improvements upon the state of the art on action recogni- formedby the knownhierarchicalstructureof SMPL.Holo-
+ tionon the AVAv 2.2 dataset. Pose [23] proposes a pooling strategy that follows the 2 D
+ This paper is unabashedly a systems paper. We make locations of each body joints. Instead, we follow a design
+ design choices that lead to the best systems for 3 D human withoutanydomain-specificdecisions and weshowthatit
+ reconstruction and trackingin the wild. Our model ispub- outper for msallpreviousapproaches.
+ liclyavailableon the projectwebpage. Thereisanemerg- 
+ Many related approaches are making non-parametric
+ ing trend, in computer vision as in natural language pro- 
+ predictions, i.e., instead of estimating the parameters of
+ cessing, of large pretrained models which find widespread 
+ the SMPL model,theyexplicitlyregress the verticesof the
+ downstream applications and thus justify the scaling ef- 
+ mesh. Graph CMR[36]usesagraphneuralnetwork for the
+ fort. HMR 2.0 is such a large pre-trained model which 
+ prediction,METRO[42]and Fast METRO[10]useatrans-
+ couldpotentiallybeusefulnotjustincomputervision,but 
+ former, while Mesh Graphormer [43] adopts a hybrid be-
+ also in robotics [54, 62, 73], computer graphics [76], bio- 
+ tween the two. Since we regress the SMPL model param-
+ mechanics [60], and other fields where analysis of the hu- 
+ eters, instead of the locations of mesh vertices, we are not
+ man figure and its movement from images or videos is 
+ directly comparable to these. However, we show how we
+ needed. 
+ canuseafully“trans for merized”design for HMR.
+ Ourcontributions can besummarizedasfollows: 
+ Human Mesh & Motion Recovery from Video. To ex-
+ 1. Weproposeanend-to-end“trans for merized”architec- tend Human Mesh Recovery over time, most methods use
+ ture for humanmeshrecovery,HMR 2.0. Withoutre- the basic backbone of HMR [30] and propose designs for
+ lying on domain-specific designs, we outperform ex- the temporal encoder that fuses the per-frame features.
+ istingapproaches for 3 Dbodyposereconstruction. HMMR [31] uses a convolutional encoder on features ex-
+ tracted from HMR [30]. VIBE [33], MEVA [48] and
+ 2. Buildingon HMR 2.0,wedesign 4 DHumans that can TCMR [11] use a recurrent temporal encoder. DSD [71]
+ jointlyreconstruct and trackhumansinvideo,achiev- combines convolutional and self-attention layers, while
+ ingstate-of-the-artresults for tracking. MAED[75]andt-HMMR[57]employatrans for mer-based
+ temporal encoder. Baradel et al. [5, 4] also used a trans-
+ 3. Weshow that better 3 Dposes from HMR 2.0 resultin 
+ former for temporal pose prediction, while operating di-
+ better per for mance on the downstream task of action 
+ rectly on SMPL poses. One key limitation of these ap-
+ recognition, finally contributing to the state-of-the-art 
+ proachesis that the yoftenoperateinscenarioswheretrack-
+ result(42.3 m AP)onthe AVAbenchmark. 
+ ing is simple [31, 90], e.g., videos with a single person
+ or minimal occlusions. In contrast to that, our complete
+ 2.Related Work 
+ 4 DHumansapproachisalsosolving the trackingproblem.
+ Human Mesh Recoveryfroma Single Image. Although, Tracking People in Video. Recently, there have been ap-
+ there have been many approaches that estimate 3 D human proaches that demonstrate state-of-the-art per for mance for
+ pose and shaperelyingoniterativeoptimization,e.g.,SM- trackingbyrelyingon 3 Dhumanreconstruction from HMR
+ PLify [7] and variants [22, 38, 56, 66, 72, 85], for this models, i.e., T 3 DP [64] and PHALP [65]. In these meth-
+ analysis we will focus on approaches that directly regress ods, every person detection is lifted to 3 D using an HMR
+ the body shape from a single image input. In this case, network [57] and then tracking is per for med using the 3 D
+ the canonical example is HMR [30], which uses a CNN representations from lifting[64]andprediction[65]totrack
+ to regress SMPL [45] parameters. Since its introduction, peopleinvideo. Empiricalresultsshow that PHALPworks
+
+ HMR 2.0 Humans 4 D 
+ Frame t Frame t+1 
+ Patchify 
+ Vision Trans for mer 
+ HMR 2.0 HMR 2.0 
+ Input Image 
+ Pose 
+ SMPL Trans for mer 
+ MLP Shape 
+ Query w/ Cross Attn 
+ Token Camera 
+ Associate using 
+ HMR 2.0 
+ 
+ 
+ 
+ Pose 
+ SMPL Trans for mer 
+ Query w/ Cross Attn MLP Shape 
+ Token 
+ Camera 
+ 
+ 
+ 
+ 
+ 
+ 
+ SMPL 
+ Query 
+ Token 
+ 
+ Vi T 
+ Multi-head 
+ MLP 
+ Cross Attention 
+ Pose 
+ Shape 
+ Camera 
+ remrofsnar T 
+ noisi V 
+ Tracking 
+ Frame t Frame t+1 
+ HMR 2.0 HMR 2.0 
+ Input Image 
+ Associate using pose, location, appearance
+ Figure 2:Overviewof our approach.Left:HMR 2.0 isafully“trans for merized”versionofanetwork for Human Mesh Recovery.Right:
+ we use HMR 2.0 asthebackboneof our 4 DHumanssystem,thatbuildson PHALP[65],tojointlyreconstruct and trackhumansin 4 D.
+ very well on multiple tracking benchmarks (the main re- space (e.g., joints X) can be projected to the image as
+ quirementis that the images have enoughspatialresolution x=π(X)=Π(K(RX+t)),whereΠisaperspectivepro-
+ to permit lifting of the people to 3 D). We use these track- jection with cameraintrinsics K.Sinceθalreadyincludesa
+ ingpipelines,andparticularly PHALP,asa task toevaluate globalorientation,inpracticeweassume Rasidentity and
+ methods for humanmeshrecovery. onlypredictcameratranslationt. 
+ Action Recognition. Action recognition is typically per- HMR.Thegoalof the humanmeshreconstruction(HMR)
+ formed using appearance features from raw video input. task is to learn a predictor f(I) that given a single im-
+ Canonicalexamplesin this categoryinclude Slow Fast[18] age I, reconstructs the person in the image by predicting
+ and MVi T[16]. Simultaneously, there are approaches that their 3 D pose and shape parameters. Following the typi-
+ usefeaturesextracted from bodyposein for mation,e.g.,Po- cal parametric approaches [30, 35], we model f to predict
+ Tion[12]and JMRN[68]. Arecentapproach,LART[63], Θ = [θ,β,π] = f(I) where θ and β are the SMPL pose
+ demonstratesstate-of-the-artperformance for actionrecog- andshapeparametersandπisthecameratranslation.
+ nitionbyfusingvideo-basedfeatures with features from 3 D 
+ humanposeestimates. we use the pipelineof this approach 3.2.Architecture 
+ andemployactionrecognitionasadownstream task toeval- 
+ We re-imagine HMR [30] as an end-to-end trans for mer
+ uatehumanmeshrecoverymethods. 
+ architecture that uses no domain specific design choices.
+ Yet, it outperforms all existing approaches that have heav-
+ 3.Reconstructing People 
+ ilycustomizedarchitectures and elaboratedesigndecisions.
+ Asshownin Figure 2,we use(i)a Vi T[15]toextractimage
+ 3.1.Preliminaries 
+ tokens, and (ii) a standard trans for mer decoder that cross-
+ Body Model. The SMPL model[46]isalow-dimensional attendstoimagetokenstooutputΘ. 
+ parametricmodelof the humanbody. Giveninputparame- Vi T. The Vision Trans for mer, or Vi T [15] is a trans-
+ ters for pose(θ R 24×3×3)andshape(β R 10),itoutputs former [74] that has been modified to operate on an im-
+ a mesh M 
+ R∈ 
+ 3×N with N = 6890 ve 
+ ∈ 
+ rtices. The body age. The input image is first patchified into input tokens
+ joints X 
+ ∈R 3×k 
+ are defined as a linear combination of and passed through the trans for mer to get output tokens.
+ ∈ 
+ thevertices and can becomputedas X = MW withfixed The output tokens are then passed to the trans for mer de-
+ weights W RN×k. Notethatposeparametersθ include coder. we usea Vi T-H/16,the“Huge”variant with 16 16
+ thebodypos ∈ eparametersθ b R 23×3×3 and the globalori- inputpatchsize. Pleasesee Sup Mat for moredetails. ×
+ entationθ g R 3×3. ∈ Trans for mer decoder. We use a standard trans for mer de-
+ ∈ 
+ Camera. We use a perspective camera model with fixed coder[74]withmulti-headself-attention.Itprocessesasin-
+ focal length and intrinsics K. Each camera π = (R,t) gle(zero)inputtokenbycross-attendingto the outputimage
+ consists of a global orientation R R 3×3 and transla- tokensandendswithalinearreadoutofΘ. Wefollow[35]
+ tion t R 3. Given these parameters ∈ , points in the SMPL andregress 3 Drotationsusing the representationof[91].
+ ∈ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 3.3.Losses 
+ Followingbestpracticesin the HMRliterature[30,35], 
+ we train our predictor f with a combination of 2 D losses, 
+ 3 Dlosses, andadiscriminator. Sincewetrain with amix- Pose Predictor 
+ tureof data sets,eachhavingdifferentkindsofannotations, 
+ weemployasubsetof the selosses for eachimageinamini- 
+ batch. We use the same losses even with pseudo-ground 
+ Mask Mask Mask 
+ truth annotations. Given an input image I, the model pre- Token Token Token 
+ dicts Θ = [θ,β,π] = f(I). Whenever we have access to 
+ the ground-truth SMPL pose parameters θ∗ and shape pa- 
+ rameters β∗, we bootstrap the model predictions using an Past Future 
+ MSEloss: Figure 3: Pose prediction: We train a BERT-style [13] trans-
+ former model onover 1 milliontracksobtained from [63].Thisal-
+ L smpl = || θ − θ∗ || 2 2 + || β − β∗ || 2 2 . lowustomakefuturepredictions and amodalcompletionofmiss-
+ ingdetectionsusing the same model.Topredictfutureposes(t+1,
+ When the imagehasaccurateground-truth 3 Dkeypointan- t+2,...),wequery the model with amask-tokenusingcorrespond-
+ notations X∗, we additionally supervise the predicted 3 D ingpositionalembeddings. Similarly for amodalcompletion,we
+ keypoints X withan L 1 loss: replacemissingdetections with amaskedtoken.
+ = X X∗ . 
+ L kp 3 D || − || 1 “lift” them to 3 D, extracting their 3 D pose, location in 3 D
+ When the image has 2 D keypoints annotations x∗, we su- space(derived from the estimatedcamera),and 3 Dappear-
+ ance (derived from the texture map). A tracklet represen-
+ pervise projections of predicted 3 D keypoints π(X) using 
+ tation is incrementally built up for each individual person
+ an L 1 loss: 
+ = π(X) x∗ . over time. The recursion step is to predict for each track-
+ kp 2 D 1 
+ L || − || let, the pose, location and appearance of the person in the
+ Fur the rmore, we want to ensure that our model predicts next frame, all in 3 D, and then find best matches between
+ valid 3 Dposes and use the adversarialpriorin HMR[30].It thesetop-downpredictions and the bottom-updetectionsof
+ factorizes the modelparametersinto: (i)bodyposeparam- peoplein that frameafterlifting the mto 3 D.Thestaterep-
+ eters θ b , (ii) shape parameters β, and (iii) per-part relative resented by each tracklet is then updated by the incoming
+ rotations θ i , which is one 3 D rotation for each of the 23 observation, and the process is iterated. It is possible to
+ jointsof the SMPL model. Wetrainadiscriminator D k for trackthroughocclusionsbecause the 3 Drepresentationofa
+ eachfactorof the body model,and the generatorloss can be trackletcontinuestobeupdated base donpas this tory.
+ expressedas: 
+ Webelieve that arobustposepredictorshouldalsoper-
+ = (cid:88) (D (θ ,β) 1)2. formwell,whenevaluatedon this downstream task oftrack-
+ adv k b 
+ L − ing,sowe use the trackingmetricsasaproxytoevaluate the
+ k 
+ qualityof 3 Dreconstructions. Butfirstweneededtomod-
+ 3.4.Pseudo-Ground Truthfitting ify the PHALP framework to allow for fair comparison of
+ differentposepredictionmodels. Originally, PHALPused
+ We scale to unlabelled datasets (i.e., Insta Variety [31], 
+ posefeatures base don the lastlayerof the HMRnetwork,
+ AVA [21], AI Challenger [78]) by computing pseudo- 
+ i.e., a 2048-dimensional embedding space. This limits the
+ ground truth annotations. Given any image, we first use 
+ ability of PHALP to be used with different pose models
+ anoff-the-shelfdetector[40]andabodykeypointsestima- 
+ (e.g., HMR 2.0, PARE, Py MAF etc.). To create a more
+ tor[81]togetboundingboxes and corresponding 2 Dkey- 
+ genericversionof PHALP,weperform the modificationof
+ points. We then fit a SMPL mesh to these 2 D keypoints 
+ representing pose in terms of SMPL pose parameters, and
+ using Pro HMR [37] to get pseudo-ground truth SMPL pa- 
+ weaccordinglyoptimize the PHALPcostfunctiontoutilize
+ rametersθ∗andβ∗withcameraπ∗. 
+ the new pose distance. Similarly, we adapt the pose pre-
+ dictor to operate on the space of SMPL parameters. More
+ 4.Tracking People 
+ specifically, we train a vanilla trans for mer model [74] by
+ Invideos with multiplepeople,weneed the abilitytoas- masking random pose tokens as shown in the Fig 3. This
+ sociate people across time, i.e., perform tracking. For this allowsustopredictfutureposesintime,aswellasamodal
+ webuildupon PHALP[65],astate-of-the-arttrackerbased completionofmissingdetections.With the semodifications,
+ on features derived from HMR-style 3 D reconstructions. we canpluginanymeshrecoverymethods and run the mon
+ Thebasicideaistodetectpeopleinindividualframes,and anyvideos. Wecall this modifiedversion PHALP′.
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 4 DHumans. Ourfinaltrackingsystem,4 DHumans,usesa 3 DPW Human 3.6 M 
+ sampling-basedparameter-freeappearancehead and anew Method 
+ MPJPEPA-MPJPEMPJPEPA-MPJPE 
+ posepredictor(Figure 3). Tomodelappearance,wetexture 
+ visiblepointsonthemeshbyprojectingthemonto the input 
+ image and samplingcolor from the correspondingpixels. 
+ Totrackpeopleinvideos,previousapproachesreliedon 
+ off-the-shelf tracking approaches and used their output to 
+ reconstructhumansinvideos(e.g.,take the boundingboxes 
+ fromtrackingoutput and reconstructpeople). Forexample, 
+ PHD[90],HMMR[31]canrunonvideos with onlysingle 
+ person in the scene. In this work, we combine reconstruc- 
+ tionandtrackingintoasinglesystem and show that better 
+ posereconstructionsresultinbettertracking and thiscom- 
+ binedsystem can nowrunonanyvideosin the wild. 
+ 5.Experiments 
+ Inthissection,weevaluate our reconstruction and track- 
+ ingsystemqualitatively and quantitatively. First, weshow 
+ that HMR 2.0 outperforms previous methods on standard 
+ 2 Dand 3 Dposeaccuracymetrics(Section 5.2).Second,we 
+ show 4 DHumans is a versatile tracker, achieving state-of- 
+ the-artper for mance(Section 5.3).Third,wefur the rdemon- 
+ strate the robustness and accuracy of our recovered poses 
+ viasuperiorper for manceon the downstreamapplicationof 
+ actionrecognition(Section 5.4). Finally,wediscusstheex- 
+ perimentalinvestigationwhendesigning HMR 2.0 andab- 
+ lateaseriesofdesignchoices(Section 5.5). 
+ 5.1.Setup 
+ Datasets. Following previous work, we use the typi- 
+ cal datasets for training, i.e., Human 3.6 M [27], MPI-INF- 
+ 3 DHP[49],COCO[44]and MPII[2]. Additionally,we use 
+ Insta Variety[31],AVA[21]and AIChallenger[78]asextra 
+ datawherewegeneratepseudo-groundtruthfits. 
+ Baselines. Wereport per for manceonbenchmarks that we 
+ can comp are with many previous works (Section 5.2), but 
+ we also perform a more detailed comparison with recent 
+ state-of-the-art methods, i.e., Py MAF [89], CLIFF [41], 
+ HMAR[65],PARE[34],and Py MAF-X[88]. Forfairness, 
+ weonlyevaluate the body-onlyper for manceof Py MAF-X. 
+ 5.2.Pose Accuracy 
+ 3 D Metrics. For 3 D pose accuracy, we follow the typical 
+ protocols of prior work, e.g., [35], and we present results 
+ on the 3 DPW test split and on the Human 3.6 M val split, 
+ reporting MPJPE, and PA-MPJPE in Table 1. Please no- 
+ tice that weonlycomp are withmethods that donotuse the 
+ trainingsetof 3 DPWfor training,similartous.Weobserve 
+ that with our HMR 2.0 a model, which trains only on the 
+ typical datasets, we can outperform all previous baselines 
+ across all metrics. However, we believe that these bench- 
+ marks are very saturated and these smaller differences in 
+ pose metrics tend to not be very significant. In fact, we 
+ laropme T 
+ Kanazawaetal.[31] 116.5 72.6 - 56.9 
+ Doerschetal.[14] - 74.7 - - 
+ Arnabetal.[3] - 72.2 77.8 54.3 
+ DSD[71] - 69.5 59.1 42.4 
+ VIBE[33] 93.5 56.5 65.9 41.5 
+ desab-emar F 
+ Pavlakosetal.[59] - - - 75.9 
+ HMR[30] 130.0 76.7 88.0 56.8 
+ NBF[53] - - 59.9 
+ Graph CMR[36] - 70.2 - 50.1 
+ Holo Pose[23] - - 60.3 46.5 
+ Dense Ra C[82] - - 76.8 48.0 
+ SPIN[35] 96.9 59.2 62.5 41.1 
+ Deco MR[86] - 61.7† - 39.3† 
+ Da Net[87] - 56.9 61.5 48.6 
+ Songetal.[69] - 55.9 - 56.4 
+ I 2 L-Mesh Net[51] 100.0 60.0 55.7† 41.1†
+ HKMR[20] - - 59.6 43.2 
+ Py MAF[89] 92.8 58.9 57.7 40.5 
+ PARE[34] 82.0 50.9 76.8 50.6 
+ Py MAF-X[88] 78.0 47.1 54.2 37.2 
+ HMR 2.0 a 70.0 44.5 44.8 33.6 
+ HMR 2.0 b 81.3 54.3 50.0 32.4 
+ Table 1:Reconstructionsevaluatedin 3 D:Reconstructionerrors
+ (in mm) on the 3 DPW and Human 3.6 M datasets. † denotes the
+ numbers evaluated on non-parametric results. Lower is better.
+ ↓ 
+ Pleasesee the text for details. 
+ LSP-Extended COCO Pose Track 
+ Method 
+ @0.05 @0.1 @0.05@0.1 @0.05@0.1 
+ Py MAF[89] - - 0.68 0.86 0.77 0.92 
+ CLIFF[41] 0.32 0.66 0.64 0.88 0.75 0.92 
+ PARE[34] 0.27 0.60 0.72 0.91 0.79 0.93 
+ Py MAF-X[88] - - 0.79 0.93 0.85 0.95 
+ HMR 2.0 a 0.38 0.72 0.79 0.95 0.86 0.97 
+ HMR 2.0 b 0.53 0.82 0.86 0.96 0.90 0.98 
+ Table 2: Reconstructions evaluated in 2 D. PCK scores of pro-
+ jected keypoints at different thresholds on the LSP-Extended,
+ COCO,and Pose Track data sets.Higher isbetter.
+ ↑ 
+ observe that byasmallcompromiseof the per for manceon
+ 3 DPW, our HMR 2.0 b model, which trains for longer on
+ more data (AVA [21], AI Challenger [78], and Insta Vari-
+ ety [31]), achieves results that perform better on more un-
+ usual poses than what can be found in Human 3.6 M and
+ 3 DPW.Weobserve this qualitatively and fromper for mance
+ evaluatedon 2 Dposereprojection(Table 2). Fur the rmore,
+ weobserve that HMR 2.0 bisamorerobust model and use
+ itforevaluationintherestof the paper. 
+ 2 D Metrics. We evaluate 2 D imagealignment of thegen-
+ erated poses by reporting PCK of reprojected keypoints
+ at different thresholds on LSP-Extended [28], COCO val-
+ idation set [44], and Posetrack validation set [1]. Since
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Py MAF(-X)[89,88]weretrainedusing LSP-Extended,we 
+ Posetrack 
+ do not report numbers for that part of the table. Notice in Tracker Pose Engine
+ HOTA IDs MOTA IDF 1 
+ Table 2, that HMR 2.0 b consistently outperforms all pre- ↑ ↓ ↑ ↑ 
+ PARE[34] 53.6 510 59.4 76.8 
+ vious approaches. On LSP-Extended, which contains un- 
+ Py MAF-X[88] 53.7 472 59.2 76.9 
+ usualposes,HMR 2.0 bachieves PCK@0.05 of 0.53,which 
+ CLIFF[41] 53.5 551 58.7 76.5 
+ is 1.6 betterthan the secondbest(CLIFF)with 0.32. For PHALP′ 
+ × Py MAF[89] 53.0 623 58.6 76.1 
+ PCK@0.05 on easier datasets like COCO and Pose Track 
+ HMAR[65] 53.6 482 59.3 77.1 
+ with less extreme poses, HMR 2.0 b still outperforms the 
+ HMR 2.0 54.1 456 59.4 77.4 
+ second-bestapproachesbutbynarrowermarginsof 9%and 
+ 6%respectively. HMR 2.0 aalsooutper for msall base lines, 
+ butisworsethan HMR 2.0 b,especiallyonharderposesin 
+ Table 3: Tracking with different 3 D pose estimators. With
+ LSP-Extended. 
+ themodificationsof PHALP′,wehaveaversatiletrackerthatal-
+ Qualitative Results. We show qualitative results of 
+ lowsdifferent 3 Dposeestimatorstobepluggedintoit.HMR 2.0,
+ HMR 2.0 in Figure 4. We are robust to extreme poses 
+ PARE,and Py MAF-Xperform the bestin this setting.
+ andpartialocclusions.Ourreconstructions are well-aligned 
+ with the image and arevalidwhenseen from anovelview. 
+ Moreover,wecomp are with our closestcompetitorsin Fig- Posetrack 
+ Method 
+ ure 5. We observe that Py MAF-X and particularly PARE HOTA IDs MOTA IDF 1 
+ ↑ ↓ ↑ ↑ 
+ oftenstruggle with moreunusualposes,while HMR 2.0 re- 
+ Track for mer[50] 46.7 1263 33.7 64.0 
+ turnsmorefaithfulreconstructions. 
+ Tracktor[6] 38.5 702 42.4 65.2 
+ 5.3.Tracking Alpha Pose[17] 37.6 2220 36.9 66.9 
+ Pose Flow[79] 38.0 1047 15.4 64.2 
+ For tracking, we first demonstrate the versatility of T 3 DP[64] 50.6 655 55.8 73.4
+ the modifications introduced by PHALP′, which allow us PHALP[65] 52.9 541 58.9 76.4
+ to evaluate 3 D pose estimators on the downstream task 4 DHumans 54.3 421 59.8 77.9
+ of tracking. Then, we evaluate our complete system, 
+ 4 DHumans+Vi TDet 57.8 382 61.4 79.1 
+ 4 DHumans,withrespecttothestateof the art. 
+ Evaluation Setting. Following previous work [64, 65], 
+ wereportresults base don IDs(IDswitches), MOTA[32], 
+ Table 4:Comparisonof 4 DHumans with thestateof the arton
+ IDF 1 [67], and HOTA [47] on the Posetrack validation set the Posetrack data set. 4 DHumansachievestate-of-the-arttrack-
+ using the protocol of [65], with detections from Mask R- ingperformance for allmetrics. Incorporatingabetterdetection
+ CNN[25]. system[40]leadstofur the rper for manceimprovements.
+ Versatility of PHALP′. With the modifications of 
+ PHALP′, we abandon the model-specific latent space 
+ mightstillbelessaccurate(asobserved from Table 2). See
+ of [65] and instead, we operate in the SMPL space, which 
+ also Figure 5 and Sup Mat for morequalitativecomparisons.
+ is shared across most mesh recovery systems. This makes 
+ PHALP′ more versatile and allows us to plug in different 4 DHumans. Table 4 evaluates tracking per for mance
+ 3 D pose estimators and comp are them based on their per- of our complete system, 4 DHumans, on the Pose Track
+ formanceon the downstream task oftracking. Weperform dataset. Using the sameboundingboxdetectoras[64,65],
+ this comparison in Table 3 where we use pose and loca- 4 DHumansoutper for msexistingapproachesonallmetrics,
+ tion cues from state-of-the-art 3 D pose estimators (while improving ID Switches by 22%. Using the improved Vi T-
+ stillusingappearance from HMAR[65]). Weobserve that Detdetector[40]canimproveper for mancefurther.Asaby-
+ HMR 2.0 performs the best and PARE [34], HMAR [65], productof our temporalprediction model(Figure 3),we can
+ and Py MAF-X[88]closelyfollowon the Posetrack data set, per for mamodalcompletion and attributeaposetomissing
+ withminordifferencesbetweenthem. Note that trackingis detections. Weshowexamplesofthisin the Sup Mat.
+ often most susceptible to errors in predicted 3 D locations 
+ 5.4.Action Recognition 
+ withbodyposehavingasmallereffectinper for mance[65]. 
+ This means that good tracking per for mance can indicate Evaluationsetting. Theapproachof[63]isthestateof the
+ robustness to occlusions, so it is helpful to consider this art for actionrecognitioninvideos. Givenavideoasinput,
+ metric, butitislesshelpfultodistinguishfine-graineddif- the authors propose using per-frame 3 D pose and location
+ ferences in pose. As a result, the competitive results of estimates(usingoff-the-shelf HMRmodels[65])asanad-
+ PARE[34], HMAR[65], and Py MAF-X[88]indicate that ditionalfeature for predictingactionlabels. Theyalsoshow
+ theyh and leocclusionsgracefully,but the irposeestimation resultsfora“pose-only”baseline that predictsactionlabels
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Input Front view Side view Top view Input Front view Side view Top view 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Figure 4: Qualitativeevaluationof HMR 2.0. Foreachexampleweshow: a)theinputimage,b)thereconstructionoverlay,c)aside
+ view,d)thetopview. Todemonstrate the robustnessof HMR 2.0,wevisualizeresults for avarietyofsettings-forunusualposes(rows
+ 1-4),forunusualviewpoints(row 5)and for images with poorvisibility,extremetruncations and extremeocclusions(rows 6-8).
+ 
+ 
+ using only 3 D pose and location estimates. We use this Comparisons. Comparing results in Table 5, we observe
+ setting to comp are our model with baselines on the down- that HMR 2.0 outperforms baselines on the different class
+ stream task of action recognition on the AVA dataset [21]. categories (OM, PI, PM) and overall. It achieves an m AP
+ In [63], the authors train a trans for mer that takes SMPL of 22.3 on the AVA test set, which is 14% better than the
+ poses as input and predicts action labels. Following their second-best baseline. Since accurate action recognition
+ setup, we train a separate action classification trans for mer fromposesneedsfine-grainedposeestimation,thisisstrong
+ foreach base line. evidence that HMR 2.0 predicts more accurate poses than
+ 
+ 
+ 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+Full Image 
+ Input Py MAF-X PARE HMR 2.0 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Figure 5:Qualitativecomparisonofstate-of-the-artmeshrecoverymethods.HMR 2.0 returnsmorefaithfulreconstructions for unusual
+ posescomp are dto the closestcompetitors,Py MAF-X[88]and PARE[34]. 
+ 
+ 0 240 1304 1312 1325 
+ 
+ 
+ 
+ 0 19 51 65 122 
+ 
+ 
+ 
+ 0 44 55 63 170 
+ 0 
+ 
+ 
+ 
+ Figure 6: Qualitativetrackingresultsof 4 DHumans. we useheadmasks(framenumberison the topleft). Firstrow: Wetrackpeople
+ skatingonice with challengingposes and heavyocclusions,inaminutelongvideo with outswitchingidentities. Secondrow: Themain
+ personistrackedthroughmultipleinteractionswitho the rplayers.Thirdrow:Thepersonofinterestistrackedthroughlongocclusions.
+ 
+ 
+ existing approaches. In fact, when combined with appear-
+ Action Pose 
+ OM PI PM m AP ance features, [63] shows that HMR 2.0 achieves the state
+ Model Engine 
+ oftheartof 42.3 m APon AVAactionrecognition,whichis
+ Py MAF[89] 7.3 16.9 34.7 15.4 
+ 7%betterthan the second-bestof 39.5 m AP. 
+ CLIFF[41] 9.2 20.0 40.3 18.6 
+ HMAR[65] 8.7 20.1 40.3 18.3 
+ [63] 5.5.HMR 2.0 Model Design 
+ PARE[34] 9.2 20.7 41.5 19.1 
+ Py MAF-X[88] 10.2 21.4 40.8 19.6 In the process of developing HMR 2.0, we investigated
+ HMR 2.0 11.9 24.6 45.8 22.3 aseriesofdesigndecisions. Figure 7 brieflyillustrates this
+ exploration. We experimented with over 100 settings and
+ we visualize the per for mance of 100 checkpoints for each
+ Table 5: Action recognition results on the AVA dataset. We run. For the visualization,we use the per for manceofeach
+ benchmark different mesh recovery methods on the downstream checkpointon the 3 DPWand the LSP-Extended data set.
+ taskofpose-basedactionrecognition. Here,OM:Object Manip- 
+ Our investigation focused on some specific aspects of
+ ulation,PI:Person Interactions,and PM:Person Movement. 
+ themodel,whichwedocumen the reasaseriesof“lessons
+ learnt”forfutureresearch. Inthefollowingparagraphs,we
+ willregularlyreferto Table 6,whichevaluates the seaspects
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ K 
+ @0.05 0.6 
+ Models MPJPE 
+ 3 D 
+ PA 
+ PW 
+ -MPJPEMP 
+ H 
+ JP 
+ u 
+ E 
+ m 
+ P 
+ a 
+ A 
+ n 3 
+ - 
+ . 
+ M 
+ 6 M 
+ PJPEPCK 
+ L 
+ @ 
+ SP 
+ 0 
+ - 
+ .0 
+ E 
+ 5 
+ xt 
+ P 
+ e 
+ C 
+ nd 
+ K 
+ e 
+ @ 
+ d 
+ 0.1 
+ C 
+ P-extended - 
+ P 
+ 0 
+ 0 
+ . 
+ . 
+ 4 
+ 5 
+ B 
+ H 
+ B 
+ 2 
+ 1 
+ MR 2.0 b 8 
+ 8 
+ 7 
+ 1 
+ 5 
+ 9 
+ . 
+ . 
+ . 
+ 3 
+ 2 
+ 7 
+ 5 
+ 5 
+ 5 
+ 4 
+ 6 
+ 3 
+ . 
+ . 
+ . 
+ 3 
+ 8 
+ 4 
+ 5 
+ 5 
+ 5 
+ 0 
+ 8 
+ 1 
+ . 
+ . 
+ . 
+ 0 
+ 9 
+ 4 
+ 3 
+ 4 
+ 3 
+ 2 
+ 1 
+ 4 
+ . 
+ . 
+ . 
+ 4 
+ 4 
+ 4 
+ 0 
+ 0 
+ 0 
+ . 
+ . 
+ . 
+ 5 
+ 3 
+ 4 
+ 3 
+ 5 
+ 8 
+ 0 
+ 0 
+ 0 
+ . 
+ . 
+ . 
+ 8 
+ 6 
+ 8 
+ 2 
+ 6 
+ 1 
+ S 
+ L 46 48 50 52 54 56 D 1 84.1 54.8 54.5 35.1 0.45 0.79 
+ 3 DPW - PA-MPJPE (in mm) 
+ D 2 80.2 53.3 52.4 34.9 0.46 0.79 
+ P 1 98.9 61.7 89.9 58.7 0.24 0.52 
+ Figure 7: Extensive model search. Witheachdot, wevisualize P 2 82.7 55.6 49.3 32.4 0.52 0.81
+ the per for mance of a checkpoint when evaluated on 3 DPW and 
+ LSP-Extended. Colorsindicatedifferentruns. Weexploremore Table 6:Ablations:Evaluation for different model designson the
+ than 100 settings,andvisualize 100 checkpoints from eachrun. 3 DPW,Human 3.6 M,and LSP-Extended data sets.
+ ∼ 
+ outlowqualitypseudo-groundtruthfits(highfittingerror)
+ on 3 Dand 2 Dmetrics,using the 3 DPW,Human 3.6 M,and 
+ andpruneimages with low-confidence 2 Ddetections.
+ LSP-Extended data sets. 
+ Effect of backbone. Unlike the majority of the previous 
+ 6.Conclusion 
+ work on Human Mesh Recovery that uses a Res Net back- 
+ bone, our HMR 2.0 methodreliesona Vi Tbackbone. For Westudy the problemofreconstructing and trackinghu-
+ a direct comparison of the effect of the backbone, Model mans from images and video. First,wepropose HMR 2.0,
+ B 1 implements HMR with a Res Net-50 backbone and an afully“trans for merized”versionofanetwork for the prob-
+ MLP-based head implementing IEF (Iterative Error Feed- lem of Human Mesh Recovery [30]. HMR 2.0 achieves
+ back [9, 30]). In contrast, Model B 2 uses a trans for mer strongper for manceon the usual 2 D/3 Dposemetrics,while
+ backbone(Vi T-H)whilekeepingtheo the rdesigndecisions alsoactingas the backbone for ourimprovedvideotracker.
+ the same. By updating the backbone, we observe a signif- The full system,4 DHumans,jointlyreconstructs and tracks
+ icant improvement across the 3 D and 2 D metrics, which people in video and achieves state-of-the-art results for
+ justifies the“trans for merization”step. tracking. To further illustrate the benefit of our 3 D pose
+ Effect of training data. Besides the architecture, we also estimator,HMR 2.0,weapplyitto the taskofactionrecog-
+ investigated the effect of training data. Model D 1 trains nition, where we demonstrate strong improvements upon
+ on the typical datasets (H 3.6 M, MPII, COCO, MPI-INF) previouspose-based base lines.
+ that most of the previous works are leveraging. In com- Ourworkpushestheboundaryof the videos that can be
+ parison, model D 2 adds AVA in the training set, follow- analyzed with techniques for 3 Dhumanreconstruction. At
+ ing[21]. Eventually,wealsotrainusing AI-Challenger and the same time, the improved results also demonstrate the
+ Insta-Variety(model B 2),tofurtherexp and the trainingset. type of limitations that need to be addressed in the future.
+ Aswe cansee,addingmoretraining data leadstoimprove- Forexample, theuseof the SMPL model[45]createscer-
+ mentsacrosstheboard for the reportedmetrics,but the ben- tainlimitations,andleveragingimproved model swouldal-
+ efitissmallercomp are dto the backboneupdate. low us to model hand pose and facial expressions [56], or
+ Vi T pretraining. Another factor that had significant ef- even capture greater age variation, e.g., infants [26] and
+ fect on the per for mance of our model was the pretraining kids[55,70]. Moreover,sinceweconsidereachpersonin-
+ of the Vi T backbone. Starting with randomly initialized dependently,ourreconstructions are lesssuccessfulatcap-
+ weights (model P 1) results in slow convergence and poor turing the fine-grained nature of people in close proxim-
+ per for mance. Resultsimproveif our backboneispretrained ity,e.g.,contact[19,52]. Besides this,ourreconstructions
+ with MAE [24] on Imagenet (P 2). Eventually, our model “live” in the camera frame, so for proper underst and ing of
+ ofchoice(HMR 2.0 b), whichisfirstpretrained with MAE the action in a video, we need to consider everyone in a
+ on Image Net and then on the task of 2 D keypoint predic- common world coordinate frame, by reasoning about the
+ tion[81],achieves the bestper for mance. camera motion too [58, 83, 84]. Finally, lower input reso-
+ SMPLhead. Wealsoinvestigatetheeffectof the architec- lution can affect the quality of our reconstructions, which
+ ture for the head that predicts the SMPL parameters. Our couldbeaddressedbyresolutionaugmentations[80].
+ proposed trans for mer decoder (HMR 2.0 b) improves per- 
+ Acknowledgements Wethankmembersof the BAIRcom-
+ formancewhenitcomesto the image-modelalignment(i.e., 
+ munity for helpful discussions and Stability AI for their
+ 2 D metrics) compared to the traditional MLP-based head 
+ generous compute grant. This work was supported by
+ with IEFsteps(B 2). 
+ BAIR/BDD sponsors, ONR MURI (N 00014-21-1-2801),
+ Datasetquality. Similartopreviouswork,e.g.,[35],itwas andthe DARPAMCSprogram. 
+ crucialtokeepthequalityof the training data high;wefilter 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ References [17] Hao-Shu Fang, Shuqin Xie, Yu-Wing Tai, and Cewu Lu.
+ RMPE: Regional multi-person pose estimation. In ICCV,
+ [1] Mykhaylo Andriluka, Umar Iqbal, Eldar Insafutdinov, 
+ 2017. 
+ Leonid Pishchulin, Anton Milan, Juergen Gall, and Bernt 
+ [18] Christoph Feichtenhofer, Haoqi Fan, Jitendra Malik, and
+ Schiele. Pose Track: Abenchmark for humanposeestima- 
+ Kaiming He. Slowfast networks for video recognition. In
+ tion and tracking. In CVPR,2018. 
+ ICCV,2019. 
+ [2] Mykhaylo Andriluka, Leonid Pishchulin, Peter Gehler, and 
+ [19] Mihai Fieraru, Mihai Zanfir, Elisabeta Oneata, Alin-Ionut
+ Bernt Schiele. 2 Dhumanposeestimation: Newbenchmark 
+ Popa, Vlad Olaru, and Cristian Sminchisescu. Three-
+ andstateof the artanalysis. In CVPR,2014. 
+ dimensionalreconstructionofhumaninteractions.In CVPR,
+ [3] Anurag Arnab, Carl Doersch, and Andrew Zisserman. Ex- 
+ 2020. 
+ ploitingtemporalcontext for 3 Dhumanposeestimationin 
+ [20] Georgios Georgakis,Ren Li,Srikrishna Karanam,Terrence
+ thewild. In CVPR,2019. 
+ Chen,Jana Kosˇecka´,and Ziyan Wu. Hierarchicalkinematic
+ [4] Fabien Baradel,Romain Bre´gier,Thibault Groueix,Philippe 
+ humanmeshrecovery. In ECCV,2020. 
+ Weinzaepfel,Yannis Kalantidis,and Gre´gory Rogez. Pose- 
+ [21] Chunhui Gu, Chen Sun, David A Ross, Carl Von-
+ BERT: A generic trans for mer module for temporal 3 D hu- 
+ drick, Caroline Pantofaru, Yeqing Li, Sudheendra Vijaya-
+ man model ing. PAMI,2022. 
+ narasimhan, George Toderici, Susanna Ricco, Rahul Suk-
+ [5] Fabien Baradel, Thibault Groueix, Philippe Weinzaepfel, thankar,Cordelia Schmid,and Jitendra Malik.AVA:Avideo
+ Romain Bre´gier, Yannis Kalantidis, and Gre´gory Rogez. datasetofspatio-temporallylocalizedatomicvisualactions.
+ Leveraging Mo Capdata for humanmeshrecovery. In 3 DV, In CVPR,2018. 
+ 2021. 
+ [22] Peng Guan, Alexander Weiss, Alexandru O Ba˘lan, and
+ [6] Philipp Bergmann, Tim Meinhardt, and Laura Leal-Taixe. Michael J Black. Estimating human shape and pose from
+ Tracking with outbells and whistles. In ICCV,2019. asingleimage. In ICCV,2009. 
+ [7] Federica Bogo,Angjoo Kanazawa,Christoph Lassner,Peter [23] Riza Alp Guler and Iasonas Kokkinos. Holo Pose: Holistic
+ Gehler,Javier Romero,and Michael JBlack.Keepit SMPL: 3 Dhumanreconstructionin-the-wild. In CVPR,2019.
+ Automatic estimation of 3 D human pose and shape from a [24] Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr
+ singleimage. In ECCV,2016. Dolla´r,and Ross Girshick.Maskedautoencoders are scalable
+ [8] Nicolas Carion,Francisco Massa,Gabriel Synnaeve,Nicolas visionlearners. In CVPR,2022.
+ Usunier,Alexander Kirillov,and Sergey Zagoruyko.End-to- [25] Kaiming He,Georgia Gkioxari,Piotr Dolla´r,and Ross Gir-
+ endobjectdetection with trans for mers. In ECCV,2020. shick. Mask R-CNN. In ICCV,2017.
+ [9] Joao Carreira,Pulkit Agrawal,Katerina Fragkiadaki,and Ji- [26] Nikolas Hesse, Sergi Pujades, Michael J Black, Michael
+ tendra Malik. Human pose estimation with iterative error Arens, Ulrich G Hofmann, and A Sebastian Schroeder.
+ feedback. In CVPR,2016. Learning and tracking the 3 Dbodyshapeoffreelymoving
+ [10] Junhyeong Cho, Kim Youwang, and Tae-Hyun Oh. Cross- infants from RGB-Dsequences. PAMI,2019.
+ attentionofdisentangledmodalities for 3 Dhumanmeshre- [27] Catalin Ionescu, Dragos Papava, Vlad Olaru, and Cristian
+ covery with trans for mers. In ECCV,2022. Sminchisescu.Human 3.6 M:Large scale data sets and predic-
+ [11] Hongsuk Choi,Gyeongsik Moon,Ju Yong Chang,and Ky- tivemethods for 3 Dhumansensinginnaturalenvironments.
+ oung Mu Lee. Beyond static features for temporally con- PAMI,2013. 
+ sistent 3 Dhumanpose and shape from avideo. In CVPR, [28] Sam Johnson and Mark Everingham. Learningeffectivehu-
+ 2021. manposeestimation from inaccurateannotation. In CVPR,
+ [12] Vasileios Choutas, Philippe Weinzaepfel, Je´roˆme Revaud, 2011. 
+ and Cordelia Schmid. Po Tion: Posemotionrepresentation [29] Hanbyul Joo,Natalia Neverova,and Andrea Vedaldi.Exem-
+ foractionrecognition. In CVPR,2018. plarfine-tuning for 3 Dhuman model fittingtowardsin-the-
+ [13] Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina wild 3 Dhumanposeestimation. In 3 DV,2021.
+ Toutanova. Bert: Pre-training of deep bidirectional [30] Angjoo Kanazawa, Michael J Black, David W Jacobs, and
+ trans for mers for language underst and ing. ar Xiv preprint Jitendra Malik. End-to-end recovery of human shape and
+ ar Xiv:1810.04805,2018. pose. In CVPR,2018. 
+ [14] Carl Doersch and Andrew Zisserman. Sim 2 real transfer [31] Angjoo Kanazawa,Jason YZhang,Panna Felsen,and Jiten-
+ learning for 3 Dhumanposeestimation: Motionto the res- dra Malik. Learning 3 D human dynamics from video. In
+ cue. Neur IPS,2019. CVPR,2019. 
+ [15] Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, [32] Rangachar Kasturi, Dmitry Goldgof, Padmanabhan
+ Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Soundararajan, Vasant Manohar, John Garofolo, Rachel
+ Mostafa Dehghani,Matthias Minderer,Georg Heigold,Syl- Bowers, Matthew Boonstra, Valentina Korzhova, and Jing
+ vain Gelly,Jakob Uszkoreit,and Neil Houlsby. Animageis Zhang. Frameworkforper for manceevaluationofface,text,
+ worth 16 x 16 words: Transformers for imagerecognitionat andvehicledetection and trackinginvideo: Data, metrics,
+ scale. ICLR,2021. andprotocol. PAMI,2008. 
+ [16] Haoqi Fan, Bo Xiong, Karttikeya Mangalam, Yanghao Li, [33] Muhammed Kocabas, Nikos Athanasiou, and Michael J
+ Zhicheng Yan,Jitendra Malik,and Christoph Feichtenhofer. Black. VIBE: Video inference for human body pose and
+ Multi scale visiontrans for mers. In ICCV,2021. shapeestimation. In CVPR,2020. 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ [34] Muhammed Kocabas, Chun-Hao PHuang, Otmar Hilliges, [51] Gyeongsik Moon and Kyoung Mu Lee. I 2 L-Mesh Net:
+ and Michael JBlack. PARE:Partattentionregressor for 3 D Image-to-lixel prediction network for accurate 3 D human
+ humanbodyestimation. In ICCV,2021. pose and mesh estimation from a single RGB image. In
+ [35] Nikos Kolotouros,Georgios Pavlakos,Michael JBlack,and ECCV,2020. 
+ Kostas Daniilidis. Learningto reconstruct 3 Dhuman pose [52] Lea Mu¨ller, Vickie Ye, Georgios Pavlakos, Michael Black,
+ andshapevia model-fittingin the loop. In ICCV,2019. and Angjoo Kanazawa. Generative proxemics: A prior
+ [36] Nikos Kolotouros, Georgios Pavlakos, and Kostas Dani- for 3 D social interaction from images. ar Xiv preprint
+ ilidis. Convolutional mesh regression for single-image hu- ar Xiv:2306.09337,2023.
+ manshapereconstruction. In CVPR,2019. [53] Mohamed Omran,Christoph Lassner,Gerard Pons-Moll,Pe-
+ [37] Nikos Kolotouros, Georgios Pavlakos, Dinesh Jayaraman, ter Gehler,and Bernt Schiele. Neuralbodyfitting:Unifying
+ and Kostas Daniilidis. Probabilistic modeling for human deeplearningand model basedhumanpose and shapeesti-
+ meshrecovery. In ICCV,2021. mation. In 3 DV,2018. 
+ [38] Christoph Lassner, Javier Romero, Martin Kiefel, Federica [54] Austin Patel,Andrew Wang,Ilija Radosavovic,and Jitendra
+ Bogo,Michael JBlack,and Peter VGehler. Unite the peo- Malik. Learningtoimitateobjectinteractions from internet
+ ple:Closing the loopbetween 3 Dand 2 Dhumanrepresenta- videos. ar Xivpreprintar Xiv:2211.13225,2022.
+ tions. In CVPR,2017. [55] Priyanka Patel, Chun-Hao P Huang, Joachim Tesch,
+ [39] Vincent Leroy, Philippe Weinzaepfel, Romain Bre´gier, David THoffmann,Shashank Tripathi,and Michael JBlack.
+ Hadrien Combaluzier,and Gre´gory Rogez. SMPLybench- AGORA: Avatars in geography optimized for regression
+ marking 3 D human pose estimation in the wild. In 3 DV, analysis. In CVPR,2021.
+ 2020. [56] Georgios Pavlakos, Vasileios Choutas, Nima Ghorbani,
+ [40] Yanghao Li, Hanzi Mao, Ross Girshick, and Kaiming He. Timo Bolkart, Ahmed AA Osman, Dimitrios Tzionas, and
+ Exploringplainvisiontransformerbackbones for objectde- Michael JBlack. Expressivebodycapture: 3 Dhands,face,
+ tection. In ECCV,2022. andbody from asingleimage. In CVPR,2019. 
+ [41] Zhihao Li, Jianzhuang Liu, Zhensong Zhang, Songcen Xu, [57] Georgios Pavlakos, Jitendra Malik, and Angjoo Kanazawa.
+ and Youliang Yan. CLIFF:Carryinglocationin for mationin Humanmeshrecovery from multipleshots. In CVPR,2022.
+ fullframesintohumanpose and shapeestimation.In ECCV, [58] Georgios Pavlakos, Ethan Weber, Matthew Tancik, and
+ 2022. Angjoo Kanazawa. The one where they reconstructed 3 D
+ [42] Kevin Lin,Lijuan Wang,and Zicheng Liu. End-to-endhu- humans and environmentsin TVshows. In ECCV,2022.
+ man pose and mesh reconstruction with trans for mers. In [59] Georgios Pavlakos,Luyang Zhu,Xiaowei Zhou,and Kostas
+ CVPR,2021. Daniilidis. Learningtoestimate 3 Dhumanpose and shape
+ [43] Kevin Lin, Lijuan Wang, and Zicheng Liu. Mesh fromasinglecolorimage. In CVPR,2018.
+ graphormer. In ICCV,2021. [60] Owen Pearl,Soyong Shin,Ashwin Godura,Sarah Bergbre-
+ [44] Tsung-Yi Lin,Michael Maire,Serge Belongie,James Hays, iter,and Eni Halilaj.Fusionofvideo and inertialsensing data
+ Pietro Perona,Deva Ramanan,Piotr Dolla´r,and CLawrence viadynamicoptimizationofabiomechanical model.Journal
+ Zitnick. Microsoft COCO:Commonobjectsincontext. In of Biomechanics,155:111617,2023.
+ ECCV,2014. [61] William Peebles and Saining Xie. Scalablediffusionmodels
+ [45] Matthew Loper,Naureen Mahmood,Javier Romero,Gerard withtrans for mers. ar Xivpreprintar Xiv:2212.09748,2022.
+ Pons-Moll,and Michael JBlack. SMPL:Askinnedmulti- [62] Xue Bin Peng, Angjoo Kanazawa, Jitendra Malik, Pieter
+ personlinear model. ACMtransactionsongraphics(TOG), Abbeel,and Sergey Levine. Sfv: Rein for cementlearningof
+ 34(6):1–16,2015. physicalskills from videos.ACMTransactions On Graphics
+ [46] Matthew Loper, Naureen Mahmood, Javier Romero, Ger- (TOG),37(6):1–14,2018.
+ ard Pons-Moll, and Michael J. Black. SMPL: A skinned [63] Jathushan Rajasegaran, Georgios Pavlakos, Angjoo
+ multi-person linear model. ACM Trans. Graphics (Proc. Kanazawa, Christoph Feichtenhofer, and Jitendra Malik.
+ SIGGRAPHAsia),34(6):248:1–248:16,Oct.2015. On the benefits of 3 D tracking and pose for human action
+ [47] Jonathon Luiten, Aljosa Osep, Patrick Dendorfer, Philip recognition. In CVPR,2023.
+ Torr,Andreas Geiger,Laura Leal-Taixe´,and Bastian Leibe. [64] Jathushan Rajasegaran, Georgios Pavlakos, Angjoo
+ HOTA: A higher order metric for evaluating multi-object Kanazawa, and Jitendra Malik. Tracking people with 3 D
+ tracking. IJCV,2021. representations. In Neur IPS,2021. 
+ [48] Zhengyi Luo,SAlireza Golestaneh,and Kris MKitani. 3 D [65] Jathushan Rajasegaran, Georgios Pavlakos, Angjoo
+ human motion estimation via motion compression and re- Kanazawa, and Jitendra Malik. Tracking people by pre-
+ finement. In ACCV,2020. dicting 3 D appearance, location and pose. In CVPR,
+ [49] Dushyant Mehta, Helge Rhodin, Dan Casas, Pascal 2022. 
+ Fua, Oleksandr Sotnychenko, Weipeng Xu, and Christian [66] Davis Rempe,Tolga Birdal,Aaron Hertzmann,Jimei Yang,
+ Theobalt. Monocular 3 Dhumanposeestimationin the wild Srinath Sridhar,and Leonidas JGuibas.Hu Mo R:3 Dhuman
+ usingimproved CNNsupervision. In 3 DV,2017. motion model for robustposeestimation. In ICCV,2021.
+ [50] Tim Meinhardt, Alexander Kirillov, Laura Leal-Taixe, and [67] Ergys Ristani,Francesco Solera,Roger Zou,Rita Cucchiara,
+ Christoph Feichtenhofer. Track Former: Multi-objecttrack- and Carlo Tomasi. Per for mancemeasures and adataset for
+ ing with trans for mers. In CVPR,2022. multi-target,multi-cameratracking. In ECCV,2016.
+
+ 
+ 
+ 
+ 
+ 
+ 
+ [68] Anshul Shah, Shlok Mishra, Ankan Bansal, Jun-Cheng [85] Andrei Zanfir, Elisabeta Marinoiu, and Cristian Sminchis-
+ Chen,Rama Chellappa,and Abhinav Shrivastava. Pose and escu. Monocular 3 Dpose and shapeestimationofmultiple
+ joint-awareactionrecognition. In WACV,2022. peopleinnaturalscenes-Theimportanceofmultiplescene
+ [69] Jie Song,Xu Chen,and Otmar Hilliges. Humanbody model constraints. In CVPR,2018.
+ fittingbylearnedgradientdescent. In ECCV,2020. [86] Wang Zeng,Wanli Ouyang,Ping Luo,Wentao Liu,and Xi-
+ [70] Yu Sun,Wu Liu,Qian Bao,Yili Fu,Tao Mei,and Michael J aogang Wang. 3 Dhumanmeshregression with densecorre-
+ Black. Puttingpeoplein the irplace: Monocularregression spondence. In CVPR,2020.
+ of 3 Dpeopleindepth. In CVPR,2022. [87] Hongwen Zhang, Jie Cao, Guo Lu, Wanli Ouyang, and
+ [71] Yu Sun, Yun Ye, Wu Liu, Wenpeng Gao, Yili Fu, and Tao Zhenan Sun. Da Nnet: Decompose-and-aggregate network
+ Mei. Human mesh recovery from monocular images via a for 3 D human shape and pose estimation. In Proceedings
+ skeleton-disentangledrepresentation. In ICCV,2019. of the 27 th ACM International Conference on Multimedia,
+ [72] Garvita Tiwari,Dimitrije Antic´,Jan Eric Lenssen,Nikolaos 2019. 
+ Sarafianos,Tony Tung,and Gerard Pons-Moll. Pose-NDF: [88] Hongwen Zhang,Yating Tian,Yuxiang Zhang,Mengcheng
+ Modelinghumanposemanifolds with neuraldistancefields. Li,Liang An,Zhenan Sun,and Yebin Liu. Py MAF-X:To-
+ In ECCV,2022. wardswell-aligned full-body model regression from monoc-
+ [73] Vasileios Vasilopoulos,Georgios Pavlakos,Sean LBowman, ularimages. PAMI,2023.
+ J Diego Caporale, Kostas Daniilidis, George J Pappas, and [89] Hongwen Zhang,Yating Tian,Xinchi Zhou,Wanli Ouyang,
+ Daniel EKoditschek. Reactivesemanticplanninginunex- Yebin Liu,Limin Wang,and Zhenan Sun. Py MAF:3 Dhu-
+ plored semantic environments using deep perceptual feed- manpose and shaperegression with pyramidalmeshalign-
+ back. IEEE Robotics and Automation Letters, 5(3):4455– mentfeedbackloop. In ICCV,2021.
+ 4462,2020. 
+ [90] Jason YZhang,Panna Felsen,Angjoo Kanazawa,and Jiten-
+ [74] Ashish Vaswani,Noam Shazeer,Niki Parmar,Jakob Uszko- 
+ dra Malik. Predicting 3 Dhum and ynamics from video. In
+ reit,Llion Jones,Aidan NGomez,Łukasz Kaiser,and Illia 
+ ICCV,2019. 
+ Polosukhin. Attentionisallyouneed. In NIPS,2017. 
+ [91] Yi Zhou,Connelly Barnes,Jingwan Lu,Jimei Yang,and Hao
+ [75] Ziniu Wan, Zhengjia Li, Maoqing Tian, Jianbo Liu, Shuai 
+ Li. On the continuity of rotation representations in neural
+ Yi, and Hongsheng Li. Encoder-decoder with multi-level 
+ networks. In CVPR,2019. 
+ attention for 3 Dhumanshape and poseestimation.In ICCV, 
+ 2021. 
+ [76] Chung-Yi Weng, Brian Curless, Pratul P Srinivasan, 
+ Jonathan TBarron,and Ira Kemelmacher-Shlizerman. Hu- 
+ man Ne RF:Free-viewpointrenderingofmovingpeople from 
+ monocularvideo. In CVPR,2022. 
+ [77] Chao-Yuan Wu, Justin Johnson, Jitendra Malik, Christoph 
+ Feichtenhofer, and Georgia Gkioxari. Multiview compres- 
+ sivecoding for 3 Dreconstruction. In CVPR,2023. 
+ [78] Jiahong Wu, He Zheng, Bo Zhao, Yixin Li, Baoming Yan, 
+ Rui Liang,Wenjia Wang,Shipei Zhou,Guosen Lin,Yanwei 
+ Fu,Yizhou Wang,and Yonggang Wang. AIChallenger: A 
+ large-scale data set for goingdeeperinimageunderst and ing. 
+ ar Xivpreprintar Xiv:1711.06475,2017. 
+ [79] Yuliang Xiu,Jiefeng Li,Haoyu Wang,Yinghong Fang,and 
+ Cewu Lu. Pose Flow: Efficient online pose tracking. In 
+ BMVC,2018. 
+ [80] Xiangyu Xu,Hao Chen,Francesc Moreno-Noguer,Laszlo A 
+ Jeni,and Fernando Dela Torre. 3 Dhumanpose,shape and 
+ texture from low-resolutionimages and videos.PAMI,2021. 
+ [81] Yufei Xu, Jing Zhang, Qiming Zhang, and Dacheng Tao. 
+ Vi TPose: Simple vision trans for mer baselines for human 
+ poseestimation. In Neur IPS,2022. 
+ [82] Yuanlu Xu, Song-Chun Zhu, and Tony Tung. Dense Ra C: 
+ Joint 3 D pose and shape estimation by dense render-and- 
+ comp are. In ICCV,2019. 
+ [83] Vickie Ye, Georgios Pavlakos, Jitendra Malik, and Angjoo 
+ Kanazawa. Decoupling human and camera motion from 
+ videosin the wild. In CVPR,2023. 
+ [84] Ye Yuan, Umar Iqbal, Pavlo Molchanov, Kris Kitani, and 
+ Jan Kautz. GLAMR:Globalocclusion-awarehumanmesh 
+ recovery with dynamiccameras. In CVPR,2022. 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Supplementary Material for: 
+ 
+ “Humans in 4 D: Reconstructing and Tracking Humans with Trans for mers” 
+ 
+ 
+ Shubham Goel Georgios Pavlakos Jathushan Rajasegaran Angjoo Kanazawa Jitendra Malik
+ ∗ ∗ 
+ shubham-goel, pavlakos, jathushan, kanazawa @berkeley.edu, malik@eecs.berkeley.edu
+ { } 
+ Universityof Cali for nia,Berkeley 
+ Weprovidemoredetailsabout HMR 2.0,i.e.,thearchi- pointdetection, whilefittinghappensusing Pro HMR[10].
+ tecturewe use(Section S.1),thedata(Section S.2)andthe We discard detections with very few 2 D detected key-
+ training pipeline (Section S.3). Fur the rmore, we describe points(lessthanfive)andlowdetectionconfidence(thresh-
+ the aspect of pose prediction (Section S.4) and we discuss old 0.5). We also discard fits with unnatural body shapes
+ the metrics we use for evaluation (Section S.5). Then, we (i.e., body shape parameters outside [ 3,3]), unnatural
+ − 
+ discuss the experimentalsettings for tracking(Section S.6), bodyposes(computedusingaper-join this togramofposes
+ and action recognition (Section S.7). Finally, we provide on AMASS [17]), and large fitting errors (i.e., which indi-
+ additionalqualitativeresults(Section S.8). cates that the reconstructionwasnotsuccessful). Fortrain-
+ ingour HMR 2.0 bmodel,wesample with differentproba-
+ S.1.HMR 2.0 architecturedetails bilities from each data set,i.e.,Human 3.6 M:0.1,MPII:0.1,
+ MPI-INF-3 DHP: 0.1, AVA: 0.15, AI Challenger: 0.15, In-
+ The architecture of our HMR 2.0 model is based on a 
+ sta Variety: 0.2,COCO:0.2. 
+ Vi T image encoder and a trans for mer decoder. We use 
+ a Vi T-H/16 (“huge”) pre-trained on the task of 2 D key- 
+ S.3.Trainingdetails 
+ pointlocalization[25]. Ithas 50 trans for merlayers,takesa 
+ 256 192 sizedimageasinput,andoutputs 16 12 image Wetrain our main model using 8 A 100 GPUs with anef-
+ × × 
+ tokens,eachofdimension 1280.Ourtrans for merdecoderis fective batch size of 8 48 = 384. We use an Adam W
+ × 
+ ast and ardtrans for merdecoderarchitecture[23]with 6 lay- optimizer [15] with a learning rate of 1 e-5, β = 0.9,
+ 1 
+ ers, each containing multi-head self-attention, multi-head β = 0.999,andaweightdecayof 1 e-4. Traininglasts for
+ 2 
+ cross-attention, and feed-forward blocks, with layer nor- 1 Miterations, whichtakesroughlysixdays. For our main
+ malization[2]. Ithasa 2048 hiddendimension,8(64-dim) model HMR 2.0 b, we train the network end-to-end. How-
+ heads for self-andcross-attention,andahiddendimension ever, for the HMR 2.0 a variant, the Vi T encoder remains
+ of 1024 inthefeed-forward MLPblock.Itoperatesonasin- frozen,allowingalargereffectivebatchsizeof 8 512 =
+ × 
+ glelearnable 2048-dimensional SMPLquerytokenasinput 4096,learningrateof 1 e-4,andfewertrainingiterationsof
+ and cross-attends to the 16 12 image tokens. Finally, a 100 K(i.e.,roughlyequivalentnumberofepochs).
+ × 
+ linearreadoutontheoutputtoken from the trans for merde- While training, we weigh the different losses. ,
+ kp 3 D 
+ L 
+ codergivesposeθ,shapeβ,andcameraπ. , and have weights 0.05, 0.01, and 0.0005 re-
+ kp 2 D adv 
+ L L 
+ spectively. The terms within are also weighed dif-
+ smpl 
+ L 
+ S.2.Datadetails ferently,theθandβ termsweigh 0.001 and 0.0005 respec-
+ tively. 
+ Inourtraining,weadopt the training data conventionsof 
+ previous works [10], using images from Human 3.6 M [4], 
+ S.4.Poseprediction 
+ COCO[13],MPII[1]and MPI-INF-3 DHP[18].Thisforms 
+ thetrainingset for the version were fertoas HMR 2.0 ain For the pose prediction model, we train a vanilla trans-
+ the main manuscript. For the eventual HMR 2.0 b version, former model[23]from the trackletsobtainedby[19].Each
+ we additionally generate pseudo-ground truth SMPL [14] tracklet at every time instance contains 3 D pose and 3 D
+ fits for images from AVA[3],Insta Variety[6]and AIChal- location information, where the pose is parameterized by
+ lenger[24]. Since AVAand Insta Varietyincludevideos,we the SMPL model[14]and the locationisrepresentedas the
+ collect frames by sampling at 1 fps and 5 fps respectively. translationin the cameraframe. Thetrans for merhas 6 lay-
+ For pseudo-ground truth generation, we use Vi TDet [11] ers and 8 self-attention heads with a hidden dimension of
+ for bounding box detection and Vi TPose [25] for key- 256. Eachoutputtokenregresses the 3 Dpose and 3 Dloca-
+
+ 
+ 
+ 
+ 
+ 
+ 
+ tion of the person at the specified time-step. We train this ofthemainmanuscript). Tomodelappearance,wetexture
+ model by randomly masking input pose tokens and apply- visiblepointsonthemeshbyprojectingthemonto the input
+ ing the loss on the masked tokens. During inference, to image and samplingcolor from the correspondingpixels.
+ predict a future 3 D pose, we query the model by reading 
+ out from afuturetime-step, usingalearnedmask-tokenas S.7.Actionrecognition 
+ input to that time-step. Similarly for amodal completion, 
+ we replace the missing detections with the learned mask- As an alternative way to assess the quality of 3 D hu-
+ token and read out from the output at the corresponding man reconstruction, we evaluate various human mesh re-
+ time-step. The model istrained with abatchsizeof 64 se- covery systems on the downstream task of action recogni-
+ quences and a sequence length of 128 tokens. We use the tion on AVA (please refer to [19] for more details on the
+ Adam W optimizer [15] with a learning rate of 0.001 and task definition). More specifically, we take the tracklets
+ β =0.9,β =0.95. from [19], which were generated by running PHALP [21]
+ 1 2 
+ on the Kinetics [8] and AVA [3] datasets. Then, we re-
+ S.5.Metrics place the poses from varioushumanmeshrecoverymodels
+ (i.e.,Py MAF[28],Py MAF-X[27],PARE[9],CLIFF[12],
+ For our evaluation,we use the metrics that are common HMAR[21], HMR 2.0)andevaluate the irper for manceon
+ intheliterature: the action recognition task. In this pose-only setting, the
+ 3 DPose:Wefollow[5]andwe use MPJPE and PA-MPJPE. action recognition model has access only to the 3 D poses
+ MPJPErefersto Mean Per Joint Position Error and itis the (inthe SMPL for mat)and 3 Dlocation and istrainedtopre-
+ average L 2 erroracrossalljoint,afteraligning with the root dict the action of each person. For a fair comparison and
+ node. PA-MPJPE is similar but is computed after aligning toachieve the bestperformance for each 3 Dposeregressor,
+ the predicted pose with the ground-truth pose using Pro- weretrain the actionrecognition model specifically for each
+ crustes Alignment. 3 Dposemethod. 
+ 2 D Pose: We use PCK as defined in [26]. This is the Per- 
+ centageof Correctlylocalized Keypoints,whereakeypoint S.8.Additionalqualitativeresults
+ is considered as correctly localized if its L 2 distance from 
+ theground-truthkeypointislessthanathresholdt. Were- We have already provided a lot of qualitative results of
+ portresultsusingdifferentthresholds(@0.05 and@0.1 of HMR 2.0, both in the main manuscript and in videos on
+ imagesize). the project webpage. Here, we provide additional results,
+ Tracking: Following [20, 21], we use standard tracking including comparisons with our closest competitors (Fig-
+ metrics. This includes ID switches (IDs), MOTA [7], ure S.1), and a demonstration of our results in a variety of
+ IDF 1[22],and HOTA[16]. challengingcases,includingsuccesses(Figure S.2)andfail-
+ Action Recognition: Wereportresultsusingm APmetrics urecases(Figure S.3). 
+ as defined in the AVA dataset [3]. We further provided a 
+ morefine-grainedanalysisreportingresultsondifferentac- References 
+ tion categories: actions that involve Object Manipulation 
+ [1] Mykhaylo Andriluka, Leonid Pishchulin, Peter Gehler, and
+ (OM),actions that involve Person Interactions(PI),andac- 
+ Bernt Schiele. 2 Dhumanposeestimation: Newbenchmark
+ tions that involve Person Movement (PM). The results in 
+ andstateof the artanalysis. In CVPR,2014. 
+ thesecategories are alsoreportedusingm AP. 
+ [2] Jimmy Lei Ba, Jamie Ryan Kiros, and Geoffrey E Hin-
+ ton. Layernormalization. ar Xivpreprintar Xiv:1607.06450,
+ S.6.Tracking with PHALP 
+ ′ 2016. 
+ In the main manuscript, we comp are different human [3] Chunhui Gu, Chen Sun, David A Ross, Carl Von-
+ drick, Caroline Pantofaru, Yeqing Li, Sudheendra Vijaya-
+ mesh recovery systems on the downstream problem of 
+ narasimhan, George Toderici, Susanna Ricco, Rahul Suk-
+ tracking (Table 3 of the main manuscript). For this, we 
+ thankar,Cordelia Schmid,and Jitendra Malik.AVA:Avideo
+ modify the PHALPapproach[21], sothatposedistanceis 
+ datasetofspatio-temporallylocalizedatomicvisualactions.
+ computedon the SMPLspace that all the modelssh are. To 
+ In CVPR,2018. 
+ make this comparison fair, we keep other variables simi- 
+ [4] Catalin Ionescu, Dragos Papava, Vlad Olaru, and Cristian
+ lar to the original PHALP (e.g., same appearance embed- 
+ Sminchisescu.Human 3.6 M:Large scale data sets and predic-
+ ding). Note that this comparison is generous to baselines tivemethods for 3 Dhumansensinginnaturalenvironments.
+ that do not model appearance themselves. Eventually, our PAMI,2013. 
+ final 4 DHumanssystemusesasampling-basedappearance [5] Angjoo Kanazawa, Michael J Black, David W Jacobs, and
+ head and our new poseprediction, whichleadto the state- Jitendra Malik. End-to-end recovery of human shape and
+ of-the-art per for mance for tracking on Pose Track (Table 4 pose. In CVPR,2018. 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Input Py MAF-X PARE CLIFF HMR 2.0 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Figure S.1:Qualitativecomparisonof our approach with state-of-the-artmethods.Wecomp are HMR 2.0 with our closestcompetitors,
+ Py MAF-X[27], PARE[9]and CLIFF[12]. Foreachexample, weshow the inputimage, andresults from eachmethod(including the
+ frontal and a side view). HMR 2.0 is signifi can tly more robust in a variety of settings, including images with unusual poses, unusual
+ viewpoints and heavyperson-personoverlap. 
+ 
+ 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Input Front view Side view Top view Input Front view Side view Top view 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Figure S.2:Qualitativeresultsof our approachonchallengingexamples.Foreachexampleweshow the inputimage,thereconstruction
+ overlay, a side view and the top view. The examples include unusual poses, unusual viewpoints, people in close interaction, extreme
+ truncations and occlusions,aswellasblurryimages. 
+ 
+ 
+ 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Input Front view Side view Top view Input Front view Side view Top view 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Figure S.3: Failuresofsingleframe 3 Dhumanreconstruction with HMR 2.0. Despite the increasedrobustnessof our method, we
+ observe that HMR 2.0 occasionallyrecoverserroneousreconstructionsincases with veryunusualarticulation(firstrow),heavyperson-
+ personinteraction(secondrow),andverychallengingdepthordering for the differentbodyparts(thirdrow).
+ [6] Angjoo Kanazawa,Jason YZhang,Panna Felsen,and Jiten- [15] Ilya Loshchilov and Frank Hutter. Decoupledweightdecay
+ dra Malik. Learning 3 D human dynamics from video. In regularization. ar Xivpreprintar Xiv:1711.05101,2017.
+ CVPR,2019. [16] Jonathon Luiten, Aljosa Osep, Patrick Dendorfer, Philip
+ [7] Rangachar Kasturi, Dmitry Goldgof, Padmanabhan Torr,Andreas Geiger,Laura Leal-Taixe´,and Bastian Leibe.
+ Soundararajan, Vasant Manohar, John Garofolo, Rachel HOTA: A higher order metric for evaluating multi-object
+ Bowers, Matthew Boonstra, Valentina Korzhova, and Jing tracking. IJCV,2021.
+ Zhang. Frameworkforper for manceevaluationofface,text, [17] Naureen Mahmood,Nima Ghorbani,Nikolaus FTroje,Ger-
+ andvehicledetection and trackinginvideo: Data, metrics, ard Pons-Moll, and Michael JBlack. AMASS:Archiveof
+ andprotocol. PAMI,2008. motioncaptureassurfaceshapes. In ICCV,2019.
+ [8] Will Kay, Joao Carreira, Karen Simonyan, Brian Zhang, [18] Dushyant Mehta, Helge Rhodin, Dan Casas, Pascal
+ Chloe Hillier, Sudheendra Vijayanarasimhan, Fabio Viola, Fua, Oleksandr Sotnychenko, Weipeng Xu, and Christian
+ Tim Green, Trevor Back, Paul Natsev, Mustafa Suleyman, Theobalt. Monocular 3 Dhumanposeestimationin the wild
+ and Andrew Zisserman. The kinetics human action video usingimproved CNNsupervision. In 3 DV,2017.
+ dataset. ar Xivpreprintar Xiv:1705.06950,2017. 
+ [19] Jathushan Rajasegaran, Georgios Pavlakos, Angjoo
+ [9] Muhammed Kocabas, Chun-Hao PHuang, Otmar Hilliges, Kanazawa, Christoph Feichtenhofer, and Jitendra Malik.
+ and Michael JBlack. PARE:Partattentionregressor for 3 D On the benefits of 3 D tracking and pose for human action
+ humanbodyestimation. In ICCV,2021. recognition. In CVPR,2023. 
+ [10] Nikos Kolotouros, Georgios Pavlakos, Dinesh Jayaraman, [20] Jathushan Rajasegaran, Georgios Pavlakos, Angjoo
+ and Kostas Daniilidis. Probabilistic modeling for human Kanazawa, and Jitendra Malik. Tracking people with 3 D
+ meshrecovery. In ICCV,2021. representations. In Neur IPS,2021. 
+ [11] Yanghao Li, Hanzi Mao, Ross Girshick, and Kaiming He. [21] Jathushan Rajasegaran, Georgios Pavlakos, Angjoo
+ Exploringplainvisiontransformerbackbones for objectde- Kanazawa, and Jitendra Malik. Tracking people by pre-
+ tection. In ECCV,2022. dicting 3 D appearance, location and pose. In CVPR,
+ [12] Zhihao Li, Jianzhuang Liu, Zhensong Zhang, Songcen Xu, 2022. 
+ and Youliang Yan. CLIFF:Carryinglocationin for mationin [22] Ergys Ristani,Francesco Solera,Roger Zou,Rita Cucchiara,
+ fullframesintohumanpose and shapeestimation.In ECCV, and Carlo Tomasi. Per for mancemeasures and adataset for
+ 2022. multi-target,multi-cameratracking. In ECCV,2016.
+ [13] Tsung-Yi Lin,Michael Maire,Serge Belongie,James Hays, [23] Ashish Vaswani,Noam Shazeer,Niki Parmar,Jakob Uszko-
+ Pietro Perona,Deva Ramanan,Piotr Dolla´r,and CLawrence reit,Llion Jones,Aidan NGomez,Łukasz Kaiser,and Illia
+ Zitnick. Microsoft COCO:Commonobjectsincontext. In Polosukhin. Attentionisallyouneed. In NIPS,2017.
+ ECCV,2014. [24] Jiahong Wu, He Zheng, Bo Zhao, Yixin Li, Baoming Yan,
+ [14] Matthew Loper,Naureen Mahmood,Javier Romero,Gerard Rui Liang,Wenjia Wang,Shipei Zhou,Guosen Lin,Yanwei
+ Pons-Moll,and Michael JBlack. SMPL:Askinnedmulti- Fu,Yizhou Wang,and Yonggang Wang. AIChallenger: A
+ personlinear model. ACMtransactionsongraphics(TOG), large-scale data set for goingdeeperinimageunderst and ing.
+ 34(6):1–16,2015. ar Xivpreprintar Xiv:1711.06475,2017. 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ [25] Yufei Xu, Jing Zhang, Qiming Zhang, and Dacheng Tao. 
+ Vi TPose: Simple vision trans for mer baselines for human 
+ poseestimation. In Neur IPS,2022. 
+ [26] Yi Yang and Deva Ramanan. Articulated human detection 
+ withflexiblemixturesofparts. PAMI,2012. 
+ [27] Hongwen Zhang,Yating Tian,Yuxiang Zhang,Mengcheng 
+ Li,Liang An,Zhenan Sun,and Yebin Liu. Py MAF-X:To- 
+ wardswell-aligned full-body model regression from monoc- 
+ ularimages. PAMI,2023. 
+ [28] Hongwen Zhang,Yating Tian,Xinchi Zhou,Wanli Ouyang, 
+ Yebin Liu,Limin Wang,and Zhenan Sun. Py MAF:3 Dhu- 
+ manpose and shaperegression with pyramidalmeshalign- 
+ mentfeedbackloop. In ICCV,2021. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 

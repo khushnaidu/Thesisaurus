@@ -1,0 +1,651 @@
+ 
+ 
+ 
+ 
+ 
+ 
+ Learning Robot Activities from First-Person Human Videos 
+ Using Convolutional Future Regression 
+ 
+ 
+ Jangwon Lee and Michael S. Ryoo 
+ 
+ 
+ Abstract—We design a new approach that allows robot a limiting aspect particularly when we want to teach a robot
+ learning of new activities from unlabeled human example new (i.e., previously unseen) activities.
+ videos.Givenvideosofhumansexecuting the sameactivity from 
+ In this paper, we present a new CNN-based approach
+ ahuman’sviewpoint(i.e.,first-personvideos),ourobjectiveisto 
+ that enables robot learning of its activities from ‘human’
+ maketherobotlearnthetemporalstructureof the activityasits 
+ futureregressionnetwork,andlearntotransfersuch model for example videos. Human activity videos can be attractive
+ itsownmotorexecution.Wepresenta new deeplearning model: training res our ces because it does not require any hardw are
+ We extend the state-of-the-art convolutional object detection or professional softw are for teaching robots, even though
+ network for the representation/estimation of human hands in 
+ it might create other difficulties like transferring learned
+ trainingvideos,and new lyintroduce the conceptofusingafully 
+ human-based models to the actual robots. Given videos
+ convolutionalnetworktoregress(i.e.,predict)theintermediate 
+ scene representation corresponding to the future frame (e.g., of humans executing the same activity from a human’s
+ 1-2 seconds later). Combining these allows direct prediction of viewpoint (i.e., first-person videos), our objective is to make
+ futurelocationsofhumanhands and objects,whichenables the the robot learn the temporal structure of the activity as its
+ robot to infer the motor control plan using our manipulation 
+ future regression network, and learn to transfer such model
+ network. We experimentally confirm that our approach makes 
+ foritsownmotorexecution.Theideais that ahuman’sfirst-
+ learning of robot activities from unlabeled human interaction 
+ videos possible, and demonstrate that our robot is able to person video and the video a humanoid robot is expected to
+ execute the learnedcollaborativeactivitiesinreal-timedirectly obtain during its activity execution should be very similar.
+ based on its camera input. Providing first-person human videos to the robot is as if we
+ are providing the robot ‘visual memory’ of itself per for ming
+ I. INTRODUCTION 
+ the activities previously. This enables the robot to directly
+ One of the important abilities of humans (and animals) is 
+ learnwhatvisualobservationitisexpectedtoseeduring the
+ that they are able to learn new activities and their motor 
+ correctexecutionof the activity and howit will change from
+ controls from others’ behaviors. When a person watches 
+ its viewpoint. 
+ others per for ming an activity, he/she not only learns to 
+ There have beenpreviousworksonrobotactivitylearning
+ visually predict future consequences of the motion during 
+ from human videos [3], [4], extending the previous concept
+ the activity but also learns how to execute the activity 
+ of‘robotlearning from demonstration’[5]whichwasmostly
+ himself/herself. 
+ done with direct motor control data. However, these works
+ Recently, approaches taking advantage of “deep learning” 
+ focused on learning grammar representations of human ac-
+ for robot manipulation have been gaining an increasing 
+ tivities, modeling human activities as a sequence of atomic
+ amount of attention, directly learning motor control policies 
+ actions (e.g., grasping). These approaches were limited in
+ given visual inputs (i.e., images and videos) [1]. The use of 
+ the aspect that activities were always represented in terms
+ convolutionalneuralnetworks(CNNs)have been particularly 
+ of pre-defined set of atomic actions, and the users had to
+ successful,since the yareabletojointlylearnimagefeatures 
+ teach the robot how to recognize those atomic actions from
+ optimized for the task based on their training data. Because 
+ humanactivityvideosbyprovidinglabeledtraining data(i.e.,
+ of such ability, new models incorporating convolutional and 
+ supervised learning). This prevented the robot learning of
+ recurrent neural networks (i.e., CNNs and RNNs) is likely 
+ activities from scratch, and was also limited in that human
+ to become a major trend in robotics, just like what already 
+ had to define new atomic actions when a new activity is
+ happened in computer vision and machine learning. 
+ added. Fur the rmore, since it was not trainable in an end-to-
+ However, although these deep learning oriented ap- 
+ end fashion, the robot has to somehow figure out how to
+ proaches showed very promising results on learning video 
+ execute those atomic actions, which was usually done by
+ prediction [2] and actual motor control policy [1], they 
+ hand-coding the motion. 
+ have been limited to relatively simple actions such as object 
+ We introduce a new robot activity learning model using
+ grasping and pushing. This is because a large amount of 
+ a fully convolutional network for future representation re-
+ ‘robot’dataisnecessary for the directtrainingofthese CNNs 
+ gression. We extend the state-of-the-art convolutional object
+ and RNNs with millions of parameters. A large number of 
+ detection network (SSD [6]) for the representation of hu-
+ samplesofhumans(ortherobotitself)motorcontrolling the 
+ man hand-object information in a video frame, and newly
+ robotisnecessary for generatingtraining data[1],andthisis 
+ introduce the concept of using a fully convolutional network
+ to regress (i.e., predict) how such intermediate scene repre-
+ Schoolof Informatics and Computing,Indiana University,Bloomington, 
+ IN 47408,USA.{leejang,mryoo}@indiana.edu sentation will change in the future frame (e.g., 1-2 seconds
+ 7102 
+ lu J 
+ 42 
+ ]OR.sc[ 
+ 2 v 04010.3071:vi Xra 
+
+ 
+ 
+ 
+ 
+ 𝑓 
+ 𝑔 ℎ 
+ VGG-16 Future hand 
+ Through Pool 5 layer Autoencoder Extra Feature Layers Location prediction
+ 
+ Convolution Deconvolution 
+ 
+ 500 Replaced with 
+ Image predicted future 
+ feature map 
+ 500 
+ … 
+ 512 x 63 x 63 512 x 63 x 63 
+ Extracted feature map 256 x 25 x 25 256 x 25 x 25 
+ Current Regression Network s 
+ s 
+ Feature map 𝑟 o L 
+ )2 
+ L 
+ Concatenate (K) 
+ ( 
+ n 
+ a 
+ e 
+ d 
+ 5 x 5 5 x 5 5 x 5 1 x 1 ilc 
+ u 
+ E 
+ Predicted 
+ (256 x K) x 25 x 25 256 x 25 x 25 256 x 25 x 25 … 1024 x 25 x 25256 x 25 x 25 future
+ feature map 
+ Future 
+ Feature map 
+ Fig. 1. Overview of our perception component: Our perception component consists of two fully convolutional neural networks: The first network is
+ anextendedversionof the state-of-the-artconvolutionalobjectdetectionnetwork(SSD[6])for the representationofhumanhands and estimationof the
+ boundingboxes(top).Thesecondnetworkisafutureregressionnetworktoregress(i.e.,predict)theintermediatescenerepresentationcorrespondingto
+ thefutureframe.Thisnetworkdoesnotrequireactivitylabelsorh and/objectlabelsinvideos for itstraining.
+ later). Combining these allows direct and explicit prediction from demonstration (Lf D) [5], [8], [9]. Since it enables
+ of future hand locations (Figure 1), which then allows the robots automatically learn a new task from demonstration
+ robot to infer the motor control plan. That is, not only by non-robotics expert, Lf D is very important in robotics.
+ feature-level prediction of future representations (similar to However,there are limitationssincemostof the seapproaches
+ [7])butalsosemantic-levelpredictionofexplicitfutureh and focused on making robots learn motor control polices from
+ locations of humans and robots during the learned activity human data, which usually was in the form of direct control
+ is being jointly per for med in our new network. Such future sequences obtained with actual robots or simulation soft-
+ handpredictionresults are usedby our manipulationnetwork wares [10]. Moreover, it often requires a knowledge about
+ that learns mapping of the 2-D hand locations in the image all primitive actions for teaching high-level tasks [11].
+ coordinate to the actual motor control. There also have been previous works on robot activity
+ Our activity learning is an unsupervised approach in the learning from visual data [3], [4], [12], extending the previ-
+ aspect that it does not require activity labels or hand/object ous concept of Lf D. These works focused on learning gram-
+ labels in the activity videos. It does require hand-annotated mar representations of human activities from conventional
+ training data for the learning of its hand representation third-person videos (i.e., videos usually taken with static
+ network, but there already exists public datasets for this cameras watching the actors), modeling human activities
+ purpose and it does not require any labels for its future as a sequence of atomic actions (e.g., grasping). Having a
+ regressionnetwork.Thefutureregressionnetworkislearned grammar representation composed of atomic actions allows
+ without supervision by capturing changes in our hand-based transfer of human activity structure to robots, and the robot
+ representations in the training videos. In addition, impor- replication of human activities was possible usually with
+ tantly,all our networks were designedtofunctioninreal-time hand-coded motion transfer from human atomic actions
+ for the actual robot operation, and we show such capability to robot atomic actions. However, activity learning was
+ with our experiments in this paper. generally done in a fully supervised fashion with human
+ annotations in these approaches, and they assumed very
+ II. RELATEDWORK 
+ reliable estimation of semantic features from videos such
+ a) Robot learning from humans: There have been a human hands and human body skeletons. [13] studied an
+ considerable amount of previous efforts on robot learning approach to directly learn object manipulation trajectories
+
+ 
+ 
+ 
+ 
+ from human videos, but it was limited to one-robot-one- a hand-based scene representation and estimate bounding
+ object scenarios unlike our approach focusing on very boxes,and(2)afutureregressionnetworkto model howsuch
+ general human-robot collaboration scenarios (e.g., human- intermediate scene representation (should) change in future
+ object-robot interactions). frames.Thesecondcomponentisamanipulationcomponent
+ b) Video prediction: Our approach in this paper is to that maps 2-D hand locations in the image coordinate to the
+ generate proper robot behaviors (particularly for human- actual motor control using fully connected layers.
+ robot collaboration) by predicting ‘future’ visual represen- The key idea of our approach is that the proposed per-
+ tation. The idea is that such representation leads to the ception component allows prediction of future (1-2 seconds
+ estimationoffuturepositionsofobjectsandh and sofhumans later)handlocationsgivencurrentvideoinput from acamera.
+ and robots. Visual prediction is one of the core components Suchfutureprediction can belearned base donhumans’first-
+ of our perception system. person activity videos by using them as training data, with
+ There have beenpreviousworkson the predictionoffuture theassumption that the robotcamerahasasimilarviewpoint
+ frames from the computer vision community [7], [14], [15]. with the human first-person videos. This allows the robot
+ However, there has been very limited attempt on applying to directly predict its ideal future hand locations during the
+ such future predictions for robotics systems, since these ap- activity, inferring how the hand should move if the activity
+ proaches in general requires more components for interpret- were to be executed successfully. Next, the manipulation
+ ing predicted representation to generate robot actions. In the componentgeneratesactualrobotcontrolcomm and stomove
+ above works, no robot manipulation was actually attempted. the robot’s hands to the predicted future locations.
+ There exists a recent robotics work that attempted applying 
+ B. Perception Component 
+ visual prediction for generating robot control actions [16]. 
+ This study shows the potential in applying visual predic- Given a video frame Xˆ t at time t, the goal of our
+ tion for a robotic manipulation task; it enables transferring perception component is to predict the future hand locations
+ the visual perception to robot manipulation component for Yˆ t+∆ . 
+ generating motor control commands without any additional a) Hand Representation Network: We first construct
+ componentstointerpret the recognitionresults.However,this a network for the hand-based representation of the image
+ requiresahugeamountoftraining data usingactualphysical scenebyextending the SSDobjectdetectionframework.We
+ robots to make the robot learn activities, and thus is limited extended it by inserting a fully convolutional auto-encoder
+ when the robot needs to learn many new activities. having five convolutional layers followed by five deconvo-
+ c) First-person videos: First-person videos, also called lutional layers for dimensionality reduction. This allows the
+ egocentric videos, are the videos taken from the actor’s own approach to abstract an image (with hands and objects) into
+ viewpoint. Recognition of human/robot activities from such a lower dimensional intermediate representation.
+ first-person videos has been actively studied particularly in All our convolutional/deconvolutionallayersuse 5×5 ker-
+ thepast 5 years,includingrecognitionofhumanactions from nels and the number of filters for each convolutional layer
+ wearable cameras [17]–[20] and human-robot interactions are:512,256,128,64,256.Thegreenconvolutionallayersin
+ from robot cameras [21], [22]. However, these focused on Fig. 1 correspond to them. After such convolutional layers,
+ building discriminative video classifiers, and the attempt to there are deconvolutional layers (yellow layers in Fig. 1),
+ learn‘executable’representationsofhumanactivitiesortheir each having the symmetric number of filters: 256, 64, 128,
+ transfer to robots have been very limited. 256, 512. We do not use any pooling layer, and instead use
+ The main contribution of this paper is in enabling robot stride 2 forthelastconvolutionallayer for the dimensionality
+ activity learning from human interaction videos using our reduction. We thus increase the number of filters for the last
+ newly proposed convolutional future regression. We believe convolutional layer to compensate loss of information.
+ this is the first work to present a deep learning-based Let f denote the hand representation network given an
+ (i.e., entirely CNN-based) method for learning human-robot image at time t. Then, this network can be considered as a
+ interactions fromhuman-human videos. We alsobelieve this combination of two sub functions, f =g◦h:
+ is the first paper to take advantage of human ‘first-person Yˆ =f(Xˆ )=h(Fˆ )=h(g(Xˆ )), (1)
+ videos’ for the robot activity learning. t t t t 
+ where a function g : Xˆ → Fˆ denotes a feature extractor
+ III. APPROACH 
+ (from an input video frame to encoder) to get compressed
+ A. System Overview intermediate visual representation (i.e., feature map) Fˆ, and
+ Given a sequence of current frames, our goal is to (i) pre- h : Fˆ → Yˆ indicates a box estimator which uses the
+ dict future hand locations and all interactive objects in front compressed representation as an input for locating hand
+ of the robot, then to (ii) generate robot control commands boxes at time t. With the above formulation, the network
+ for moving robot’s hands to the predicted hand locations. can predict hand locations Yˆ at time t after the training.
+ t 
+ Weemploytwocomponents for achieving the goal.Thefirst b) Future Regression Network: Although the above
+ component is a perception component that consists of two hand representation network allows obtaining hand boxes in
+ fully convolutional neural networks: (1) an extended version the ‘current’ frame, our objective is to get the ‘future’ hand
+ of the Single Shot Multi Box Detector (SSD) [6] to create locations Yˆ instead of theirs current locations Yˆ .
+ t+∆ t 
+
+ 
+ 
+ 
+ 
+ g Hand representa,on network: t Fig. 2 summarizes data flow of our perception component
+ Yˆ during testing phase. Given a video frame Xˆ t at time t, (1)
+ t we extract the intermediate scene representation Fˆ using
+ t 
+ Xˆ Fˆ the feature extractor (g), and then (2) feed it into the future
+ t t 
+ … regression network (r) to get future scene representation
+ r Fˆ t+∆ . Next, (3) we feed Fˆ t+∆ into the box estimator (h),
+ Fˆ t Fˆ t+Δ and finally obtain future position of hands Yˆ t+∆ at time t.
+ Yˆ =h(Fˆ )=h(r(Fˆ ))=h(r(g(Xˆ ))) (5)
+ t+∆ t+∆ t t 
+ h 
+ Yˆ Fur the rmore, instead of using just a single frame (i.e., the
+ t+Δ 
+ current frame) for the future regression, we extend our
+ Fˆ networktotakeadvantageof the previous K framestoobtain
+ t+Δ 
+ … Fˆ as illustrated in Fig. 1: 
+ t+∆ 
+ Hand representa,on network: t+Δ Yˆ =h(r([g(Xˆ ),...,g(Xˆ )])). (6) 
+ t+∆ t t−(K−1) 
+ Fig.2. Dataflowof our perceptioncomponentduringtestphase.Itenables 
+ The advantage of our formulation is that it allows us to
+ predictingh and scorrespondingto the futureframe.Only the coloredlayers 
+ areused for thepredictionin the testphase. predict future hand locations while considering the implicit
+ activity and object context, even without explicit detection
+ ofobjectsin the scene.Ourauto-encoder-basedintermediate
+ We formulate this problem as a regression problem. The representation Fˆi abstracts the scene configuration by inter-
+ t 
+ main idea is that the intermediate representation of the hand nally representing what objects/hands are currently in the
+ representationnetwork Fˆ abstracts the hand-objectinforma- scene and where they are, and our fully convolutional future
+ t 
+ tionin the scene,andthatwe are abletotakeadvantageofit regressor takes advantage of it for the prediction.
+ to infer the future (intermediate) representation Fˆ . Once 
+ t+∆ C. Manipulation Component 
+ suchregressionbecomespossible,we cansimplyplug-inthe 
+ predicted future representation Fˆ to the remaining part Although our perception component is able to predict fu-
+ t+∆ 
+ of the hand network (i.e., h) to obtain the final future hand ture hand locations of humans in first-person human activity
+ predictionresults.Therefore,wenewlydesignanetwork for videos,itisinsufficient for the robotmanipulation.Here,we
+ predicting the intermediate scene representation correspond- construct another regression network (m) for mapping the
+ ing to the future frame Fˆ , as a fully convolutional future predicted 2-Dhumanh and locationsin the imagecoordinate
+ t+∆ 
+ regression network: Fig. 2. totheactualmotorcontrolcommands.Themainassumption
+ Given a current scene representation Fˆ from the hand is that a video frame from a robot’s camera will have a
+ t 
+ network,ourfutureregressionnetwork(r)predicts the future similar viewpoint to our training data (first-person human
+ the intermediate scene representation Fˆ : videos), allowing us to take advantage of the learned model
+ t+∆ 
+ for the robot future hand prediction by assuming:
+ Fˆ =r (Fˆ ). (2) 
+ t+∆ w t Yˆ (cid:39)Yˆ (7) 
+ Rt t 
+ Ithassevenconvolutionallayershaving 2565×5 kernels.In 
+ where, Yˆ represents robot hand locations.
+ addition,ithasalayer with 102413×13 kernelsfollowedby Rt 
+ Our manipulation component (m) predicts future robot
+ thelastlayer that has 2561×1 kernel.Wetrained the weights 
+ jointstates(Zˆ )givencurrentrobotjointstates(Zˆ ),robot
+ (w) of the regression network with unlabeled first-person t+∆ t 
+ hand locations (Yˆ ), and future hand locations (Yˆ )
+ human activity videos using the following loss function: Rt Rt+∆ 
+ tellingwhere the robot’shandsshouldmoveto.Thisnetwork
+ (cid:88) 
+ w∗ =argmin (cid:107)r (Fˆi)−Fˆi (cid:107)2 can be formulated with the below function:
+ w t t+∆ 2 
+ w 
+ i,t Zˆ =m (Zˆ ,Yˆ ,Yˆ ). (8) 
+ (cid:88) t+∆ θ t Rt Rt+∆ 
+ =argmin (cid:107)r (g(Xˆi))−Fˆi (cid:107)2 (3) 
+ w w t t+∆ 2 Our manipulation component consists of seven fully con-
+ i,t 
+ nected layers having the following number of hidden units
+ where Xˆi indicates a video frame at time t from video i, for each layer: 32, 32, 32, 16, 16, 16, 7. The weights (θ) of
+ t 
+ and Fˆi represents a feature map at time t from video i. this network can be obtained by the same way that used for
+ t 
+ Our future regression network can use any intermediate our perception networks:
+ scenerepresentation from anyintermediatelayersof the hand (cid:88) 
+ θ∗ =argmin (cid:107)m (Zˆj,Yˆj ,Yˆj )−Zˆj (cid:107)2 (9)
+ network, but we use the one from auto-encoder due to its θ t Rt Rt+∆ t+∆ 2 
+ θ 
+ j,t 
+ lowerdimensionality.Finally,thefuturescenerepresentation 
+ Fˆ t+∆ isfedinto the handnetwork for estimatingh and boxes where Zˆj t indicates robot joint states at time t from training
+ correspondingto the futureframetogetfutureh and locations episode j, and Yˆj represents robot hand locations at time
+ Rt 
+ Yˆ t+∆ . t from training episode j. Fig. 3 shows our manipulation
+ Yˆ =h(Fˆ ) (4) component for generating robot control commands.
+ t+∆ t+∆ 
+
+ 
+ 
+ 
+ 
+ Predicted Future 
+ Manipulation Network 
+ Current frame Hand locations (2) 
+ Perception Motor torques (7)
+ Component 
+ L L L L L L L 
+ L L L L L L L 
+ U U U U U U U 
+ F F F F F F F 
+ Current 
+ Hand locations (2) 
+ Current status of a robot 
+ 32 32 32 16 16 16 7 
+ Current 
+ Arm joint angles (7) 
+ Fig.3. Robotmanipulationcomponentof our approach.Itgeneratesrobotcontrolcomm and sgivencurrentrobotjointstate,currentroboth and locations,
+ andpredictedfutureroboth and locations. 
+ The combination of our perception component and ma- (u,v) in an image plane and the robot’s corresponding joint
+ nipulation component provides a real-time robotics system angles at time t. We recorded these log files by making
+ that takes raw video frames as its input and generates a human operator move the robot arms (i.e., the human
+ motor control commands for its activity execution. Our grabbed the robot arms and moved them). We obtained such
+ manipulation component can be replaced with a standard robot joint configuration sequences while moving the robot
+ Inverse Kinematics, but our neural network-based model to cover possible arm motion during general human-robot
+ generates more natural arm movements by considering the interactiontasks.Here,weassume that the robotissupposed
+ desired location of the robot’s end-effectors as well as joint to operate in a similar environment during the test phase.
+ configuration sequences (i.e., unlabeled robot logs described Note that thiswasnotrecordedunder the interactionscenario
+ in the next section). (i.e., just the robot itself was moving), and no annotation
+ regarding the activity or motion was provided. We used
+ IV. EXPERIMENTS 
+ a Baxter research robot for recording these files and the
+ A. Datasets Baxterhassevendegrees-of-freedomarm:thefilecontains 9
+ Ourapproachconsistsofthreedifferenttypesofnetworks variables for each arm. In order to estimate the robot’s hand
+ (within the twocomponents),andwe usethreedifferenttypes positionin the imageplane,weprojected the 3-Dpositionsof
+ of datasets for training each model. the Baxter’s grippers into the image plane (based on camera
+ Ego Hands [23]: This is a public dataset containing 48 calibration) and recorded the projected (u,v) positions with
+ first-person videos of people interacting in four types of 7 joint angles at 30 Hz.
+ activities(playingcards,playingchess,solvingapuzzle,and 
+ B. Baselines 
+ playing Jenga).Ithas 4,800 frames with 15,053 ground-truth 
+ hand labels. Here, we added 466 frames with 1,267 ground- Inordertoprovidequantitativecomparisons,wecompared
+ truth annotations to the original dataset to cover more hand our perception component with four different baselines:
+ postures.we use this datasettolearnourh and representation (i) Hand-crafted representation uses a hand-crafted state
+ network, which is trained to locate hand boxes in a video representation based on explicit object and hand detection.
+ frame. It encodes relative distances between all interactive objects
+ Unlabeled Human-Human Interaction Videos: We col- in our two scenarios, and uses it to predict the future
+ lected a total of 47 first-person videos of human-human hand location using neural network-based regression. More
+ collaboration scenarios, with each video clip ranging from specifically, it detects objects using KAZE features [24]
+ 4 to 10 seconds. This dataset is a main dataset for teaching and hands using CNN based hand detector in [23], then
+ a new task to our robot. It contains two types of tasks: (1) computesrelativedistancesbetweenallobjectsandh and sfor
+ a person wearing the camera cleaning up all objects on a building the state representation which is a 20 dimensional
+ tableasapartner(i.e.,theo the rsubject)approaches the table vector. Then, we built a new network which has five fully
+ while holding a heavy box (to make a room for her/him to connected layers trained using the state representations on
+ put the heavy box on the table), and (2) a person wearing the same interaction dataset we use. (ii) Hands only uses
+ the camera pushing a trivet on a table toward to a partner hand locations for the future regression. It predicts future
+ when he/she is approaching the table while holding a hot hand locations solely based on current hand locations with-
+ cooking pan. These videos are unlabeled videos without any out considering any other visual representations. In order
+ activity/hand annotation and we trained our convolutional to train this baseline model, we extracted hand locations
+ regression network using this dataset. from all frames of the interaction videos using our hand
+ Unlabeled Robot Activity Log Files: We prepared this representation network, then made log files to store detected
+ dataset to train our robot manipulation network. It contains handlocationsineachframe and the irframenumbers.After
+ 50 robot log files. Each log has the robot’s hand positions this, we trained another neural network model for the future
+
+ 
+ 
+ 
+ 
+ TABLEI TABLEII 
+ EVALUATIONOFFUTUREH AND PREDICTION MEANPIXELDISTANCEBETWEENGROUNDTRUTH AND PREDICTED
+ POSITIONSOFALLHANDS 
+ Evaluation 
+ Method 
+ Precision Recall F-measure Method Mean Pixel Distance 
+ Hand-craftedrepresentation 0.30±0.37 0.15±0.19 0.20±0.25 Hand-craftedrepresentation 143.85±48.77
+ Handsonly 4.78±3.70 5.06±4.06 4.87±3.81 Handsonly 247.88±121.94 
+ SSD with futureannotations 1 27.53±23.36 9.09±8.96 13.23±12.62 SSD with futureannotations 1 58.58±36.76
+ SSD with futureannotations 2 29.21±19.16 7.92±6.45 12.10±9.42 
+ SSD with futureannotations 2 79.95±102.07
+ Deep Regressor(ours):K=1 27.04±16.50 21.71±14.71 23.45±14.99 
+ Deep Regressor(ours):K=5 29.97±15.37 23.89±16.45 25.40±15.51 Deep Regressor(ours):K=1 51.31±39.10
+ Deep Regressor(ours):K=10 36.58±16.91 28.78±17.96 30.90±17.02 Deep Regressor(ours):K=5 51.41±38.46
+ Deep Regressor(ours):K=10 46.66±36.92 
+ TABLEIII 
+ hand location prediction using the log files, which has seven 
+ fullyconnectedlayers with the samenumberofhiddenunits 
+ MEANPIXELDISTANCEBETWEENGROUNDTRUTH AND PREDICTED
+ as our robot manipulation network. (iii) SSD with future POSITIONOFRIGHTH AND 
+ annotations 1 is a baseline that uses the original SSD model 
+ Method Mean Pixel Distance 
+ [6] trained based on Ego Hands dataset. Instead of training 
+ Hand-craftedrepresentation 121.48±87.36
+ the model to infer the current hand locations given the Handsonly 264.52±148.15
+ input frame, we fine-tuned this model on Ego Hands dataset SSD with futureannotations 1 48.63±39.04
+ SSD with futureannotations 2 71.36±104.18
+ after changing annotations of the dataset to have “future” 
+ Deep Regressor(ours):K=1 40.08±32.72 
+ locations of hands instead of making it to use current hand Deep Regressor(ours):K=5 40.46±39.52
+ locations.Wealsousedadditionally 466 frames for thisfine- Deep Regressor(ours):K=10 36.78±36.70
+ tuning since the original Ego Hands dataset was insufficient 
+ (too many repetitive hand movements) for this training. (iv) 
+ SSD with future annotations 2 is a baseline also using the tions of hands. The size of the image plane was 1280*720.
+ original SSDmodel,butwetrained this model from scratch. We measured this mean pixel distance only when both the
+ This time we changed all annotations of the Ego Hands ground truths and the predictions are present in the same
+ dataset, then trained the model. After that we fine-tuned the frame. Table II shows the mean pixel distance errors for
+ model as the same way that used for the “SSD with future all four types of hands (my left, my right, your left, and
+ annotations 1” baseline. your right). Once more, we can confirm that our approaches
+ greatly outperform the per for mance of all the baselines. The
+ C. Evaluation of our future hand prediction 
+ overall average distance was a bit high due to changes
+ We first evaluated the perception component of our ap- in human hand shapes and their variations, but they were
+ proach in terms of precision, recall, and F-measure, and sufficient in terms of generating robot motion.
+ compared them against the above baselines. In the first Wealsocomp are daccuraciesof the semethodswhileonly
+ evaluation,wemade our approachtopredictboundingboxes considering my right hand predictions, since position of my
+ of human hands in the future frame given the current image right hand is more important for a robot manipulation than
+ frame. We measured the “intersection over union” ratio locationsofo the rtypesofhands.Thisisbecause,inourtest
+ between are asofeachpredictedbox and groundtruth(future) scenarios, the robot’s activities are very focused on its right
+ hand locations. Only when the ratio was greater than 0.5, hand motion. Table III shows mean pixel distance between
+ the predicted box was accepted as a true positive. In this ground truth and predicted position of ‘my right hand’. We
+ experiment,wer and omlysplit the setof our Human-Human can see that per for mances of our approaches are superior to
+ Interaction Videos into the training and testing sets, so 32 all the baselines. Examples of our visual predictions results
+ videos were used for training sets and remaining 15 videos are illustrated in Fig. 4.
+ were used for testing sets in a total of 47 videos. 
+ D. Real-time robot experiments 
+ Table I shows quantitative results of our future hand 
+ prediction. Here, the plus-minus sign (±) indicates standard Finally, we conducted a user study to evaluate the success
+ deviation and K represents number of frames we used as an level of robot activities per for med based on our proposed
+ input for ourregressionnetwork.Our∆was 30 frames(i.e., approach, with human subjects. A total of 12 participants
+ 1 sec). We are able to clearly observe that our approach (5 undergraduate and 7 graduate students) were recruited
+ signifi can tly outperforms all the baselines, including the from the campus, and were asked to perform one of the
+ state-of-the-art object detector SSD modified for the hand two activities (clearing the table for a partner and preparing
+ prediction. Our proposed network with K = 10 yielded the a trivet for a cooking pan) together with our robot. After
+ best per for mance in terms of all three metrics, at about 30.9 such interactions, the participants were asked to complete a
+ score in F-measure. The best per for mance we can get with questionnaire about the robot behaviors for each task. The
+ SSD was only 13.23. questionnaire had two statements (one statement for each
+ In our second evaluation, we measured mean pixel dis- activity)withscales from 1(totallydonotagree)to 5(totally
+ tancebetweenground truthlocations and the predictedposi- agree) to express their impression on the robot behaviors: “I
+
+ 
+ 
+ 
+ 
+ Time (t) 
+ se 
+ m 
+ a 
+ rf 
+ tu 
+ p 
+ n 
+ I 
+ sn 
+ o 
+ itc 
+ id 
+ e 
+ r P 
+ Predictions overlaid 
+ on future frames 
+ Time (t) 
+ se 
+ m 
+ a 
+ rf 
+ tu 
+ p 
+ n 
+ I 
+ sn 
+ o 
+ itc 
+ id 
+ e 
+ r P 
+ Predictions overlaid 
+ on future frames 
+ Fig.4. Twoexamplesof our visualprediction.Thefirstexampleistheactivityofclearing the table,andthesecondexampleis the activityofpushing
+ the trivet toward the person holding a cooking pan. The first row shows the input frames and the second row shows our future hand prediction results.
+ Inthethirdrow,weoverlaid our predictionson“future”frames.Redboxescorrespondto the predicted‘mylefth and’locations,blueboxescorrespond
+ to ‘my right hand’, green boxes correspond to the opponent’s left hand, and the cyan boxes correspond to the opponent’s right hand. The frames were
+ capturedeveryonesecond. 
+ TABLEIV 
+ think the robot cleared the table to make a space for me.” 
+ THESUCCESSLEVELOF OUR HUMAN-ROBOTCOLLABORATION
+ for the task 1 and “I think the robot passed a trivet closer to 
+ me so that I can put the cooking pan on it.” for the task 2. 
+ Method Task 1 Task 2 Average 
+ Inadditionto our approach(i.e.,ourperceptioncomponent Base SSD+Basecontrol 1.25±0.43 2.21±1.41 1.72±0.92
+ Base SSD+Ourcontrol 1.5±0.96 2.33±1.60 1.92±1.28
+ + manipulation component), we designed and implemented 
+ Ourperception+Basecontrol 2.33±1.18 2.25±1.36 2.29±1.27
+ thefollowingthree base lines and compared the irquantitative Ours 3.17±1.40 3.42±1.61 3.29±1.50
+ results: (i) Base SSD + Base control uses the baseline 
+ SSD with future annotations 1 as a perception component 
+ and the base manipulation network trained using the same our real-time robot experiments with human subjects are
+ robot activity log files. This base control network direct illustrated in Fig. 5.
+ maps current hand locations in the image plane to current Our method operates in slow real-time with our unopti-
+ seven joint angles for each robot arm, without the Zˆ term mized C++ code. It takes ∼100 ms per frame using one
+ t 
+ in Eq. 8. (ii) Base SSD + Our control uses SSD with Nvidia Pascal Titan X GPU, and we were able to conduct
+ future annotations 1 as a perception component and our ma- real-time human-robot collaboration experiments using it.
+ nipulationcomponent(from Section III-C)togeneratemotor 
+ commands. (iii) Our perception + Base control used our V. CONCLUSION 
+ perception component to predict future hand locations and In this paper, we proposed a new robot activity learning
+ the base controlnetwork for manipulation.Inall the secases, model using a fully convolutional network for future repre-
+ the final control of our robot arm is per for med by taking sentation regression. The main idea was to make the robot
+ advantage of the Baxter API by providing the estimated learn the temporal structure of a human activity as its future
+ future joint angle configuration. regression network, and learn to transfer such model for its
+ Asaresult,eachparticipantinteracted with the robottotal own motor execution using our manipulation network. We
+ of 8 timesinar and omorder.Table IVshows the results.The show that our approach enables the robot to infer the motor
+ resultsindicate that ourparticipantsevaluated the robot with control commands based on the prediction of future human
+ our approach per for med better on both tasks. We received a handlocationsinreal-time.Theexperimentalresultsconfirm
+ higher average score of 3.29 compared to all the baselines that our approach not only predicts the future locations of
+ (1.72, 1.92, and 2.29) from the participants. Examples of human/robot hands more reliably, but also is able to make
+
+ 
+ 
+ 
+ 
+ Time (t) 
+ w 
+ e 
+ iv 
+ s’to 
+ b 
+ o 
+ R 
+ w 
+ e 
+ iv 
+ n 
+ o 
+ sre 
+ p 
+ dr 3 
+ Time (t) 
+ w 
+ e 
+ iv 
+ s’to 
+ b 
+ o 
+ R 
+ w 
+ e 
+ iv 
+ n 
+ o 
+ sre 
+ p 
+ dr 3 
+ Fig.5. Qualitativeresultsof our real-timerobotexperiments.Similarto Fig.4,there are twoexamples:clearing the table,andpushing the trivettoward
+ theperson.Ineachexample,thefirstrowshows the exactframesusedasinputsto our robot(taken from arobotcamera),and the secondrowshows the
+ robot and the humanfroma 3 rdpersonviewpoint.Theframes were capturedeveryonesecond. 
+ robots execute the activities based on predictions. The paper [11] K. Mu¨lling, J. Kober, O. Kroemer, and J. Peters, “Learning to
+ focusesonrobotlearningoflocation-basedh and movements select and generalize striking movements in robot table tennis,” The
+ International Journalof Robotics Research,2013.
+ (i.e., translations and natural rotations), and handling more 
+ [12] T. Shu, M. S. Ryoo, and S.-C. Zhu, “Learning social affordance
+ dynamic hand posture changes remains as one of our future for human-robot interaction,” in International Joint Conference on
+ challenges. Artificial Intelligence(IJCAI),2016. 
+ [13] H. Koppula and A. Saxena, “Physically-grounded spatio-temporal
+ Acknowledgement: This work was supported by the Army object affordances,” in European Conference on Computer Vision
+ (ECCV),2014. 
+ Research Laboratory under Cooperative Agreement Number 
+ [14] J.Walker,A.Gupta,and M.Hebert,“Patchto the future:Unsupervised
+ W 911 NF-10-2-0016. visual prediction,” in IEEE Conference on Computer Vision and
+ Pattern Recognition(CVPR),2014. 
+ [15] W. Lotter, G. Kreiman, and D. Cox, “Deep predictive coding net-
+ REFERENCES 
+ works for videoprediction and unsupervisedlearning,”ar Xivpreprint
+ ar Xiv:1605.08104,2016. 
+ [1] S. Levine, C. Finn, T. Darrell, and P. Abbeel, “End-to-end training 
+ [16] C.Finn and S.Levine,“Deepvisualforesight for planningrobotmo-
+ ofdeepvisuomotorpolicies,”Journalof Machine Learning Research, 
+ tion,”in IEEEInternational Conferenceon Robotics and Automation
+ 2016. 
+ (ICRA),2017. 
+ [2] C. Finn, I. Goodfellow, and S. Levine, “Unsupervised learning for 
+ [17] K.M.Kitani,T.Okabe,Y.Sato,and A.Sugimoto,“Fastunsupervised
+ physicalinteractionthroughvideoprediction,”in Advances In Neural 
+ ego-actionlearning for first-personsportsvideos,”in IEEEConference
+ Information Processing Systems(NIPS),2016. 
+ on Computer Vision and Pattern Recognition(CVPR),2011.
+ [3] K. Lee, Y. Su, T.-K. Kim, and Y. Demiris, “A syntactic approach 
+ [18] A. Fathi, A. Farhadi, and J. M. Rehg, “Underst and ing egocentric
+ to robot imitation learning using probabilistic activity grammars,” 
+ activities,” in International Conference on Computer Vision (ICCV),
+ Robotics and Autonomous Systems,2013. 
+ 2011. 
+ [4] Y. Yang, Y. Li, C. Fermu¨ller, and Y. Aloimonos, “Robot learning 
+ [19] H.Pirsiavash and D.Ramanan,“Detectingactivitiesofdailylivingin
+ manipulation action plans by” watching” unconstrained videos from 
+ first-person camera views,” in IEEE Conference on Computer Vision
+ theworldwideweb.”in AAAI,2015. 
+ and Pattern Recognition(CVPR),2012. 
+ [5] B. D. Argall, S. Chernova, M. Veloso, and B. Browning, “A survey [20] M. S. Ryoo, B. Rothrock, and L. Matthies, “Pooled motion features
+ of robot learning from demonstration,” Robotics and Autonomous forfirst-personvideos,”in IEEEConferenceon Computer Vision and
+ Systems,2009. Pattern Recognition(CVPR),2015. 
+ [6] W. Liu, D. Anguelov, D. Erhan, C. Szegedy, S. Reed, C. Fu, and [21] M. S. Ryoo, T. J. Fuchs, L. Xia, J. K. Aggarwal, and L. Matthies,
+ A.Berg,“SSD:Singleshotmultiboxdetector,”in European Confer- “Robot-centricactivityprediction from first-personvideos:What will
+ enceon Computer Vision(ECCV),2016. they do to me?” in ACM/IEEE International Conference on Human-
+ [7] C.Vondrick,H.Pirsiavash,and A.Torralba,“Anticipatingvisualrep- Robot Interaction(HRI),2015.
+ resentations with unlabeledvideo,”in IEEEConferenceon Computer [22] I. Gori, J. K. Aggarwal, L. Matthies, and M. S. Ryoo, “Multi-type
+ Vision and Pattern Recognition(CVPR),2016. activity recognition in robot-centric scenarios,” IEEE Robotics and
+ [8] A.Billard,S.Calinon,R.Dillmann,and S.Schaal,“Robotprogram- Automation Letters(RA-L),2016.
+ mingbydemonstration,”in Springerh and bookofrobotics,2008. [23] S. Bambach, S. Lee, D. J. Crandall, and C. Yu, “Lending a hand:
+ [9] A.Gupta,C.Eppner,S.Levine,and P.Abbeel,“Learningdexterous Detecting hands and recognizing activities in complex egocentric
+ manipulation for asoftrobotichand from hum and emonstrations,”in interactions,” in IEEE International Conference on Computer Vision
+ IEEE/RSJInternational Conferenceon Intelligent Robots and Systems (ICCV),2015. 
+ (IROS),2016. [24] P. F. Alcantarilla, A. Bartoli, and A. J. Davison, “Kaze features,” in
+ [10] A.L.Thomaz and M.Cakmak,“Learningaboutobjects with human European Conferenceon Computer Vision(ECCV),2012.
+ teachers,” in ACM/IEEE International Conference on Human-Robot 
+ Interaction(HRI),2009. 

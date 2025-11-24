@@ -1,0 +1,876 @@
+ 
+ 
+ 
+ 
+ 
+ 
+ Ego Mimic: Scaling Imitation Learning via Egocentric Video 
+ 
+ Simar Kareer 1, Dhruv Patel 1∗, Ryan Punamiya 1∗, Pranay Mathur 1∗, Shuo Cheng 1
+ Chen Wang 2, Judy Hoffman 1†, Danfei Xu 1† 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Fig. 1: Ego Mimic unlocks human embodiment data—egocentric videos paired with 3 D hand tracks—as a new scalable data source for
+ imitation learning. We can capture this data anywhere, without a robot, by wearing a pair of Project Aria glasses while per for ming
+ manipulation tasks with our own hands. Ego Mimic bridges kinematic, distributional, and appearance differences between human
+ embodiment data (left) and traditional robot teleoperation data (right) to learn a unified policy. We find that human embodiment data
+ boosts task per for mance by 34-228% over using robot data alone, and enables generalization to new objects or even scenes.
+ Abstract—The scale and diversity of demonstration data To scale up data for robotics, there have been recent ad-
+ required for imitation learning is a significant challenge. We vancesin data collectionsystems.Forexample,ALOHA[1],
+ present Ego Mimic,afull-stackframeworkwhich scale smanip- 
+ [2] and GELLO [3] are intuitive leader-follower controls
+ ulationviahumanembodiment data,specificallyegocentrichu- 
+ for collecting teleoperated data. Other works have opted
+ man videos paired with 3 D hand tracking. Ego Mimic achieves 
+ this through: (1) a system to capture human embodiment to develop hand-held grippers to collect data without a
+ data using the ergonomic Project Aria glasses, (2) a low-cost robot [4]. Despite these advances, data collected via these
+ bimanual manipulator that minimizes the kinematic gap to systemsstillrequirespecializedhardw are and activeef for tin
+ human data, (3) cross-domain data alignment techniques, and 
+ providingdemonstrations.Wehypo the size that akeystep for
+ (4) an imitation learning architecture that co-trains on human 
+ achieving Internet-scalerobotdataispassive data collection.
+ and robot data. Compared to prior works that only extract 
+ high-level intent from human videos, our approach treats Just as the Internet was not built for curating data to train
+ human and robot data equally as embodied demonstration largevision and languagemodels,anidealrobot data system
+ data and learns a unified policy from both data sources. should allow users to generate sensorimotor behavior data
+ Ego Mimic achieves significant improvement on a diverse set 
+ without intending to do so. 
+ of long-horizon, single-arm and bimanual manipulation tasks 
+ Human videos, especially those captured from an egocen-
+ over state-of-the-art imitation learning methods and enables 
+ generalization to entirely new scenes. Finally, we show a tric perspective, present an ideal source of data for passive
+ favorable scaling trend for Ego Mimic, where adding 1 hour of data scalability. This data aligns closely with robot data,
+ additionalh and dataissignifi can tlymorevaluablethan 1 hour as it provides an egocentric camera for vision, 3 D hand
+ ofadditionalrobot data.Videos and additionalin for mation can 
+ tracking for actions, and onboard SLAM for localization.
+ be found at https://egomimic.github.io/ 
+ The advent of consumer-grade devices capable of capturing
+ I. INTRODUCTION such data, including Extended Reality (XR) devices and
+ End-to-end imitation learning has shown remarkable per- camera-equipped “smart glasses”, opens up unprecedented
+ formance in learning complex manipulation tasks, but it re- opportunities for passive data collection at scale. While
+ mains brittle when facing new scenarios and tasks. Drawing recent works have begun to leverage human video data,
+ on the recent success of Computer Vision and Natural Lan- their approaches are limited to extracting high-level intent
+ guage Processing,wehypo the size that for learnedpoliciesto information from videos to build planners that guide low-
+ achieve broad generalization, we must dramatically scale up level conditional policies [5], [6]. As a result, these systems
+ the training data size. While these adjacent domains benefit remainconstrainedby the per for manceoflow-levelpolicies,
+ from Internet-sourced data,roboticslackssuchanequivalent. which are typically trained solely on teleoperation data.
+ Weargue that totruly scale robotper for mance with human
+ SK, DP, RP, PM, SC, JH, DX are with the Georgia Institute of data, we should not consider human videos as an auxiliary
+ Technology and CW is with Stanford University. Email Correspondence: 
+ skareer@gatech.edu data source that requires separate handling. Instead, we
+ *Denotesequalcontribution.†Denotesequaladvising. should exploit the inherent similarities between egocentric
+ 4202 
+ tc O 
+ 13 
+ ]OR.sc[ 
+ 1 v 12242.0142:vi Xra 
+
+ 
+ 
+ 
+ 
+ human data and robot data to treat them as equal parts in for instance RT 1 required 17 months of data collection and
+ a continuous spectrum of embodied data sources. Learning 13 robots[13].Ourworkproposesalearningframework that
+ seamlessly from both data sources will require full-stack takes advantage of scalable human embodiment demonstra-
+ innovation, from data collection systems that unify data tions, which has the potential to be larger and more diverse
+ fromboths our cestoimitationlearningarchitectures that can than any dataset consisting of robot demonstrations alone.
+ enable such cross-embodied policy learning. 
+ To this end, our work treats human data as a first-class Learning from Video Demonstrations: To satisfy the data
+ data source for robot manipulation. We believe our system requirements of pixel to action IL algorithms, many recent
+ is a key step towards using passive data from wearable works leverage human data because it is highly scalable.
+ smart glasses to train manipulation policies. We present Human data is used at different levels of abstraction, where
+ Ego Mimic (Fig. 1), a framework to collect data and co-train some works use human videos from internet-scale datasets
+ manipulation policies from both human egocentric videos to pretrain visual representations [15], [16], [17]. Other
+ and teleoperated robot data consisting of: worksusehumanvideostomoreexplicitlyunderst and scene
+ (i) A system to collect human data built on Project dynamics through point track prediction, intermediate state
+ Aria glasses [7] that capture egocentric video, 3 D hand hallucination in pixel space, or affordance prediction [18],
+ tracking, and device SLAM. This rich information allows us [19], [6], [20], [21]. And finally, recent works use hand tra-
+ totransformhumanegocentric data intoa for matcompatible jectorypredictionasaproxy for predictingrobotactions[5].
+ with robot imitation learning. While these approaches leverage hand data, they often have
+ (ii) A capable yet low-cost bimanual robot that minimizes separate modules to process hand and robot data. Instead,
+ the kinematic and camera-to-camera gap to human embodi- by fully leveraging the rich information provided by Aria
+ ment data. In particular, we minimize the camera-to-camera glasses including on-board SLAM, our method is able to
+ device gap (FOV, dynamic ranges, etc) between human and unify and treat human and robot data as equals and co-train
+ robot data by using Project Aria glasses as the main robot from both data sources with a single end-to-end policy.
+ sensor. 
+ (iii) To mitigate differences in data distributions, we nor- Data Collection Systems: Various methods have been
+ malize and align action distributions between human and used to scale robot data. Low-cost devices such as the
+ robots. Further, we minimize the appearance gap between Space Mouse offer sensitive and fine-grained teleoperation
+ human arm and robot manipulator via visual masking. of robotic manipulators [22], [10], [23], [11], [24]. Further
+ (iv)Aunifiedimitationlearningarchitecturethatco-trains works improve intuitive control through virtual reality sys-
+ on hand and robot data with a common vision encoder and tems such as the VR headset [25], [26], [27], [28], [29]. Re-
+ policy network. Despite distinct action spaces for human centsystemslike ALOHA and GELLOincreaseergonomics
+ and robot, our model enforces a shared representation to for low-cost and fine-grained bimanual manipulation tasks
+ enable per for mance scaling with human embodiment data, through a leader-follower teleoperation interface [1], [3]
+ outper for ming existing methods that treat human and robot or exoskeletons [30], [31]. Other works attempt to collect
+ data separately. humanembodiment data with richin for mationlike 3 Daction
+ We empirically evaluate Ego Mimic on three challenging tracking, but existing systems face tradeoffs. Those which
+ long-horizon manipulation tasks in the real world: contin- leverage rich information are either not portable (e.g., static
+ uous object-in-bowl, clothes folding, and grocery packing camera [32], [5], [33], [34]) or ergonomic (e.g., require a
+ (Fig.5).Ourresultsdemonstrate that Ego Mimicsignifi can tly hand-heldgripper[4],[35]orbody-worncamera[36],[37]),
+ enhances task per for manceacrossallscenarios,withrelative which prevent the passive scalability of the data collection
+ improvements of up to 200%. Notably, we observe that system. Along these lines, our approach captures egocentric
+ Ego Mimic exhibits generalization to objects and scenes video and 3 Dhandtracking data,butvia the ergonomicform
+ encountered exclusively in human data. Finally, we analyze factorof Project Aria Glasses[7].Whileo the rwearable data
+ thescalingpropertiesof Ego Mimic,andfoundlearning from collection methods like VR headsets capture hand positions
+ an additional hour of hand data signifi can tly outperforms toteleoperatearobot,oursystemdoesnotrequirearobotat
+ training from an additional hour of robot data. all. This system has the potential to passively scale [38], as
+ adoption of similar consumer-grade devices continue to rise.
+ II. RELATEDWORKS 
+ Imitation Learning: Imitation Learning (IL) has been used Cross-embodiment Policy Learning: Advances in cross-
+ to perform diverse and contact-rich manipulation tasks [8], embodiment learning show that large models trained on
+ [9], [10]. Recent advancements in IL have led to the de- datasets with diverse robot embodiments are more general-
+ velopment of pixel-to-action IL models, which directly map izable [39]. Some approaches aim to bridge the embodiment
+ raw visual inputs to low-level robot control [1], [11]. These gapthroughobservationreprojection[40],actionabstractions
+ visual IL models have demonstrated impressive reactive [41], and policies conditioned on embodiment, [42]. Recent
+ policies [12], [5]. Scaling these models has displayed strong works view cross-embodiment learning as a domain adapta-
+ generalization in works such as RT 1 and RT 2 [13], [14]. tion problem [43]. Our work argues that human data should
+ However,thesemethodsremainlabor and resource-intensive, be treated as another embodiment in transfer learning.
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Fig. 2: Our human data system uses Aria glasses to capture Egocentric RGB and uses its side SLAM cameras to localize the device
+ and track hands. The robot consists of two Viper X follower arms with Intel Real Sense D 405 wrist cameras, controlled by two Widow X
+ leader arms. Our robot uses identical Aria glasses as the main vision sensor to help minimize the camera to camera gap.
+ III. EGOMIMIC movements.Priorworksoftenrelyontable-mountedmanip-
+ Ego Mimic is a full-stack framework that captures and ulators such as the Franka Emika Panda [46]. While these
+ learns from both egocentric human embodiment data and systems are capable, they differ signifi can tly from human
+ robot data. We detail each component of our pipeline below, arms in terms of kinematics. Moreover, their substantial
+ starting with our hardw are setup for human and robot data weight andinertia necessitate slow, cautious movements due
+ collection (Sec. III-A), followed by our methods for pro- to safety concerns, largely preventing them from perform-
+ cessing and aligning the data from both sources (Sec. III- ing manipulation tasks at speeds comparable to humans.
+ B), and finally our unified policy architecture (Sec. III-C). In response to these limitations, we have purpose-built a
+ Our design choices throughout are motivated by making bimanual manipulator that is lightweight, agile, and cost-
+ human embodiment data as suitable for robot learning as effective. Drawing inspiration from the ALOHA system [1],
+ tele-operated robot data is. our robot setup comprises two 6-Do F Viper X 300 S arms
+ with Intel Realsense D 405 wrist cameras, mounted in an
+ A. Data Collection Systems and Hardw are Design 
+ inverted configuration on a height-adjustable rig as the torso
+ Aria glasses for egocentric demonstration collection. An (Fig 2), kinematically mimicking the upper body of a hu-
+ ideal system for human data needs to capture rich infor- man.The Viper Xarms are lean and relativelysimilarinsize
+ mation about the scene, while remaining passively scalable. to human arms, contributing to their enhanced agility. The
+ Such a system should be wearable, ergonomic, capture a entire rig can be assembled for less than $1,000 excluding
+ wide FOV, track hand positions, device pose, and more. the Viper Xarms(the BOMwill bemadeavailable).Wealso
+ Ego Mimic fills this gap by building on top of the Project built a leader robot rig to collect teleoperation data, similar
+ Aria glasses [7]. Aria glasses are head-worn devices for to ALOHA [1]. 
+ capturing multimodal egocentric data. The device assumes Further, as our method jointly learns visual policies from
+ an ergonomic glasses form factor that weighs only 75 g, egocentric human and robot data, it is essential to align
+ permitting long wearing time and passive data collection. the visual observation space. Thus in addition to alignment
+ Our work leverages the front-facing wide-Fo V RGB camera through data post-processing (Sec. III-B), we directly match
+ forvisualobservation and twomono-colorscenecameras for the camera hardw are by using a second pair of Aria glasses
+ device pose and hand tracking (See Fig. 2 for sample data). as the main sensor for the robot, which we have mounted
+ Inparticular,theside-facingscenecamerastrackh and poses directly to the top of the torso at a location similar to that
+ even when they move out of the main RGB camera’s view, of human eyes (Fig. 2). This enables us to mitigate the
+ signifi can tly mitigating the challenges posed by humans’ observation domain gap associated with the camera devices,
+ natural tendency to move their head and gaze ahead of their including FOVs, exposure levels, and dynamic ranges.
+ hands during sequential manipulation tasks. 
+ B. Data Processing and Domain Alignment 
+ Further, there are large scale data collection efforts un- 
+ derway with Project Aria [44], [45], and the devices are To train unified policies from both human and robot data,
+ made available broadly to the academic community through Ego Mimicbridgesthreekeyhuman-robotgaps:(1)unifying
+ an active research partnership program. In the future, our action coordinate frames, (2) aligning action distributions,
+ system can enableuserstoseamlesslymerge data the ycollect and (3) mitigating visual appearance gaps.
+ with these large datasets. Ultimately, we present a system Raw data streams. We stream raw sensor data from the
+ that enables passive yet feature-rich human data collection hardw are setupasdescribedin Sec.III-A.Ariaglassesworn
+ to help scale up robot manipulation. by the human and robot generate ego-centric RGB image
+ Low-costbimanualmanipulator.Toeffectivelyutilizeego- streams. In addition, the robot generates two wrist camera
+ centric human embodiment data, a robot manipulator should streams. For proprioception, we leverage the Aria Machine
+ be capable of moving in ways that resemble human arm Perception Service (MPS) [47] to estimate 3 D poses of both
+
+ 
+ 
+ 
+ 
+ Source Type Data 
+ Human DH Image Egocentricview 
+ Proprio 3 Dhandposes(Hp) 
+ Action Normalizedh and tracks(Hap) 
+ Robot DR Image Egocentric+wristviews 
+ Proprio EEFposes(Rp),Jointpositions(Rq) 
+ Action EEFactions(Rap),Jointactions(Raq) 
+ TABLE I: Comparison of human and robot data streams 
+ 
+ hands Hp ∈ SE(3) × SE(3). Robot proprioception data 
+ includes both its end effector poses Rp ∈ SE(3)×SE(3) 
+ and joint positions Rq ∈ R 2×7 (including the gripper jaw 
+ joint position). We in addition collect joint-space actions 
+ Raq ∈R 2×7 for teleoperated robot data. Fig.3:a)Actionnormalization:Theposedistributions are differ-
+ Unifying human-robot data coordinate frames. Robot ent between hand and robot data, specifically in the y (left-right)
+ dimension. We apply Gaussian normalization individually to the
+ action and proprioception data typically use fixed reference 
+ hand and robot pose data before feeding them to the model. b)
+ frames(e.g.,cameraorrobot base frame).However,egocen- 
+ Visual masking:Tohelpbridge the appearancegapofhuman and
+ tric hand data from moving cameras breaks this assumption. and the robot arm, we apply a black mask to the hand and robot
+ To unify the reference frames for joint policy learning, we via SAM, then overlay a red line onto the image.
+ transform both human hand and robot end effector trajecto- 
+ ries into camera-centered stable reference frames. Following 
+ the idea of predicting action chunks [11], [1], we aim to 
+ construct action chunks ap for both human hand and 
+ t:t+h 
+ robot end effector. To simplify the notation, we describe 
+ the single-arm case that generalizes to both arms. The raw 
+ trajectory is a sequence of 3 D poses [p Ft,p Ft+1,...p Ft+h], 
+ t t+1 t+h 
+ where F denotes the coordinate frame of the camera when 
+ i 
+ estimating p . F remains fixed for the robot but changes 
+ i i 
+ constantly for humanegocentric data.Ourgoalistoconstruct 
+ ap bytrans for mingeachpositionin the trajectoryinto the 
+ t:t+h 
+ observation camera frame F . This allows the policy to pre- Fig.4:Architectureof the jointhuman-robotpolicylearningframe-
+ t 
+ work.The model processesnormalizedh and and robot data through
+ dict actions without considering future camera movements. 
+ shared vision and ACT encoders, outputting pose predictions for
+ For human data, we use the MPS visual-inertial SLAM to 
+ both human and robot data, and joint actions for robot data. The
+ obtain the Ariaglassespose T F W i ∈SE(3)intheworldframe frameworkusesmaskedimagestomitigatehuman-robotappearance
+ and transform the action trajectory: gaps and incorporates wrist camera views for the robot.
+ Hap =[(TW)−1 TWp Fi for i∈[t,t+1,...,t+h]] 
+ i Ft Fi i 
+ A sample trajectory is visualized in Fig. 2 (top-left). Robot empirically effective (Sec. IV-B), though we plan to explore
+ data is trans for med similarly using the fixed camera frame alternatives such as action quantization [13] in the future.
+ estimated by hand-eye calibration. By creating a unified Bridging visual appearance gaps. Despite aligning sen-
+ reference frame, we enable the policy to learn from action sor hardw are for capturing robot and human data, there still
+ supervisions regardless of whether they originate from hu- exists a large visual appearance gap between human hands
+ man videos or teleoperated demonstrations. and robots. Previous works have acknowledged this gap
+ Aligninghuman-robotposedistributions.Despitealign- and attempt to occlude or remove the manipulator in visual
+ ing hand and robot data via hardw are design and data observation[50],[51].Wefollowsimilarideas and maskout
+ processing, we still observe differences in the distributions both the hand and the robot via SAM [52] and overlay a red
+ of hand and robot end effector poses in the demonstra- line to indicate end-effector directions (Fig. 3). The SAM
+ tions collected. These discrepancies arise from biomechani- point prompts are generated by the robot end effector and
+ cal differences, task execution variations, and measurement human hand poses trans for med to image frames.
+ precision disparities between human and robotic systems. 
+ C. Training Human-Robot Joint Policies 
+ Withoutmitigating this gap,thepolicytendstolearnseparate 
+ representations for the two data sources[48],[49],preventing Existing approaches often opt for hierarchical architec-
+ per for mance scaling with human data. To address this, we tures, where a high-level policy trained on human data
+ apply Gaussian normalization individually to end effector conditionsalow-levelpolicyoutputtingrobotactions[5],[6].
+ (hand)poses and actions from each data source,asshownin However, this approach is inherently limited by the perfor-
+ Fig. 3. Echoing [49], we found this simple technique to be manceof the low-levelpolicy,whichdoesnotdirectlybenefit
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Fig. 5: We evaluate Ego Mimic across three real world, long-horizon manipulation tasks. See Sec. IV-A for description.
+ Algorithm 1 Joint Human-Robot Policy Learning TABLE II: Data collection overview for both Human(H) and
+ Robot(R) data. We report both the number(#) of total task demon-
+ Require: Human dataset D H , Robot dataset D R strations and the time(min) took to collect them.
+ 1: Initialize shared trans for mer encoder f enc (·), pose de- 
+ coder fp(f (·)), and joint decoder fq(f (·)) 
+ enc enc Task H H H R R R 
+ 2: for iteration n=1,2,... do # min #/min # min #/min 
+ 3: // Human data Object-in-Bowl 1400 60 23 270 120 2 
+ 4: Sample (I t ,p t ,ap t:t+h ) from D H Groceries 160 80 2 300 300 1 
+ 5: Predict aˆp t:t+h from f p (f enc (I t ,p t )) Laundry 590 100 6 430 300 1
+ 6: LH =MSE(aˆp ,ap ) 
+ p t:t+h t:t+h 
+ 7: // Robot data transform the visual and proprioceptive embeddings before
+ 8: Sample (I t ,p t ,q t ,ap t:t+h ,aq t:t+h ) from D R passing to the policy trans for mer. The policy trans for mer
+ 9: Predict aˆq t:t+h from f q (f enc (I t ,p t ,q t )) processes the sefeatures,andthetwooutpu the adstransform
+ 10: Predict aˆp t:t+h from f p (f enc (I t ,p t ,q t )) the trans for mer’s latent output into either pose or joint
+ 11: LR =MSE(aˆq ,aq ) space predictions. The pose loss supervises both human and
+ q t:t+h t:t+h 
+ 12: LR =MSE(aˆp ,ap ) robot data via Hap and Rap, whereas the joint action loss
+ p t:t+h t:t+h 
+ 13: // Joint policy update only supervises robot data Raq. Since the two branches are
+ 14: Update f enc ,fp,fq with LH p +LR p +LR q separated by only one linear layer, we effectively force the
+ 15: end for model to learn joint representations for both domains. The
+ algorithm is summarized in Alg. 1. Table I summarizes the
+ data used for training. 
+ from large-scale human data. To address this limitation, we 
+ IV. EXPERIMENTS 
+ proposeasimplearchitecture(illustratedin Fig.4)thatlearns 
+ from unified data and promotes shared representation. Our Weaimtovalidatethreekeyhypo the ses.H 1:Ego Mimicis
+ model builds upon ACT [1], but the design is general and abletoleveragehumanembodiment data toboostin-domain
+ can be applied to other trans for mer based imitation learning per for mance for complex manipulation tasks. H 2: Human
+ algorithms. data helps Ego Mimic generalize to new objects and scenes.
+ A critical challenge in this unified approach is the choice H 3: Given sufficient initial robot data, it is more valuable to
+ of the robot action space. While the robot end-effector collect additional human data than additional robot data.
+ poses are more semantically similar to human hand pose 
+ A. Experiment Setup 
+ than robot-joint positions, it is difficult to control our robot 
+ withend-effectorposesviaacartesian-basedcontroller(e.g., Tasks. We select a set of long-horizon real world tasks to
+ differential IK) because the 6 Do F Viper X arms offer low evaluate our claims. Our tasks require precise alignment,
+ solutionredundancy.Empirically,wefound that robotsoften complex motions, and bimanual coordination (Fig. 5).
+ encounter singularities or non-smooth solutions in a trajec- Continuous Object-in-Bowl:Therobotpicksasmallplush
+ tory. Consequently, we opt for joint-space control (i.e., use toy (about 6 cm long), places it in a bowl, picks up the bowl
+ predicted joint action aˆq to control the robot), while to dump the object onto the table, and repeats continuously
+ t:t+h 
+ leveraging pose-space prediction to learn joint human-robot for 40 seconds. We randomly choose from a set of 3
+ representation. Note that the need both pose- and joint- bowls and 5 toys which randomly positioned on the table
+ spacepredictionsisspecificto our robothardw are,andmore within a 45 cm x 60 cm range. The task stress-tests precise
+ capable robots that better support end-effector space control manipulation, spatial generalization, and robustness in long-
+ can eliminate the need for predicting joint-space actions. horizonexecution.Weaward Ptseachtime the toyisplaced
+ Specifically,allparametersin the policyaresh are dbesides in a bowl, or the bowl is emptied. We perform 45 total
+ the two shallow input and output heads. The input heads evaluation rollouts across 9 bowl-toy-position combinations.
+
+ 
+ 
+ 
+ 
+ TABLE III: Quantitative results for 3 real-world tasks. We report TABLEIV:Ablations-Weablate our method and reportfinal task
+ task success rates (%) and per for mance scores (pts) for all tasks per for mance on the Object-in-Bowl task.
+ and bag grabbing rate for the Groceries tasks. 
+ Method Cotrained(Points) 
+ Method Bowl Laundry Groceries Ego Mimic 128 
+ Pts Pts SR Pts SR Open Bag Ego Mimicw/o Line 112 
+ Ego Mimicw/o Line and Mask 95 
+ ACT[1] 39 82 55% 82 22% 54% Ego Mimicw/o Action Norm 79 
+ Mimicplay[5] 71 78 50% 53 8% 40% Ego Mimicw/o Hand Data 68 
+ Ego Mimic(w/ohuman) 68 104 73% 92 28% 60% 
+ Ego Mimic 128 114 88% 110 30% 70% 
+ Laundry: A bimanual task that requires the robot to fold 
+ a t-shirt placed with random pose in a 90 cm × 60 cm range 
+ and a rotation range of ±30 deg. The robot must use both 
+ armstofold the rightsidesleeve,theleftsidesleeve,then the 
+ whole shirt in half. We award Pts for each of these stages, 
+ and calculate Success Rate (SR) based as the percentage of 
+ runs where all stages were successful. We perform 40 total 
+ evaluation rollouts across 8 shirt-position combinations. 
+ Groceries: The robot fills a grocery bag with 3 packs of 
+ chips. It uses its left arm to grab the top side of the bag 
+ handle to create an opening, then uses the right arm to pick 
+ Fig.6:Wehighlight Ego Mimic’ssuccess,aswellasfailuremodes,
+ thechippacks and placestheminto the bag.The task requires forinstance(e)failuretocorrectlyalign with the toy,(f)failureto
+ high-precision manipulation (picking up a deformable bag grasp the bag’shandle,or(g)policyonlygrabs 1 sideof the shirt.
+ handle) and robustness in long-horizon rollout. We award Ego Mimicreducesthefrequencyof the sefailuremodes,improving
+ success rates by 8-33% over the baselines.
+ Pts for picking the handle and for each pack placed in the 
+ grocery bag. We report SR as the percentage of runs where 
+ all three packs were successfully placed in the bag, and 8-33% over ACT. Our largest improvement is on the Cont.
+ Open Bag as the percentage of runs where the handle of Object-in-Bowl task,inwhichweyielda 228%improvement
+ the bag was grasped, which is a difficult stage of this task. intaskscoreover ACT.Weobserve the baselinesoftenmiss
+ We perform 50 evaluations across 10 bag positions. the toy or bowl by a few inches, which seems to indicate
+ We detail the amount of data collected for each task in that our use of hand data helps the policy precisely reach
+ Table II. While collecting robot data in particular, we make the toy. We show qualitative results in Fig. 6.
+ sure to randomly perturb the robot’s position, which we To ensure this increase was due to leveraging hand data
+ foundempiricallytoimproverobustness.Forhum and ata,we rather than architectural changes, we comp are to Ego Mimic
+ note that while tasks like Continuous Object-in-Bowl were (0% human). We observe a 10-88% improvement in score
+ particularly easy to scale, tasks like Groceries were slower and 2-15% improvement in success rate.
+ because of resetting time. Ego Mimic enables generalization to new objects and
+ Baselines. To evaluate that Ego Mimic can improve in- even scenes. We evaluate our method on two domain shifts:
+ domain success rate by leveraging human data, we bench- attempting to fold shirts of an unseen color, and per for ming
+ mark against ACT [1], a state of the art imitation learning the Cont. Object-in-Bowl task in an entirely different scene.
+ algorithm. Further, we comp are against Mimicplay [5], a re- Asshownin Fig.7,weobserve that ACTstrugglesonshirts
+ cent state of the art method that learns planners from human of unseen colors (25% SR) whereas Ego Mimic fully retains
+ data to guide low-level policies, to show that our unified its per for mance (85% SR). Surprisingly, by learning from
+ architecture learns more effectively from human and robot hum and ataina new scene(unseenbackground and lighting),
+ data. For fair comparisons, we implement Mimicplay with Ego Mimicisabletogeneralizeto this newenvironment with-
+ the same Trans for mer backbone as our method, and we re- out any additional robot data, scoring 63 points. In contrast,
+ moved goal conditioning because Ego Mimic is designed for Mimicplay, which had access to the same information but
+ single-task policies. Since Ego Mimic contains architectural instead leverages a hierarchical framework for using hand
+ changes to ACT, namely the simultaneous joint and pose dataonlyscored 4 points.Thissuggests that ourarchitecture
+ actionprediction,wealsobenchmarkagainst Ego Mimic(0% promotes joint hand-robot representation, whereas hierarchi-
+ Human). This helps us conclude that improvements come cal architectures pose a generalization bottleneck.
+ from leveraging human data rather than the architecture. Scaling human vs. robot data. To investigate the scaling
+ effect of human and robot data sources on per for mance, we
+ B. Results 
+ conducted additional data collection for the Cont. Object-in-
+ Ego Mimic improves in-domain task per for mance.Across bowl task. As illustrated in Fig. 7, Ego Mimic trained on 2
+ all tasks we observed a relative improvement in score of 34- hours of robot data and 1 hour of human data signifi can tly
+ 228%,andanimprovementinabsolute task successrate from outperforms ACTtrainedon 3 hoursofrobot data(128 vs 74
+
+ 
+ 
+ 
+ 
+ V. CONCLUSIONS 
+ We presented Ego Mimic, a framework to co-train ma-
+ nipulation policies from human egocentric videos and tele-
+ operated robot data. By leveraging Project Aria glasses, a
+ low-costbimanualrobotsetup,cross-domainalignmenttech-
+ niques,andaunifiedpolicylearningarchitecture,Ego Mimic
+ improves over state-of-the-art baselines on three challenging
+ real-world tasks and shows generalization to new scenes
+ as well as favorable scaling properties. For future work,
+ we plan to explore the possibility of generalizing to new
+ robotembodiments and entirely new behaviorsdemonstrated
+ only in human data, such as folding pants instead of shirts.
+ Overall, we believe our work opens up exciting new venues
+ Fig. 7: Evaluation Results on Policy Generalization. (a) We of research on scaling robot data via passive data collection.
+ evaluate the policy on the laundry task using unseen cloth colors 
+ andreport the successrate for eachmethod.(b)Wetest the policy 
+ on the Object-in-Bowl task in unseen scenes. REFERENCES 
+ [1] T.Z.Zhao,V.Kumar,S.Levine,and C.Finn,“Learningfine-grained
+ bimanual manipulation with low-cost hardw are,” 2023. [Online].
+ Available:https://arxiv.org/abs/2304.13705
+ [2] A. . Team, J. Aldaco, T. Armstrong, R. Baruch, J. Bingham,
+ S. Chan, K. Draper, D. Dwibedi, C. Finn, P. Florence, S. Goodrich,
+ W. Gramlich, T. Hage, A. Herzog, J. Hoech, T. Nguyen, I. Storz,
+ B. Tabanp our, L. Takayama, J. Tompson, A. Wahid, T. Wahrburg,
+ S. Xu, S. Yaroshenko, K. Zakka, and T. Z. Zhao, “Aloha 2:
+ An enhanced low-cost hardw are for bimanual teleoperation,” 2024.
+ [Online].Available:https://arxiv.org/abs/2405.02292
+ [3] P.Wu,Y.Shentu,Z.Yi,X.Lin,and P.Abbeel,“Gello:Ageneral,low-
+ cost, and intuitive teleoperation framework for robot manipulators,”
+ 2024.[Online].Available:https://arxiv.org/abs/2309.13037
+ [4] C. Chi, Z. Xu, C. Pan, E. Cousineau, B. Burchfiel, S. Feng,
+ R. Tedrake, and S. Song, “Universal manipulation interface: In-
+ the-wild robot teaching without in-the-wild robots,” 2024. [Online].
+ Available:https://arxiv.org/abs/2402.10329
+ [5] C. Wang, L. Fan, J. Sun, R. Zhang, L. Fei-Fei, D. Xu,
+ Y. Zhu, and A. Anandkumar, “Mimicplay: Long-horizon imitation
+ learning by watching human play,” 2023. [Online]. Available:
+ Fig. 8: Scaling robot vs. human data. Ego Mimic trained on 2 https://arxiv.org/abs/2302.12422
+ hours robot data + 1 hour hand data (Blue) strongly outperforms [6] H. Bharadhwaj, A. Gupta, V. Kumar, and S. Tulsiani, “Towards
+ ACT [1] trained on 3 hours of robot data (Orange). generalizablezero-shotmanipulationviatranslatinghumaninteraction
+ plans,”2023.[Online].Available:https://arxiv.org/abs/2312.00775
+ [7] J. Engel, K. Somasundaram, M. Goesele, A. Sun, A. Gamino,
+ A. Turner, A. Talattof, A. Yuan, B. Souti, B. Meredith, C. Peng,
+ points).Notably,oneh our ofhum and atayields 1400 demon- C.Sweeney,C.Wilson,D.Barnes,D.De Tone,D.Caruso,D.Valleroy,
+ strations,comp are dtoonly 135 demonstrations from anhour D.Ginjupalli,D.Frost,E.Miller,E.Mueggler,E.Oleinik,F.Zhang,
+ G. Somasundaram, G. Solaira, H. Lanaras, H. Howard-Jenkins,
+ of robot data. These results demonstrate Ego Mimic’s ability 
+ H.Tang,H.J.Kim,J.Rivera,J.Luo,J.Dong,J.Straub,K.Bailey,
+ to effectively leverage the efficiency of human embodiment K. Eckenhoff, L. Ma, L. Pesqueira, M. Schwesinger, M. Monge,
+ data collection, leading to a more pronounced scaling effect N.Yang,N.Charron,N.Raina,O.Parkhi,P.Borschowa,P.Moulon,
+ P. Gupta, R. Mur-Artal, R. Pennington, S. Kulkarni, S. Miglani,
+ that substantially boosts task per for mance beyond what is 
+ S. Gondi, S. Solanki, S. Diener, S. Cheng, S. Green, S. Saarinen,
+ achievable with robot data alone. We note that Ego Mimic at S. Patra, T. Mourikis, T. Whelan, T. Singh, V. Balntas, V. Baiyya,
+ 2 hours of robot data outperforms ACT at 2 hours of robot W. Dreewes, X. Pan, Y. Lou, Y. Zhao, Y. Mans our, Y. Zou, Z. Lv,
+ Z.Wang,M.Yan,C.Ren,R.D.Nardi,and R.Newcombe,“Project
+ data, so some improvement is attributed to architecture. 
+ aria: A new tool for egocentric multi-modal ai research,” 2023.
+ [Online].Available:https://arxiv.org/abs/2308.13561
+ Ablationstudies.Weablate our approachtodemonstrate the 
+ [8] A.Paraschos,C.Daniel,J.R.Peters,and G.Neumann,“Probabilistic
+ importance of each design decision on the Object-in-Bowl movementprimitives,”in Advancesin Neural Information Processing
+ task (Table IV). First, removing action normalization results Systems, C. Burges, L. Bottou, M. Welling, Z. Ghahramani, and
+ K.Weinberger,Eds.,vol.26. Curran Associates,Inc.,2013.
+ in a 38% drop in task score. This highlights the importance 
+ [9] C.Finn,T.Yu,T.Zhang,P.Abbeel,and S.Levine,“One-shotvisual
+ of action distribution alignment for co-training. Next, we imitation learning via meta-learning,” 2017. [Online]. Available:
+ ablate away the visual techniques, specifically masking out https://arxiv.org/abs/1709.04905
+ [10] A. Mandlekar, D. Xu, J. Wong, S. Nasiriany, C. Wang, R. Kulkarni,
+ the hand and robot, as well as drawing the red overlay on 
+ L.Fei-Fei,S.Savarese,Y.Zhu,and R.Mart´ın-Mart´ın,“Whatmatters
+ the image. Removing these components resulted in 13 and in learning from offline human demonstrations for robot manipula-
+ 26% drops respectively. Finally, Ego Mimic trained without tion,”inar Xivpreprintar Xiv:2108.03298,2021.
+ [11] C.Chi,Z.Xu,S.Feng,E.Cousineau,Y.Du,B.Burchfiel,R.Tedrake,
+ any hand data, yields a large 47% drop, which highlights 
+ and S.Song,“Diffusionpolicy:Visuomotorpolicylearningviaaction
+ how effective hand-robot co-training is on our stack. diffusion,”2024.[Online].Available:https://arxiv.org/abs/2303.04137
+
+ 
+ 
+ 
+ 
+ [12] S. Young, D. Gandhi, S. Tulsiani, A. Gupta, P. Abbeel, and [29] T. He, Z. Luo, X. He, W. Xiao, C. Zhang, W. Zhang, K. Kitani,
+ L. Pinto, “Visual imitation made easy,” 2020. [Online]. Available: C. Liu, and G. Shi, “Omnih 2 o: Universal and dexterous human-
+ https://arxiv.org/abs/2008.04899 to-humanoid whole-body teleoperation and learning,” ar Xiv preprint
+ [13] A. Brohan, N. Brown, J. Carbajal, Y. Chebotar, J. Dabis, C. Finn, ar Xiv:2406.08858,2024.
+ K. Gopalakrishnan, K. Hausman, A. Herzog, J. Hsu, J. Ibarz, [30] H.Fang,H.-S.Fang,Y.Wang,J.Ren,J.Chen,R.Zhang,W.Wang,
+ B. Ichter, A. Irpan, T. Jackson, S. Jesmonth, N. J. Joshi, R. Julian, and C. Lu, “Airexo: Low-cost exoskeletons for learning whole-arm
+ D. Kalashnikov, Y. Kuang, I. Leal, K.-H. Lee, S. Levine, Y. Lu, manipulationin the wild,”ar Xivpreprintar Xiv:2309.14975,2023.
+ U. Malla, D. Manjunath, I. Mordatch, O. Nachum, C. Parada, [31] S. Yang, M. Liu, Y. Qin, R. Ding, J. Li, X. Cheng, R. Yang, S. Yi,
+ J. Peralta, E. Perez, K. Pertsch, J. Quiambao, K. Rao, M. Ryoo, and X.Wang,“Ace:Across-plat for mvisual-exoskeletonssystem for
+ G. Salazar, P. Sanketi, K. Sayed, J. Singh, S. Sontakke, A. Stone, low-cost dexterous teleoperation,” ar Xiv preprint ar Xiv:2408.11805,
+ C. Tan, H. Tran, V. Vanhoucke, S. Vega, Q. Vuong, F. Xia, 2024. 
+ T. Xiao, P. Xu, S. Xu, T. Yu, and B. Zitkovich, “Rt-1: Robotics [32] A.Sivakumar,K.Shaw,and D.Pathak,“Robotictelekinesis:Learning
+ transformer for real-worldcontrolat scale,”2023.[Online].Available: a robotic hand imitator by watching humans on youtube,” ar Xiv
+ https://arxiv.org/abs/2212.06817 preprintar Xiv:2202.10448,2022. 
+ [14] A. Brohan, N. Brown, J. Carbajal, Y. Chebotar, X. Chen, [33] V.Jain,M.Attarian,N.J.Joshi,A.Wahid,D.Driess,Q.Vuong,P.R.
+ K.Choromanski,T.Ding,D.Driess,A.Dubey,C.Finn,P.Florence, Sanketi,P.Sermanet,S.Welker,C.Chan,etal.,“Vid 2 robot:End-to-
+ C. Fu, M. G. Arenas, K. Gopalakrishnan, K. Han, K. Hausman, endvideo-conditionedpolicylearning with cross-attentiontransform-
+ A. Herzog, J. Hsu, B. Ichter, A. Irpan, N. Joshi, R. Julian, ers,”ar Xivpreprintar Xiv:2403.12943,2024.
+ D. Kalashnikov, Y. Kuang, I. Leal, L. Lee, T.-W. E. Lee, S. Levine, [34] Z. Fu, Q. Zhao, Q. Wu, G. Wetzstein, and C. Finn, “Humanplus:
+ Y.Lu,H.Michalewski,I.Mordatch,K.Pertsch,K.Rao,K.Reymann, Humanoidshadowing and imitation from humans,”in Conferenceon
+ M. Ryoo, G. Salazar, P. Sanketi, P. Sermanet, J. Singh, A. Singh, Robot Learning(Co RL),2024.
+ R. Soricut, H. Tran, V. Vanhoucke, Q. Vuong, A. Wahid, S. Welker, [35] N. M. M. Shafiullah, A. Rai, H. Etukuru, Y. Liu, I. Misra, S. Chin-
+ P. Wohlhart, J. Wu, F. Xia, T. Xiao, P. Xu, S. Xu, T. Yu, tala, and L. Pinto, “On bringing robots home,” ar Xiv preprint
+ and B. Zitkovich, “Rt-2: Vision-language-action models transfer ar Xiv:2311.16098,2023.
+ web knowledge to robotic control,” 2023. [Online]. Available: [36] C. Wang, H. Shi, W. Wang, R. Zhang, L. Fei-Fei, and C. K.
+ https://arxiv.org/abs/2307.15818 Liu, “Dexcap: Scalable and portable mocap data collection
+ [15] S. Nair, A. Rajeswaran, V. Kumar, C. Finn, and A. Gupta, “R 3 m: system for dexterous manipulation,” 2024. [Online]. Available:
+ A universal visual representation for robot manipulation,” 2022. https://arxiv.org/abs/2403.07788
+ [Online].Available:https://arxiv.org/abs/2203.12601 [37] G. Papagiannis, N. Di Palo, P. Vitiello, and E. Johns, “R+ x: Re-
+ [16] I. Radosavovic, T. Xiao, S. James, P. Abbeel, J. Malik, and T. Dar- trieval and execution from everyday human videos,” ar Xiv preprint
+ rell, “Real-world robot learning with masked visual pre-training,” in ar Xiv:2407.12957,2024.
+ Conferenceon Robot Learning. PMLR,2023,pp.416–426. [38] K. Grauman, A. Westbury, L. Torresani, K. Kitani, J. Malik,
+ [17] Y. J. Ma, S. Sodhani, D. Jayaraman, O. Bastani, V. Kumar, and T.Afouras,K.Ashutosh,V.Baiyya,S.Bansal,B.Boote,etal.,“Ego-
+ A. Zhang, “Vip: Towards universal visual reward and representa- exo 4 d: Underst and ing skilled human activity from first-and third-
+ tionviavalue-implicitpre-training,”ar Xivpreprintar Xiv:2210.00030, personperspectives,”in Proceedingsof the IEEE/CVFConferenceon
+ 2022. Computer Vision and Pattern Recognition,2024,pp.19383–19400.
+ [18] H. Xiong, Q. Li, Y.-C. Chen, H. Bharadhwaj, S. Sinha, and [39] E. Collaboration, A. O’Neill, A. Rehman, A. Gupta, A. Maddukuri,
+ A. Garg, “Learning by watching: Physical imitation of manipulation A. Gupta, A. Padalkar, A. Lee, A. Pooley, A. Gupta, A. Mandlekar,
+ skills from human videos,” 2021. [Online]. Available: https: A. Jain, A. Tung, A. Bewley, A. Herzog, A. Irpan, A. Khazatsky,
+ //arxiv.org/abs/2101.07241 A. Rai, A. Gupta, A. Wang, A. Kolobov, A. Singh, A. Garg,
+ [19] C. Wen, X. Lin, J. So, K. Chen, Q. Dou, Y. Gao, and P. Abbeel, A. Kembhavi, A. Xie, A. Brohan, A. Raffin, A. Sharma, A. Yavary,
+ “Any-point trajectory modeling for policy learning,” 2024. [Online]. A. Jain, A. Balakrishna, A. Wahid, B. Burgess-Limerick, B. Kim,
+ Available:https://arxiv.org/abs/2401.00025 B. Scho¨lkopf, B. Wulfe, B. Ichter, C. Lu, C. Xu, C. Le, C. Finn,
+ [20] H. Bharadhwaj, R. Mottaghi, A. Gupta, and S. Tulsiani, “Track 2 act: C.Wang,C.Xu,C.Chi,C.Huang,C.Chan,C.Agia,C.Pan,C.Fu,
+ Predicting point tracks from internet videos enables generalizable C.Devin,D.Xu,D.Morton,D.Driess,D.Chen,D.Pathak,D.Shah,
+ robot manipulation,” 2024. [Online]. Available: https://arxiv.org/abs/ D. Bu¨chler, D. Jayaraman, D. Kalashnikov, D. Sadigh, E. Johns,
+ 2405.01527 E. Foster, F. Liu, F. Ceola, F. Xia, F. Zhao, F. V. Frujeri, F. Stulp,
+ [21] S.Bahl,R.Mendonca,L.Chen,U.Jain,and D.Pathak,“Affordances G.Zhou,G.S.Sukhatme,G.Salhotra,G.Yan,G.Feng,G.Schiavi,
+ from human videos as a versatile representation for robotics,” 2023. G.Berseth,G.Kahn,G.Yang,G.Wang,H.Su,H.-S.Fang,H.Shi,
+ [Online].Available:https://arxiv.org/abs/2304.08488 H. Bao, H. B. Amor, H. I. Christensen, H. Furuta, H. Bharadhwaj,
+ H. Walke, H. Fang, H. Ha, I. Mordatch, I. Radosavovic, I. Leal,
+ [22] A. Mandlekar, D. Xu, R. Mart´ın-Mart´ın, S. Savarese, and L. Fei- 
+ J. Liang, J. Abou-Chakra, J. Kim, J. Drake, J. Peters, J. Schneider,
+ Fei, “Learning to generalize across long-horizon tasks from human 
+ J. Hsu, J. Vakil, J. Bohg, J. Bingham, J. Wu, J. Gao, J. Hu, J. Wu,
+ demonstrations,”ar Xivpreprintar Xiv:2003.06085,2020. 
+ J. Wu, J. Sun, J. Luo, J. Gu, J. Tan, J. Oh, J. Wu, J. Lu, J. Yang,
+ [23] V.Dhat,N.Walker,and M.Cakmak,“Using 3 dmicetocontrolrobot 
+ J. Malik, J. Silve´rio, J. Hejna, J. Booher, J. Tompson, J. Yang,
+ manipulators,” Proceedings of the 2024 ACM/IEEE International 
+ J. Salvador, J. J. Lim, J. Han, K. Wang, K. Rao, K. Pertsch,
+ Conference on Human-Robot Interaction, 2024. [Online]. Available: 
+ K. Hausman, K. Go, K. Gopalakrishnan, K. Goldberg, K. Byrne,
+ https://api.semanticscholar.org/Corpus ID:267322988 
+ K.Oslund,K.Kawaharazuka,K.Black,K.Lin,K.Zhang,K.Ehsani,
+ [24] Y. Zhu, A. Joshi, P. Stone, and Y. Zhu, “Viola: Imitation learning 
+ K. Lekkala, K. Ellis, K. Rana, K. Srinivasan, K. Fang, K. P. Singh,
+ for vision-based manipulation with object proposal priors,” 2023. 
+ K.-H.Zeng,K.Hatch,K.Hsu,L.Itti,L.Y.Chen,L.Pinto,L.Fei-Fei,
+ [Online].Available:https://arxiv.org/abs/2210.11339 
+ L. Tan, L. J. Fan, L. Ott, L. Lee, L. Weihs, M. Chen, M. Lepert,
+ [25] S. P. Arunachalam, I. Gu¨zey, S. Chintala, and L. Pinto, “Holo-dex: M. Memmel, M. Tomizuka, M. Itkina, M. G. Castro, M. Spero,
+ Teaching dexterity with immersive mixed reality,” in 2023 IEEE M. Du, M. Ahn, M. C. Yip, M. Zhang, M. Ding, M. Heo, M. K.
+ International Conferenceon Robotics and Automation(ICRA). IEEE, Srirama,M.Sharma,M.J.Kim,N.Kanazawa,N.Hansen,N.Heess,
+ 2023,pp.5962–5969. N.J.Joshi,N.Suenderhauf,N.Liu,N.D.Palo,N.M.M.Shafiullah,
+ [26] A. George, A. Bartsch, and A. B. Farimani, “Openvr: Teleoperation O. Mees, O. Kroemer, O. Bastani, P. R. Sanketi, P. T. Miller,
+ for manipulation,” 2023. [Online]. Available: https://arxiv.org/abs/ P. Yin, P. Wohlhart, P. Xu, P. D. Fagan, P. Mitrano, P. Sermanet,
+ 2305.09765 P. Abbeel, P. Sund are san, Q. Chen, Q. Vuong, R. Rafailov, R. Tian,
+ [27] I.A.Tsokalo,D.Kuss,I.Kharabet,F.H.P.Fitzek,and M.Reisslein, R. Doshi, R. Mart’in-Mart’in, R. Baijal, R. Scalise, R. Hendrix,
+ “Remoterobotcontrol with human-in-the-loopoverlongdistancesus- R. Lin, R. Qian, R. Zhang, R. Mendonca, R. Shah, R. Hoque,
+ ingdigitaltwins,”in 2019 IEEEGlobal Communications Conference R. Julian, S. Bustamante, S. Kirmani, S. Levine, S. Lin, S. Moore,
+ (GLOBECOM),2019,pp.1–6. S.Bahl,S.Dass,S.Sonawani,S.Tulsiani,S.Song,S.Xu,S.Haldar,
+ [28] X. Cheng, J. Li, S. Yang, G. Yang, and X. Wang, “Open-television: S. Karamcheti, S. Adebola, S. Guist, S. Nasiriany, S. Schaal,
+ teleoperation with immersive active visual feedback,” ar Xiv preprint S.Welker,S.Tian,S.Ramamoorthy,S.Dasari,S.Belkhale,S.Park,
+ ar Xiv:2407.01512,2024. S.Nair,S.Mirch and ani,T.Osa,T.Gupta,T.Harada,T.Matsushima,
+
+ 
+ 
+ 
+ 
+ T. Xiao, T. Kollar, T. Yu, T. Ding, T. Davchev, T. Z. Zhao, 
+ T.Armstrong,T.Darrell,T.Chung,V.Jain,V.Kumar,V.Vanhoucke, 
+ W. Zhan, W. Zhou, W. Burgard, X. Chen, X. Chen, X. Wang, 
+ X. Zhu, X. Geng, X. Liu, X. Liangwei, X. Li, Y. Pang, Y. Lu, 
+ Y. J. Ma, Y. Kim, Y. Chebotar, Y. Zhou, Y. Zhu, Y. Wu, Y. Xu, 
+ Y. Wang, Y. Bisk, Y. Dou, Y. Cho, Y. Lee, Y. Cui, Y. Cao, Y.-H. 
+ Wu, Y. Tang, Y. Zhu, Y. Zhang, Y. Jiang, Y. Li, Y. Li, Y. Iwasawa, 
+ Y. Matsuo, Z. Ma, Z. Xu, Z. J. Cui, Z. Zhang, Z. Fu, and Z. Lin, 
+ “Open x-embodiment: Robotic learning datasets and rt-x models,” 
+ 2024.[Online].Available:https://arxiv.org/abs/2310.08864 
+ [40] L. Y. Chen, K. Hari, K. Dharmarajan, C. Xu, Q. Vuong, 
+ and K. Goldberg, “Mirage: Cross-embodiment zero-shot policy 
+ transfer with cross-painting,” 2024. [Online]. Available: https: 
+ //arxiv.org/abs/2402.19249 
+ [41] W. Huang, I. Mordatch, and D. Pathak, “One policy to control 
+ them all: Shared modular policies for agent-agnostic control,” 2020. 
+ [Online].Available:https://arxiv.org/abs/2007.04976 
+ [42] J. Yang, C. Glossop, A. Bhorkar, D. Shah, Q. Vuong, C. Finn, 
+ D. Sadigh, and S. Levine, “Pushing the limits of cross-embodiment 
+ learning for manipulation and navigation,”2024.[Online].Available: 
+ https://arxiv.org/abs/2402.19432 
+ [43] J. Yang, D. Sadigh, and C. Finn, “Polybot: Training one policy 
+ acrossrobotswhileembracingvariability,”2023.[Online].Available: 
+ https://arxiv.org/abs/2307.03719 
+ [44] K.Grauman,A.Westbury,E.Byrne,Z.Chavis,A.Furnari,R.Girdhar, 
+ J. Hamburger, H. Jiang, M. Liu, X. Liu, M. Martin, T. Nagarajan, 
+ I. Radosavovic, S. K. Ramakrishnan, F. Ryan, J. Sharma, M. Wray, 
+ M.Xu,E.Z.Xu,C.Zhao,S.Bansal,D.Batra,V.Cartillier,S.Crane, 
+ T. Do, M. Doulaty, A. Erapalli, C. Feichtenhofer, A. Fragomeni, 
+ Q.Fu,A.Gebreselasie,C.Gonzalez,J.Hillis,X.Huang,Y.Huang, 
+ W. Jia, W. Khoo, J. Kolar, S. Kottur, A. Kumar, F. Landini, C. Li, 
+ Y. Li, Z. Li, K. Mangalam, R. Modhugu, J. Munro, T. Murrell, 
+ T. Nishiyasu, W. Price, P. R. Puentes, M. Ramazanova, L. Sari, 
+ K. Somasundaram, A. Sou the rland, Y. Sugano, R. Tao, M. Vo, 
+ Y.Wang,X.Wu,T.Yagi,Z.Zhao,Y.Zhu,P.Arbelaez,D.Crandall, 
+ D. Damen, G. M. Farinella, C. Fuegen, B. Ghanem, V. K. Ithapu, 
+ C. V. Jawahar, H. Joo, K. Kitani, H. Li, R. Newcombe, A. Oliva, 
+ H. S. Park, J. M. Rehg, Y. Sato, J. Shi, M. Z. Shou, A. Torralba, 
+ L. Torresani, M. Yan, and J. Malik, “Ego 4 d: Around the world 
+ in 3,000 hours of egocentric video,” 2022. [Online]. Available: 
+ https://arxiv.org/abs/2110.07058 
+ [45] L.Ma,Y.Ye,F.Hong,V.Guzov,Y.Jiang,R.Postyeni,L.Pesqueira, 
+ A. Gamino, V. Baiyya, H. J. Kim, K. Bailey, D. S. Fosas, C. K. 
+ Liu, Z. Liu, J. Engel, R. D. Nardi, and R. Newcombe, “Nymeria: 
+ A massive collection of multimodal egocentric daily motion in the 
+ wild,”2024.[Online].Available:https://arxiv.org/abs/2406.09905 
+ [46] S.Haddadin,S.Parusel,L.Johannsmeier,S.Golz,S.Gabl,F.Walch, 
+ M. Sabaghian, C. Ja¨hne, L. Hausperger, and S. Haddadin, “The 
+ franka emika robot: A reference platform for robotics research and 
+ education,”IEEERobotics and Automation Magazine,vol.29,no.2, 
+ pp.46–64,2022. 
+ [47] Meta Research,“Basics—projectariadocs,”https://facebookresearch. 
+ github.io/projectariatools/docs/data for mats/mps/mpssummary, 
+ 2024,accessed:September 15,2024. 
+ [48] J. Yang, C. Glossop, A. Bhorkar, D. Shah, Q. Vuong, C. Finn, 
+ D. Sadigh, and S. Levine, “Pushing the limits of cross- 
+ embodimentlearning for manipulation and navigation,”ar Xivpreprint 
+ ar Xiv:2402.19432,2024. 
+ [49] J. Hejna, C. Bhateja, Y. Jian, K. Pertsch, and D. Sadigh, “Re-mix: 
+ Optimizing data mixtures for large scale imitation learning,” ar Xiv 
+ preprintar Xiv:2408.14037,2024. 
+ [50] Y. Zhou, Y. Aytar, and K. Bousmalis, “Manipulator-independent 
+ representations for visual imitation,” 2021. [Online]. Available: 
+ https://arxiv.org/abs/2103.09016 
+ [51] S. Bahl, A. Gupta, and D. Pathak, “Human-to-robot imitation in the 
+ wild,”2022.[Online].Available:https://arxiv.org/abs/2207.09450 
+ [52] N. Ravi, V. Gabeur, Y.-T. Hu, R. Hu, C. Ryali, T. Ma, H. Khedr, 
+ R.Ra¨dle,C.Roll and,L.Gustafson,E.Mintun,J.Pan,K.V.Alwala, 
+ N. Carion, C.-Y. Wu, R. Girshick, P. Dolla´r, and C. Feichtenhofer, 
+ “Sam 2: Segment anything in images and videos,” 2024. [Online]. 
+ Available:https://arxiv.org/abs/2408.00714 
+ [53] L.Wang,X.Chen,J.Zhao,and K.He,“Scalingproprioceptive-visual 
+ learning with heterogeneous pre-trained trans for mers,” in Neurips, 
+ 2024. 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Fig. 9: Here we visualize hand and robot data from out dataset side by side with ground truth actions overlayed (purple). Note that the
+ actions are of similar length, despite the hand traveling much faster than the robot.
+ 
+ VI. APPENDIX which are used to prompt SAM 2 [52] to generate a mask of
+ the robot arm. After obtaining the mask, we draw a red line
+ A. Data Processing and Domain Alignment 
+ onthemasked are afromthegripperto the elbowin the RGB
+ Humans and teleoperated robots complete tasks at differ- 
+ image. For the human data, a similar process is followed,
+ entspeeds.Toenablejointtrainingofhuman and robot data, 
+ where SAM 2 is prompted using the 3 D coordinates of the
+ we must align these two sources of data temporally. Follow- 
+ human hand to generate a mask. A red line is then drawn
+ ing Mimicplay [5], we “slow down” the human data, and 
+ along the hand’s cont our, from the bottom right to top left
+ we found empirically that a factor of 4 sufficiently aligned 
+ corner of the cont our’s bounding box. 
+ both domains. Specifically, for robot data we construct joint 
+ During training, both the robot arm and human hand
+ and pose based actions over a four second horizon but for 
+ are masked to align their visual representations. During
+ hum and atawe usea 1 secondhorizon.Forbothdomains,our 
+ evaluation,SAM 2 isruninrealtimeonadesktoptomask the
+ action chunk size is 100, meaning we construct 100 future 
+ robotarm and apply the sameredlineoverlay.Thisapproach
+ actions spaced evenly over the horizon. This alignment is 
+ enablesbettervisualalignmentbetween the robot and human
+ independentofdat are cordingfrequencies,wherehum and ata 
+ hand, facilitating more effective model generalization across
+ is recorded at 30 hz and robot data is recorded at 50 hz. 
+ human and robotic tasks. 
+ To co-train on both human and robot data, we indi- 
+ vidually normalize the proprioception and actions for both B. Aria Machine Perception Services (MPS)
+ embodiments (as shown in Fig. 3). Given proprioception We leveraged MPS to process human data from the Aria
+ p t ∈ Rd where d depends on embodiment, we normalize glasses.Theraw data from Ariacontainstimestampedsensor
+ by subtracting the dataset mean and dividing by standard information from the glasses, namely RGB camera, SLAM
+ deviation cameras,IMU,eyetrackingcameras,microphone,andmore.
+ norm(p t )=(p t −µ p )/σ p . The raw data is uploaded to the MPS server, where the
+ cloud-hosted service estimates device pose via SLAM, a
+ We perform the identical calculation to normalize actions 
+ semi-dense pointcloud of the environment, hand tracking
+ a ∈Rd×100. 
+ t:t+h relative to the device frame, and even eye gaze. The MPS
+ To bridge the appearance gap between human hand 
+ returns SLAM as a timestamped CSV of device poses in
+ and robot arm, we visually mask each embodiment via 
+ world frame and hand tracking as a timestamped CSV of
+ SAM 2[52],andoverlay are dlineon the semaskstoenhance 
+ cartesian positions in the time-aligned device frame. These
+ alignment (Fig. 3). For the robot, we first use forward 
+ hand positions are each in a distinct reference frame due to
+ kinematics to compute the 3 D coordinates of key joints in 
+ head movements, so we project future actions to the current
+ robot frame 
+ device coordinate frame (described in Sec. III-B). We use
+ p R =FK(q )∈R 3×3, 
+ t t the undistorted Aria RGB camera data paired with the hand
+ including the wrist, gripper and the forearm. These 3 D tracking and SLAM information to construct an hdf 5 file
+ coordinates are then projected onto the image frame via compatible for training in robomimic [10].
+ camera intrinsics (Ipixels) and extrinsics (Tcam) to obtain 
+ cam R C. Training Human-Robot Joint Policies 
+ 2 D keypoints in pixel space 
+ We depict our algorithm in detail in Fig. 10. At each
+ ppixel =Ipixels Tcamp R ∈R 3×2, step we sample a batch of hand data as well as a batch of
+ t cam R t 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Fig. 10: Detailed Architecture of Ego Mimic. 
+ TABLE V: Training details - Ego Mimic
+ robot data, and pass each through our unified architecture. 
+ Ego Mimicperforms Z-scorenormalizationtoh and and robot 
+ proprioception and actionsindividually.Thenormalizedpro- Policy ACT 
+ Batch Size 128 
+ prioception is passed through a linear layer to produce a 
+ Optimizer adamw 
+ proprioception token. Alongside the proprioception, the top learning rate(initial) 5 e-5
+ down views fromh and androbot arepassed througha SAM Decayfactor 1 
+ Scheduler Linear 
+ based masking module. These images, along with the robot 
+ Encoderlayers 4 
+ wrist views are passed through a shared Resnet 18 visual Decoderlayers 7 
+ encoder which produces visual tokens. Finally, we add an Hiddendim 512 
+ Feed for warddim 3200 
+ additionalstyletokenz from our CVAEencoderwhichisnot 
+ No.ofheads 8 
+ depicted, but directly follows ACT [1]. All these tokens, are Data Augmentations Color Jitter
+ passed through a trans for mer encoder decoder architecture. 
+ Thetrans for merdecoder’shiddenoutputispassedthrougha 
+ lineardecoderdependingon the outputtype,producingpose grasping action is supervised only via the robot joint predic-
+ actions aˆp or joint based actions aˆj. tion loss L (Raˆj,Raj), where the gripper is represented as
+ 1 
+ For batches of robot data, we calculate another joint. 
+ L robot =L 1 (Raˆp,Rap)+L 1 (Raˆj,Raj)+KL D. Training Details 
+ and for hand data we have Welist the hyperparameters for Ego Mimicin Table V.All
+ models were trained for 120000 iterations with global batch
+ L =L (Haˆp,Hap)+KL 
+ hand 1 
+ size of 128 across 4 A 40 gpus, which takes about 24 hours.
+ where KL is the CVAE latent regularizer as in ACT [1]. Our code is implemented in the robomimic framework [10].
+ This yields L=L robot +L hand which we optimize at each More details in Table V
+ step. 
+ E. Mimicplay Implementation 
+ We leverage the trans for mer’s flexible input sequence to 
+ account for differences in the number of visual observations For our implementation of Mimic Play [5], we closely
+ based on the modality; specifically we have wrist images follow the original setup, training the high-level planner and
+ in robot data but not hand data. When the wrist images are low-level control policy separately.
+ present,weconcatenateadditionaltokensto our trans for mers First, we train a Res Net-18 based high-level encoder
+ input sequence as in ACT [1]. In our experiments, we found using a Gaussian Mixture Model (GMM) to generate 3 D
+ that this strategywassufficienttoeffectivelyco-trainonboth trajectories,asdescribedin the originalwork.Thehigh-level
+ hand and robot data, although we plan to experiment with encoder is trained on both human and robot data to predict
+ more sophisticated cross-embodiment learning techniques 3 D trajectories. 
+ like HPTs [53]. Once the high-level encoder is trained, we extract the
+ We note that the human data lacks information for the latent representation from the Res Net-18 encoder (i.e., the
+ graspingaction,since Ariaonlyrecordsh and pose.Thus,the high-levelplanner)anduseitas the stylevariablez,whichis
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Fig. 11: Qualitative successes of Ego Mimic on each of our three tasks.
+ TABLE VI: Training details - Mimicplay TABLE VII: Data recording and rollout rates for Human and
+ Robot data. We “slow down” human data by 0.25 to account for
+ differences in task execution speeds. 
+ High-level Resnet 18 
+ learning rate(initial) 0.0001 
+ Decayfactor 0.1 Type Human(Hz) Robot(Hz) 
+ batch size 50 
+ GMMmodes 5 Recording 30 50 
+ Low-level ACT 
+ Rollout(Inference) - 1 
+ learning rate(initial) 5 e-5 
+ Rollout(Control) - 25 
+ Optimizer adamw 
+ Decayfactor 1 
+ Scheduler Linear 
+ Aria camera which streams at 30 fps. 
+ passedto the trans for merencoder-decoder Fig.10.Thelow- 
+ level ACT policy is then trained solely on robot data with 
+ this additional input from the high level policy as guidance. 
+ F. Policy Rollout 
+ We rollout our policy with inference at 1 hz and control at 
+ 25 hz on a desktop with a an NVIDIA RTX 4090 GPU. The 
+ predicted action horizon is 4 seconds, with the first second 
+ of predicted actions executed in receding-horizon style. All 
+ the robot’s sensors update at 50 hz with the exception of the 

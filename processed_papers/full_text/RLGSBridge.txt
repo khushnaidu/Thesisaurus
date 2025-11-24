@@ -1,0 +1,608 @@
+ 
+ 
+ 
+ 
+ 
+ 
+ RL-GSBridge: 3 D Gaussian Splatting Based 
+ Real 2 Sim 2 Real Method for Robotic Manipulation Learning 
+ 
+ 
+ Yuxuan Wu∗, Lei Pan∗, Wenhua Wu, Guangming Wang, Yanzi Miao, Fan Xu# and Hesheng Wang#
+ 
+ 
+ Abstract—Sim-to-Real refers to the process of transferring 1. Real 2 Sim by 
+ Soft Mesh Binding GS 
+ policieslearnedinsimulationto the realworld,whichiscrucial 
+ for achieving practical robotics applications. However, recent 
+ Sim 2 real methods either rely on a large amount of augmented 
+ data or large learning models, which is inefficient for specific 
+ tasks. In recent years, with the emergence of radiance field 
+ reconstruction methods, especially 3 D Gaussian splatting, it 
+ hasbecomepossibletoconstructrealisticreal-worldscenes.To Dynamics-based GS Editing Grasp Pick&place
+ this end, we propose RL-GSBridge, a novel real-to-sim-to-real 
+ framework which incorporates 3 D Gaussian Splatting into the 
+ conventional RL simulation pipeline, enabling zero-shot sim- 
+ to-real transfer for vision-based deep rein for cement learning. Render img RL-GS
+ We introduce a mesh-based 3 D GS method with soft binding 
+ Bridge 
+ constraints, enhancing the rendering quality of mesh models. 
+ Thenutilizinga GSeditingapproachtosynchronize the render- 2. Learn Policy at 3. Zero-shot Real-world
+ ing with the physics simulator, RL-GSBridge could reflect the Simulator with Physic Robot Manipulation on
+ visual interactions of the physical robot accurately. Through a Dynamics-based GS renderer Various Tasks
+ series of sim-to-real experiments, including grasping and pick- 
+ Fig. 1. Pipeline of RL-GSBridge. (1) Real 2 Sim Environment Transfer.
+ and-place tasks, we demonstrate that RL-GSBridge maintains 
+ Real-world scenarios is reconstructed through a novel soft mesh binding
+ asatisfactorysuccessrateinreal-world task completionduring 
+ GS model. (2) Learn Policy at Simulator with GS Render. With physical
+ sim-to-realtransfer.Fur the rmore,aseriesofrenderingmetrics 
+ dynamics-based GS editing, RL policies learn through realistic rendered
+ andvisualizationresultsindicate that ourproposedmesh-based images in simulation. (3) Zero-shot Real-world Robot Manipulation. We
+ 3 DGSreducesartifactsinunstructuredobjects,demonstrating directlyapply the policytoreal-worldtasks with outfine-tuning.
+ more realistic rendering per for mance. 
+ I. INTRODUCTION 
+ reality, or to train a highly generalized large model to learn
+ Learningroboticactionpoliciesinsimulation and transfer- 
+ knowledge for differenttasks.Thissignifi can tlyincreases the
+ ring them to real-world represents an ideal robotic learning 
+ difficulty in training stage. 
+ strategy that balancesboththecost and safetyof the learning 
+ process.However,asignifi can tbottleneckis the reliabilityof To avoid additional training burden and achieve ideal
+ sim-to-realtransfer,whichimpactsthepotentialof the entire Sim 2 Real per for mance on specific tasks, a novel framework
+ framework towards substantial challenges. is needed. Recently, advances in radiance field-based recon-
+ With the continuous development of the simulation-to- struction methods [5], [6], [7], [8] provide new directions
+ reality(Sim 2 Real)field,extensiveworkisadvancingprogress for Sim 2 Real training. Based on a simple idea—using radi-
+ from multiple perspectives [1], [2], [3], [4]. However, most ance field reconstruction to create a visually realistic robot
+ Sim 2 Real methods attempt to expand the distribution of trainingenvironment—canweachievesatisfactory Sim 2 Real
+ training data to cover various situations that may arise in per for mance? For this purpose, we design a Real 2 Sim 2 Real
+ visualrein for cementlearningframework,RL-GSBridge,that
+ Thisworkwassupportedinpartby the Shenzhen Science and Technology bridges the real-to-sim gap by 3 D Gaussian splatting, as
+ Program under Grant KJZD 20230923114812027. (Corresponding Author: 
+ shown in Fig. 1. Utilizing 3 D Gaussian splatting and editing
+ Fan Xuand Hesheng Wang) 
+ *Equalcontributions techniques, RL-GSBridge provide a ‘virtual-reality’ simula-
+ #Co-correspondingauthors tion platform for policy learning. 
+ Y. Wu, W. Wu, F. Xu, and H. Wang are with the Shenzhen Research 
+ Instituteof Shanghai Jiao Tong University,Shenzhen 518000,China. Forvision-basedrobottasks,itiscrucialtoavoidillusions
+ Y. Wu, F. Xu, and H. Wang are also with the Department of Automa- caused by inconsistencies between visual perception and
+ tion, Shanghai Jiao Tong University, Shanghai 200240, China. (e-mail: 
+ contact geometry. Thus, it is required to ensure an accurate
+ furrygreen@sjtu.edu.cn;xufanlyra@sjtu.edu.cn;wanghesheng@sjtu.edu.cn) 
+ W. Wu is also with Mo E Key Lab of Artificial Intelligence, AI Institute, geometric representation of the model while achieving more
+ Shanghai Jiao Tong University,Shanghai 200240,China. realisticrenderingresults.Ga Me S[9]hasdrawn our attention
+ L. Pan and Y. Miao are with the School of Information and Control 
+ asitisamesh-based Gaussiansplatting(GS)method,which
+ Engineering,China Universityof Mining and Technology,Xuzhou 221100, 
+ China. ensures that the optimizationof GSunitsisper for medwithin
+ G.Wangis with the Departmentof Engineering,Universityof Cambridge, the geometric mesh model. However, it enforces Gaussians
+ Cambridge CB 21 PZ,U.K.(e-mail:gw 462@cam.ac.uk) 
+ to be aligned with the mesh grid planes, which could be
+ Code is available at https://github.com/IRMV-Manipulation-Group/RL- 
+ GSBridge considered as ‘hard mesh binding’, thereby limiting the
+ 5202 
+ be F 
+ 22 
+ ]OR.sc[ 
+ 2 v 19202.9042:vi Xra 
+
+ 
+ 
+ 
+ 
+ flexibility of GS units. To address this, we propose a soft learning [20]. Meta-learning aims to teach robots the ability
+ mesh binding method for Gaussian Splatting, which could to learn new tasks, whereas distillation learning trains a
+ further enhance rendering quality while preserving editing student network using knowledge from expert networks.
+ capabilities for both objects and the background. Ourapproachaligns with the firstcategoryofgap-bridging
+ Physics-based dynamics simulation is also a crucial and methods, but with a unique twist. We use soft mesh binding
+ challenging aspect of sim 2 real. To tackle this, an off-the- GS to create realistic simulation environments for robot
+ shelf physics simulator is used to provide dynamic changing training.Typically,achievingsuchfidelityrequiresexpensive
+ information. The GS editing process simultaneously updates 3 D scanning equipment or CAD expertise. In contrast, GS
+ the scene, ensuring that the rendering results align with modelsvisuallyrealisticsimulationenvironmentsusingonly
+ physical interaction processes. multi-view images captured with consumer-grade devices.
+ Based on the designed simulation platform, we train 
+ B. Radiance Field in Robotics 
+ roboticmanipulationpoliciesbydeeprein for cementlearning 
+ methods. The model is trained on grasping and pick-and- Neural Radiance Fields (Ne RF) [5] is an implicit repre-
+ place tasks across scenarios that include diverse textures, sentation technique for novel view syn the sis. It optimizes
+ geometric shapes, and patterned desktop backgrounds. the parameters through multi-view images, and allows for
+ Under the RL-GSBridge framework, the policy shows a the syn the sis of any target views using volumetric ren-
+ minor variation in success rates during Sim 2 Real transfer. dering. Ne RF’s representation has been applied to various
+ This means that the policy maintains effective per for mance tasks, including Simultaneous Localization and Mapping
+ on real-world tasks, reflecting a strong ability to generalize (SLAM) [7], [21], [22], scene reconstruction [23], scene
+ from simulation to real-world environments. segmentation [24], navigation [25], and manipulation [26].
+ To summarize our contributions: Ne RF-RL [27] treats the novel view syn the sis task of
+ Ne RF as a proxy task, where the learned encoding network
+ • A Novel Sim 2 Real RL Framework: Leveraging the 
+ is directly used as feature input for rein for cement learning.
+ high-fidelity rendering of 3 D GS and the convenience 
+ Y. Li et al. [28] uses Ne RF as a perceptual decoder for
+ of modeling scenes with only consumer-grade cameras. 
+ the hidden states of a world model, training an additional
+ • A Soft Mesh Binding GS Modeling Method: Propos- 
+ dynamicsestimationnetworktopredictfuturestatechanges.
+ ing a soft mesh binding strategy to replace the hard 
+ Ne RF 2 Real [29] learns real-world contexts by converting
+ mesh binding baseline, enhancing the flexibility and 
+ background meshes into a simulator, and trains robots to
+ render quality. 
+ perform visual navigation, obstacle avoidance, and ball-
+ • Physical Dynamics-Based GSEditing:Integratingdy- 
+ handling tasks. However, the training and rendering speed
+ namicssignals from the simulatortoedit 3 DGSmodels, 
+ of Vanilla Ne RF has consistently been a bottleneck limiting
+ reflecting realistic physical robotic interactions. 
+ its further deployment in practical applications.
+ • Validation on Real Physical Robots: Testing the RL- 
+ 3 D GS [30] is an explicit radiance field method that
+ GSBridge framework on physical robots through grasp- 
+ directly updates the attributes of each 3 D Gaussian com-
+ ing and pick-and-place tasks in real-world scenarios 
+ ponent to optimize scene representation. 3 D GS employs
+ with complex textures and geometries. 
+ a splatting technique. for rendering, and achieve extremely
+ II. RELATEDWORK fast training efficiency through CUDA parallel technology.
+ Moreover, compared to the implicit representation of Ne RF,
+ A. Sim 2 Real Transfer in RL 
+ the explicit representation facilitates tracking dynamic scene
+ RL constructs an interactive learning model in which an modeling and editing scene content.
+ agent learns to maximize rewards through trial and error. Many robotics works also incorporate 3 D Gaussian tech-
+ By incorporating deep learning, deep rein for cement learn- niques for perception and motion learning [31]. Mani Gaus-
+ ing(DRL) enhances the framework’s ability to tackle more sian [32] uses 3 D GS as visual and dynamic scene repre-
+ complextasks[10].DRLhasshownimpressiveper for mance sentation for policy learning. Quach et al. [33] combine GS
+ across various domains, including games [11], finance [12], with Liquid networks for real-world drone flight navigation
+ autonomous driving [13], and robotics [14]. However, most tasks, training in simulation and then deploying the policy
+ applications are restrictedtovirtualenvironmentsduetoreal- in the real world. 
+ world constraints related to safety, efficiency, and cost. Incontrastto Ne RF 2 Real[29],whichdirectlytextures the
+ To improve the feasibility of deploying models in the real foreground objects in simulator, we model each foreground
+ world, many researchers strive to bridge the gap between object with editable GS parameters. Also unlike the method
+ simulation and reality[15]. These methods include domain designed by Quach et al. [33], which trains drone naviga-
+ randomization [16] and domain adaptation [17], [18]. Do- tion policies for target-oriented tasks, our approach involves
+ mainr and omizationinvolvesvarying task-relatedparameters robotic arm manipulation tasks with complex interactions.
+ in the simulation to cover a broad range of real-world 
+ III. METHODS 
+ conditions, while domain adaptation focuses on extracting 
+ a unified feature space from both sources. Higher-level RL-GSBridgeaimstoharness the potentialofhigh-fidelity
+ learning methods include metalearning [19] and distillation 3 DGS model sin Sim 2 Real for robotactiontrainingtasks.In
+
+ 
+ 
+ 
+ 
+ this paper, we focus on manipulation tasks for robotic arms. Smoother 
+ Asshownin Fig.1,theoverallframeworkisdividedintotwo GS representation 
+ parts:Real 2 Simand Sim 2 Real.In Real 2 Simstage,wecollect 
+ real-world image data {I }, where I represent the image 
+ k k 
+ sequences of the k-th object or background in the scenarios. 
+ We will model both the geometry and appearance of the 
+ MVS 
+ scenetobuildasimulationenvironment for the manipulation 
+ task. In Sim 2 Real stage, we use visual perception and deep 
+ rein for cementlearningtotrainapolicynetwork,anddirectly 2 2 
+ transfer the policy to the real world. 
+ 3 
+ A. Real 2 Sim: Building simulator with soft mesh binding GS 1 1 
+ 
+ Mesh model Soft binding constraint
+ To obtain a realistic simulation environment, we use 
+ consumer-grade cameras to capture 2 D image data I of Fig. 2. Mesh-based GS Reconstruction with Soft Binding Constraints:
+ k 
+ Releasing the hard constraints of Ga Me S [9] in the normal direction for
+ desktop-level operating platforms. Our goal is to model a 
+ smoo the randmoreflexibleobjectsurfaces. 
+ geometricallyaccurate and texture-realisticsimulation model 
+ for trainingoperationaltasks.Morespecifically,we usemesh 
+ models {M k } to represent the accurate geometric informa- To address this, we propose a soft mesh binding method,
+ tion, and Gaussian sets G k ={gi k } for high-quality texture. whichbuildsupon Ga Me S[9],butrelaxes the enforcedhard
+ Below, we sequentially describe the steps to construct the mesh binding to a soft binding constraint. We introduce a
+ Simulator with GS renderer. component along the normal direction into the vector of
+ 1) Real-world Data Preparing: We use a monocular positions, specifically: 
+ cameraormobilephonetocapturea 1-2 minutevideoof the 
+ µi(cid:0) αi,αi,αi,αi(cid:1) =αiv +αiv +αiv +αiv , (2)
+ targetobjecton the experimentalplatform.Weselectapprox- 1 2 3 n 1 1 2 2 3 3 n n
+ imately 200 keyframes from the video and use COLMAP here, αi is a learnable weight parameter and v is the
+ n n 
+ [34] to obtain the camera’s internal and external parameters normal vector. αi is constrained within the range of [−1,1],
+ n 
+ foreachframe.Imagesegmentationalgorithmisalsoneeded 
+ ensuring the association between each mesh model element
+ for extracting the target object, and we use an off-the-shelf 
+ and Gaussian pairs. As shown in Fig. 2, our method allows
+ segmenter,SAM-track[35],forefficientobjectsegmentation. 
+ the Gaussian units within the mesh to float within a certain
+ To complete the GS model reconstruction for the simula- range along the normal vector. This flexibility in Gaus-
+ tor,itisalsonecessarytopre-modelageometricallyaccurate sian unit optimization could bring a smoother distribution
+ mesh model as a prior model for GS. Here we consider a of Gaussian units on the object’s surface. Ultimately, the
+ classic and stable open-source package open MVS to obtain algorithm not only ensures that the Gaussian model can
+ the corresponding mesh model. still represent the accurate geometric structure according
+ 2) Real 2 Sim model ingbysoftmeshbinding GS: With the to the mesh models, but also offers some tolerance and
+ object mesh, we can define Gaussian units within triangular refinement space. Besides, the binds between the mesh grid
+ faces as in Ga Me S [9], a method that binds Gaussians and Gaussians could even provide the possibility to handle
+ onto the surface of meshes, and optimizes their properties non-rigid objects, as demonstrated in section IV-B.4.
+ through multi-view consistency. Vanilla GS [30] optimizes 3) Physic Dynamics-Based GS Editing: After obtaining
+ the attribute parameters of Gaussian units located at each the visual GS models {G } and geometry models {M }
+ k k 
+ point cloud position, where θi = (µi,ri,si,σi,ci) denotes for real-world objects, we combine the dynamic simulation
+ the position, rotation, scale, opacity, and color of the i- results from the simulator with real-time Gaussian model
+ th Gaussian unit gi, respectively. To achieve controllable updates and render views to ensure that the visual represen-
+ geometric editing effects, Ga Me S [9] constrains Gaussian tationfollows the entirephysicalchangeprocess.Wefirstuse
+ units within the triangular mesh of the object surface, using RANSAC plane regression and manual alignment methods
+ the mean vector as the convex combination of the mesh to align GS models with mesh models in the simulator, and
+ vertices to establish the positional relationship between the set the initial position of the GS model.
+ Gaussian unit and the three vertices of the triangular mesh: With the aligned initial model, we read the real-time pose
+ changes of each object in the operational scene from the
+ µi(cid:0) α 1 i,α 2 i,α 3 i(cid:1) =α 1 iv 1 +α 2 iv 2 +α 3 iv 3 , (1) simulator. For the k-th object with its GS model {G k }, We
+ acquire the rotation quaternion q and the homogeneous
+ here, v ,v ,v represents the triangular mesh vertex posi- k 
+ 1 2 3 trans for mation matric T in the world coordinate system.
+ tions, αi,αi,αi are learnable positional weight parameters k 
+ 1 2 3 Given Gaussian parameters θi=(µi,ri,si,σi,ci), The edit-
+ forg.However,thisapproachofen for cedmesh-GSbinding k k k k k k 
+ i ing process of each Gaussian gi in the model set G could
+ would diminish the flexibility of 3 D Gaussians, limiting the k k 
+ be formulated as: 
+ optimization of Gaussian units when the mesh model is not 
+ accurate, introducing certain undesirable defects. µi =T µi, ri =q ×ri. (3) 
+ k k k k k k 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Physical Simulator 
+ 
+ 
+ Simulated 
+ Eye-in-hand Image 
+ ... 
+ Physic Dynamics-Based 
+ GS Editing 
+ render 1 , 
+ 2 
+ , 
+ 
+ rendered image , 
+ 
+ Viewpoint 
+ Conv 
+ M M 
+ 
+ L Base L Q 
+ P Con trol le r P 
+ Actor Critic 
+ 
+ Fig.3. Policytrainingpipelinein RL-GSBridge.Intheupperhalfof the figure,physicdynamics-based GSeditingreceives the trans for mationsignals
+ of objects and synchronizes the states of GS models. In the lower half of the figure, an actor-critic RL network receives first-person perspective images
+ renderedby GSmodelsasinput,tolearnavision-basedmanipulationpolicy. 
+ TABLEI 
+ here, (s ,a ,r ,s ) is a tuple belong to B, the y is
+ t, t, t+1 t+1 t 
+ COMPARISONOFSUCCESSRATESBETWEENRL-GSBRIDGE AND 
+ calculated by target Q networks Q : 
+ RL-SIMINGRASPINGEXPERIMENTS,ALLCONDUCTINGUNDERFOAM φ,j 
+ PAD(FP)BACKGROUND.BOLDINDICATESBETTERRESULTS.VALUES y t =r t +γ(min Q φ,j (s t+1 ,a t+1 )−αlogπ θ (a t+1 |s t+1 )). (5)
+ j=1,2 
+ INPAREN THE SESREPRESENTRELATIVECHANGEINSUCCESSRATE 
+ DURINGSIM 2 REALTRANSFER.(↓XX%)INDICATESADECREASE, In continuous action space, policy π θ outputs actions of
+ WHILE(↑XX%)INDICATESANINCREASE. Gaussian distribution. The loss for actor is defined as:
+ 1 
+ Loss = ∑ 
+ Object Small cube Bear 
+ actor |B| (st,at,rt+1,st+1)∈B 
+ (6) 
+ Test scene Sim Real Sim Real (αlogπ θ (a (cid:101)t |s t )−min Q φ,j (s t ,a (cid:101)t )),
+ j=1,2 
+ RL-sim 96.88 12.50 (↓87%) 93.75 25.00 (↓73%) where a is sampled using the reparameterization trick, i.e.,
+ (cid:101)t 
+ RL-GSBridge 96.88 96.88 87.50 100.00 (↑14%) a = f (ε;s), ε is Gaussian random noise. In practical
+ t θ t t 
+ implementation, we set: f =tanh(µ (s)+σ (s)⊙ε).
+ θ θ t θ t t 
+ Since vanilla SAC struggles to converge rapidly under
+ sparse reward, to accelerate the learning process through
+ As for local non-rigid trans for mations on the mesh grid, the 
+ automated guidance, we propose SACw B by referring to
+ Gaussians could be updated according to Equation 2. After 
+ DDPGw B [38], and introduce a lightly designed baseline
+ applying trans for mations to all object models, we concat the 
+ controllertoguide the policy.Thisapproachavoidscomplex
+ Gaussian sets to acquire the Gaussian model of the whole 
+ reward designs while eliminating ineffective action spaces.
+ scene G . Then we use rasterization to render G , 
+ scene scene In SACw B, the agent executes actions from the baseline
+ obtaining the synchronized edited rendering view. 
+ controller with probability λ and selects the best option
+ between the baselinecontroller’sand the actor’soutputs with
+ probability 1−λ, the objective is typically defined as:
+ B. Sim 2 Real: Train in simulation with physic dynamics- 
+ y =r +γmax((min Q (s ,a )−αlogπ (a |s )), 
+ based GS renderer and zero-shot transfer to reality t t φ,j t+1 t+1 θ t+1 t+1
+ j=1,2 
+ (min Q (s ,µ (s ))−αlogπ (µ (s )|s ))).
+ We use Pybullet [36] as the simulation training platform, j=1,2 φ,j t+1 b t+1 θ b t+1 t+1
+ (7) 
+ and employ SAC (Soft Actor-Critic) [37] algorithm for 
+ For the supervision of the actor network, we introduce an
+ policy learning, due to its mature development in RL and 
+ additionalbehaviorcloneloss L in Equation 6 tosupervise
+ widespread application in robotics. The SAC is an offline bc 
+ the mean values of the action distribution through base
+ policy algorithm belonging to maximum entropy RL, which 
+ controller actions, with the probability λ:
+ consistsoftwocriticnetworks,Q (s,a)and Q (s,a),and 
+ φ,1 φ,2 
+ one actor network, π θ (s). For the sampled set B from the L bc =∥µ θ (s)−µ b (s)∥2, (8)
+ replay buffer, the update loss of critic is defined as: 
+ and with the probability 1−λ: 
+ (cid:13) (cid:13)2 
+ Loss critic = |B 1 | ∑ (st,at,rt+1,st+1)∈B (y t −Q φ,j (s t, a t ))2, (4) L bc = (cid:13) (cid:13) (cid:13) µ θ (s)−µ|argmax( j m =1 in ,2 Q φ,j (s,µ θ (s))) (cid:13) (cid:13) (cid:13) , (9)
+
+ 
+ 
+ 
+ 
+ TABLEII 
+ SIM 2 REALRESULTS FOR GRASPING TASK INVARIOUSMANIPULATIONSCENARIOS.CONTENTSINP ARE NTHESESAFTER THE OBJECTNAMES
+ REPRESENTDIFFERENTBACKGROUNDS(BG),WHEREFPDENOTESFOAMPAD,ANDTCDENOTESTABLECLOTH.
+ 
+ Object(Bg) Cake(FP) Banana(FP) Small cube(TC) Cake(TC) Banana(TC) Bear(TC) 
+ Testscene Sim Real Sim Real Sim Real Sim Real Sim Real Sim Real 
+ 
+ Successrate(%) 100.00 100.00 100.00 93.75(↓6%) 96.88 87.50(↓10%) 100.00 93.75(↓6%) 100.00 96.88(↓3%) 87.50 75.00(↓14%)
+ 
+ 
+ Simulation Real World (Ours) Real World (RL-sim) 
+ Camera 
+ View 
+ 
+ Robot Arm 
+ Behavi our 
+ 
+ 
+ Fig.4. Comparisonofsim-to-realbehaviorconsistencybetween RL-GSBridge and RL-sim.
+ 
+ TABLEIII 
+ The Intel Real Sense D 435 i camera fixed on the robot arm
+ THESIM 2 REALRESULT FOR THE PICK AND PLACE TASK. 
+ captures the RGB images from the first-person perspective.
+ 2) Tasks: As shown in Fig. 1, we design two types of
+ Object Cake&Plate 
+ tasks from the robot’s first-person perspective: grasping and
+ Testscene Sim Real pick-and-place operations. 
+ Successrate(%) 68.75 71.87(↑4%) For grasping, the robot grasps a target object and lifts it
+ up.Theinitialpositionsof the objectsarer and omizedwithin
+ a 30 × 30 cm section. We use Small cube, Cake, Banana,
+ and Bear as objects. As for the operation platform, we use
+ here, λ is the decay factor, which gradually approaches 0 as 
+ a foam pad with and without a tablecloth as two different
+ training progresses. 
+ backgrounds. Success is considered when the object is lifted
+ The whole training pipeline in the simulator with physic 
+ 10 cm above the table. 
+ dynamics-based GS renderer is shown in Fig. 3. The RL 
+ Forpick-and-placetasks,theroboticarmpickup the cake
+ algorithm provides executable actions to the physics sim- 
+ model and place it on a plate. The position of the cake is
+ ulator, which will return state information for actor-critic 
+ set similarly as described in the grasping task. The plate
+ learning. The GS renderer simultaneously renders the realis- 
+ is placed in a fixed position on the foam pad. Success is
+ tic images by physic dynamics-based GS rendering, serving 
+ considered when the cake is placed on the plate.
+ as observation input to the actor network. We rely solely on 
+ 3) Evaluation Setup: For each task, we conduct both the
+ thefirst-personperspectiveimage and proprioceptivestateof 
+ simulation and the real world experiments. During testing,
+ the robotic arm, considering several advantages as described 
+ we divide the 30 × 30 cm section into four quadrants.
+ in [39]. To enhance sim 2 real robustness, we add random 
+ For each task, we test the policy across a fixed number of
+ noise to the rendered images of the GS model and randomly 
+ positions in each quadrant to calculate the success rate.
+ alter certain image attribute parameters during training for 
+ 4) Baseline: To demonstrate that our method effectively
+ environment challenges. 
+ reduces Sim 2 Real gap, we conduct a baseline experiment
+ After policy training in the simulator, we directly deploy 
+ called RL-sim: using the same learning method but training
+ the actor network onto the real robot arm, with the real- 
+ directly on images rendered from mesh models shaded in
+ world eye-in-hand camera observations of the environment 
+ the Py Bullet simulator. We select two representative and
+ serving as visual input. The trained policy subsequently 
+ easily shaded objects: the Small cube and Bear. Grasping
+ outputsthepositionof the end-effector and the gripperstates 
+ experiments for RL-sim are conducted on a foam pad.
+ as executable actions. 
+ B. Experiment Results 
+ IV. EXPERIMENTS 1) Grasping: In Table I,wecomp are the graspingper for-
+ mance of RL strategies trained with the baseline (RL-sim)
+ A. Experiment Setup 
+ and RL-GSBridge in both simulation and real environments.
+ 1) Robot Platform: We use a KUKA iiwa robot arm For both the Small cube with simple geometry and textures
+ paired with a Robotiq 2 F-140 gripper as the platform. and the Bear with complex geometry and textures, RL-sim
+
+ 
+ 
+ 
+ 
+ TABLEIV 
+ OURSOFTMESHBINDINGMETHODCOMP ARE DWITHGAMES[9]ONMULTIPLE FOR EGROUNDOBJECTS AND BACKGROUNDRENDERING
+ METRICS.SSIMIS SCALE STRUCTURALSIMILARITYINDEX.PSNRISPEAKSIGNAL-TO-NOISERATIO.LPIPSISLEARNEDPERCEPTUALIMAGE
+ PATCHSIMILARITY.BGREFERSTO THE BACKGROUND,WHILECONTENTSINP ARE NTHESESEXPLAIN THE DETAILEDDIFFERENCES.
+ 
+ Banana Bear Cake Small cube Bg (Foam Pad) Bg (Tablecloth) Bg (Plate)
+ Ours Ga Me S Ours Ga Me S Ours Ga Me S Ours Ga Me S Ours Ga Me S Ours Ga Me S Ours Ga Me S
+ SSIM↑ 0.989 0.894 0.964 0.956 0.975 0.964 0.989 0.989 0.944 0.939 0.781 0.776 0.776 0.756
+ PSNR↑ 35.46 26.53 29.82 28.18 33.38 30.73 37.18 36.64 28.40 27.32 22.88 21.86 21.86 20.80
+ LPIPS↓ 0.026 0.049 0.034 0.040 0.066 0.079 0.012 0.012 0.144 0.149 0.248 0.308 0.308 0.311
+ 
+ Banana Cake Bg (tablecloth) Bg (plate) Before Editing After Editing 
+ 
+ GT 
+ 
+ Ga Me S 
+ Fig. 6. The editing capability on non-rigid objects of our soft binding
+ constraint GSmodelingmethod. 
+ Ours 
+ Fig.5. Oursoftbindingconstraintreconstructionmethodcomp are dwith simulator and in real scenarios. With the same environment,
+ Ga Me S[9]ontwo for egroundobjects and twobackgrounds. RL-GSBridgeexhibitsbehaviorhighlyconsistent with simu-
+ lationtestsduringmanipulation,whereas RL-sim with out the
+ GS model shows significant differences. Notably, blue lights
+ shows a significant success rate drop when transferring to 
+ in the camera view of Fig. 4 is caused by the gripper indi-
+ real world (an average decrease of 80%) due to visual dis- 
+ cator light. The image augmentation during policy training
+ crepancies. In contrast, RL-GSBridge demonstrates a minor 
+ would mitigate this hue effect, ensuring the consistency of
+ variation in success rates, maintaining high per for mance as 
+ policy behavior. Meanwhile, RL-GSBridge sitll ensure the
+ in simulation. Notably, in the Bear grasping scenario, the 
+ consistency of texture details between simulated and real-
+ success rate in the real world has increased by 14.28%. This 
+ world images. 
+ maybeattributedto the suboptimalsimulationof Bear’ssoft 
+ 4) GS Rendering results of different Mesh Binding ap-
+ material and non-structured shape in the simulation. 
+ proach: In Table IV,wecomp are the per for manceof Ga Me S
+ Table II shows that RL-GSBridge experiences an average 
+ [9] and our soft mesh binding GS model under various
+ drop of 6.6% of the success rate in sim-to-real transfer 
+ scenarios and achieve the SOTA per for mance. Fur the rmore,
+ across various complex test scenarios, including diverse 
+ Fig. 5 shows that our method obtains fewer artifacts and
+ objects and desktop backgrounds. This demonstrates that 
+ more detailed texture rendering. As a supplement, in Fig.
+ the integration of the physic dynamics-based GS rendering 
+ 6, our soft binding constraint GS modeling method achieves
+ effectively bridges the perception gap between simulation 
+ consistent results in editing a non-rigid toy bear. Unfortu-
+ and real environments, maintaining stable strategy transfer 
+ nately, due to the limitations in simulating soft objects in
+ across a range of scenarios. Additionally, we observe a 
+ Py Bullet,wedonotdemonstratecomprehensiveexperiments
+ noticeable decrease in success rates for the Bear in the 
+ on deformable objects manipulation. However, this can be
+ Tablecloth background scenario, both in simulation and real 
+ explored as a future direction. 
+ environments.Theprimaryreason for thisdropis the choice 
+ of a brown tablecloth, which has similar texture features to 
+ V. CONCLUSIONS 
+ the brown toy bear, causing difficulty in visual perception. 
+ 2) Pick-and-Place: As shown in Table III, we test RL- We propose RL-GSBridge, a real-to-sim-to-real frame-
+ GSBridge’s Sim 2 Real per for mance in pick-and-place task work for robotic rein for cement learning. As an attempt
+ where a cake is placed onto a plate. The results indicate a to apply the recently successful radiance field reconstruc-
+ 4.54% increase of success rate in real environments, mainly tion methods to construct a realistic robotic simulator, RL-
+ due to the differences in physical contacts between simula- GSBridge has shown promising sim-to-real success rates
+ tion and reality. In simulation, even minor excess contacts in desktop-level tasks. This motivates us to explore future
+ during the placementprocess are consideredas task failures. directions, such as investigating the simulation of realistic
+ In contrast, some contacts in real environments that do not lighting [40], and integrating RL-GSBridge with advanced
+ affect the task can betolerated,leadingtobetterper for mance large-scalepolicymodels[41]andperceptionlearningmeth-
+ since the task is ultimately completed successfully. ods [42], [43], [44].We hope RL-GSBridge will enc our age
+ 3) Comparison of Sim&Real Behavior Consistency: In moreattemptstoapplyradiancefieldreconstructionmethods
+ Fig. 4, we comp are the behavior of the robotic arm in the in robotics. 
+
+ 
+ 
+ 
+ 
+ REFERENCES IEEE/CVFConferenceon Computer Vision and Pattern Recognition,
+ 2024,pp.21167–21177. 
+ [1] W. Zhao, J. P. Queralta, L. Qingqing, and T. Westerlund, “Towards [22] S.Zhu,R.Qin,G.Wang,J.Liu,and H.Wang,“Semgauss-slam:Dense
+ closing the sim-to-realgapincollaborativemulti-robotdeepreinforce- semantic gaussian splatting slam,” ar Xiv preprint ar Xiv:2403.07494,
+ mentlearning,”in 20205 th Internationalconferenceonrobotics and 2024. 
+ automationengineering(ICRAE). IEEE,2020,pp.7–12. [23] Z. Yu, S. Peng, M. Niemeyer, T. Sattler, and A. Geiger, “Monosdf:
+ [2] F. Muratore, C. Eilers, M. Gienger, and J. Peters, “Bayesian Exploringmonoculargeometriccues for neuralimplicitsurfacerecon-
+ domain randomization for sim-to-real transfer,” ar Xiv preprint struction,”Neur IPS,pp.25018–25032,2022.
+ ar Xiv:2003.02471,2020. [24] S.Zhi,T.Laidlow,S.Leutenegger,and A.J.Davison,“In-placescene
+ [3] K. Arndt, M. Hazara, A. Ghadirzadeh, and V. Kyrki, “Meta rein- labelling and underst and ing with implicit scene representation,” in
+ forcementlearning for sim-to-realdomainadaptation,”in 2020 IEEE ICCV,2021,pp.15838–15847.
+ internationalconferenceonrobotics and automation(ICRA). IEEE, [25] M.Adamkiewicz,T.Chen,A.Caccavale,R.Gardner,P.Culbertson,
+ 2020,pp.2725–2731. J.Bohg,and M.Schwager,“Vision-onlyrobotnavigationinaneural
+ [4] R. Traore´, H. Caselles-Dupre´, T. Lesort, T. Sun, N. D´ıaz-Rodr´ıguez, radianceworld,”RA-L,pp.4606–4613,2022.
+ and D. Filliat, “Continual rein for cement learning deployed in real- [26] Q.Dai,Y.Zhu,Y.Geng,C.Ruan,J.Zhang,and H.Wang,“Graspnerf:
+ life using policy distillation and sim 2 real transfer,” ar Xiv preprint multiview-based 6-dof grasp detection for transparent and specular
+ ar Xiv:1906.04452,2019. objectsusinggeneralizablenerf,”in ICRA,2023,pp.1757–1763.
+ [5] B.Mildenhall,P.P.Srinivasan,M.Tancik,J.T.Barron,R.Ramamoor- [27] D. Driess, I. Schubert, P. Florence, Y. Li, and M. Toussaint, “Rein-
+ thi, and R. Ng, “Nerf: Representing scenes as neural radiance fields forcementlearning with neuralradiancefields,”Neur IPS,2022.
+ forviewsyn the sis,”in ECCV,2020. [28] Y.Li,S.Li,V.Sitzmann,P.Agrawal,and A.Torralba,“3 dneuralscene
+ [6] K. Zhang, G. Riegler, N. Snavely, and V. Koltun, “Nerf++: representations for visuomotorcontrol,”in Co RL,2022,pp.112–123.
+ Analyzing and improving neural radiance fields,” ar Xiv preprint [29] A. Byravan, J. Humplik, L. Hasenclever, A. Brussee, F. Nori,
+ ar Xiv:2010.07492,2020. T. Haarnoja, B. Moran, S. Bohez, F. Sadeghi, B. Vujatovic, et al.,
+ [7] Z.Zhu,S.Peng,V.Larsson,W.Xu,H.Bao,Z.Cui,M.R.Oswald, “Nerf 2 real: Sim 2 real transfer of vision-guided bipedal motion skills
+ and M. Pollefeys, “Nice-slam: Neural implicit scalable encoding for usingneuralradiancefields,”in ICRA,2023,pp.9362–9369.
+ slam,”in CVPR,2022,pp.12786–12796. [30] B.Kerbl,G.Kopanas,T.Leimkuehler,and G.Drettakis,“3 dgaussian
+ [8] S.Zhu,G.Wang,H.Blum,J.Liu,L.Song,M.Pollefeys,and H.Wang, splatting for real-timeradiancefieldrendering,”ACMTrans.Graph.,
+ “Sni-slam:Semanticneuralimplicitslam,”CVPR,2024. vol.42,no.4,2023. 
+ [9] J.Waczyn´ska,P.Borycki,S.Tadeja,J.Tabor,and P.Spurek,“Games: [31] S. Zhu, G. Wang, D. Kong, and H. Wang, “3 d gaussian splatting in
+ Mesh-based adapting and modification of gaussian splatting,” ar Xiv robotics:Asurvey,”ar Xivpreprintar Xiv:2410.12262,2024.
+ preprintar Xiv:2402.01459,2024. [32] G.Lu,S.Zhang,Z.Wang,C.Liu,J.Lu,and Y.Tang,“Manigaussian:
+ [10] V.Franc¸ois-Lavet,P.Henderson,R.Islam,M.G.Bellem are,J.Pineau, Dynamicgaussiansplatting for multi-taskroboticmanipulation,”ar Xiv
+ etal.,“Anintroductiontodeeprein for cementlearning,”Foundations preprintar Xiv:2403.08321,2024.
+ and Trends® in Machine Learning, vol. 11, no. 3-4, pp. 219–354, [33] A.Quach,M.Chahine,A.Amini,R.Hasani,and D.Rus,“Gaussian
+ 2018. splattingtorealworldflightnavigationtransfer with liquidnetworks,”
+ [11] D. Silver, A. Huang, C. J. Maddison, A. Guez, L. Sifre, G. Van ar Xivpreprintar Xiv:2406.15149,2024.
+ Den Driessche, J. Schrittwieser, I. Antonoglou, V. Panneershelvam, [34] J.L.Scho¨nberger and J.-M.Frahm,“Structure-from-motionrevisited,”
+ M. Lanctot, et al., “Mastering the game of go with deep neural in Conferenceon Computer Vision and Pattern Recognition(CVPR),
+ networks and tree search,” nature, vol. 529, no. 7587, pp. 484–489, 2016. 
+ 2016. [35] Y. Cheng, L. Li, Y. Xu, X. Li, Z. Yang, W. Wang, and Y. Yang,
+ [12] Y. Deng, F. Bao, Y. Kong, Z. Ren, and Q. Dai, “Deep direct “Segment and trackanything,”ar Xivpreprintar Xiv:2305.06558,2023.
+ reinforcementlearning for financialsignalrepresentation and trading,” [36] E. Coumans and Y. Bai, “Pybullet, a python module for physics
+ IEEE transactions on neural networks and learning systems, vol. 28, simulation for games,robotics and machinelearning,”2016.
+ no.3,pp.653–664,2016. [37] T.Haarnoja,A.Zhou,P.Abbeel,and S.Levine,“Softactor-critic:Off-
+ [13] X. Pan, Y. You, Z. Wang, and C. Lu, “Virtual to real rein for cement policymaximumentropydeeprein for cementlearning with astochastic
+ learning for autonomous driving,” ar Xiv preprint ar Xiv:1704.03952, actor,”in Internationalconferenceonmachinelearning. PMLR,2018,
+ 2017. pp.1861–1870. 
+ [38] G.Wang,M.Xin,W.Wu,Z.Liu,and H.Wang,“Learningoflong-
+ [14] L.Pinto,M.Andrychowicz,P.Welinder,W.Zaremba,and P.Abbeel, 
+ horizonsparse-rewardroboticmanipulatortasks with basecontrollers,”
+ “Asymmetric actor critic for image-based robot learning,” ar Xiv 
+ IEEETransactionson Neural Networks and Learning Systems,vol.35,
+ preprintar Xiv:1710.06542,2017. 
+ no.3,pp.4072–4081,2022. 
+ [15] Y.Liu,W.Chen,Y.Bai,J.Luo,X.Song,K.Jiang,Z.Li,G.Zhao, 
+ [39] K. Hsu, M. J. Kim, R. Rafailov, J. Wu, and C. Finn, “Vision-based
+ J.Lin,G.Li,etal.,“Aligningcyberspace with physicalworld:Acom- 
+ manipulators need to also see from their hands,” in International
+ prehensivesurveyonembodiedai,”ar Xivpreprintar Xiv:2407.06886, 
+ Conferenceon Learning Representations,2021.
+ 2024. 
+ [40] J.Gao,C.Gu,Y.Lin,Z.Li,H.Zhu,X.Cao,L.Zhang,and Y.Yao,
+ [16] J.Tobin,R.Fong,A.Ray,J.Schneider,W.Zaremba,and P.Abbeel, 
+ “Relightable 3 d gaussians: Realistic point cloud relighting with brdf
+ “Domain randomization for transferring deep neural networks from 
+ decomposition and raytracing,”in European Conferenceon Computer
+ simulation to the real world,” in 2017 IEEE/RSJ international 
+ Vision. Springer,2024,pp.73–89. 
+ conference on intelligent robots and systems (IROS). IEEE, 2017, 
+ [41] Y. Ma, Z. Song, Y. Zhuang, J. Hao, and I. King, “A survey
+ pp.23–30. 
+ on vision-language-action models for embodied ai,” ar Xiv preprint
+ [17] K. Bousmalis, A. Irpan, P. Wohlhart, Y. Bai, M. Kelcey, M. Kalakr- 
+ ar Xiv:2405.14093,2024. 
+ ishnan, L. Downs, J. Ibarz, P. Pastor, K. Konolige, et al., “Using 
+ [42] R.Mendonca,S.Bahl,and D.Pathak,“Structuredworldmodels from
+ simulation and domain adaptation to improve efficiency of deep 
+ humanvideos,”ar Xivpreprintar Xiv:2308.10901,2023.
+ roboticgrasping,”in 2018 IEEEinternationalconferenceonrobotics 
+ [43] X. Fang, D. Liu, P. Zhou, and G. Nan, “You can ground earlier
+ andautomation(ICRA). IEEE,2018,pp.4243–4250. 
+ than see: An effective and efficient pipeline for temporal sentence
+ [18] X. Fang, A. Easwaran, B. Genest, and P. N. Suganthan, “Your data 
+ groundingincompressedvideos,”in CVPR,2023.
+ is not perfect: Towards cross-domain out-of-distribution detection in 
+ [44] X. Fang, Z. Xiong, W. Fang, X. Qu, C. Chen, J. Dong, K. Tang,
+ class-imbalanced data,”ESWA,2024. 
+ P.Zhou,Y.Cheng,and D.Liu,“Rethinkingweakly-supervisedvideo
+ [19] J. X. Wang, Z. Kurth-Nelson, D. Tirumala, H. Soyer, J. Z. Leibo, 
+ temporalgrounding from agameperspective,”in ECCV,2025.
+ R.Munos,C.Blundell,D.Kumaran,and M.Botvinick,“Learningto 
+ rein for cementlearn,”ar Xivpreprintar Xiv:1611.05763,2016. 
+ [20] A.A.Rusu,S.G.Colmenarejo,C.Gulcehre,G.Desjardins,J.Kirk- 
+ patrick,R.Pascanu,V.Mnih,K.Kavukcuoglu,and R.Hadsell,“Policy 
+ distillation,”ar Xivpreprintar Xiv:1511.06295,2015. 
+ [21] S.Zhu,G.Wang,H.Blum,J.Liu,L.Song,M.Pollefeys,and H.Wang, 
+ “Sni-slam: Semantic neural implicit slam,” in Proceedings of the 

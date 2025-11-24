@@ -1,0 +1,2296 @@
+ 
+ 
+ 
+ 
+ 
+ 
+ Open VLA: 
+ 
+ An Open-Source Vision-Language-Action Model 
+ 
+ Moo Jin Kim∗,1 Karl Pertsch∗,1,2 Siddharth Karamcheti∗,1,3 
+ Ted Xiao 4 Ashwin Balakrishna 3 Suraj Nair 3 Rafael Rafailov 1 Ethan Foster 1 Grace Lam
+ Pannag Sanketi 4 Quan Vuong 5,† Thomas Kollar 3 Benjamin Burchfiel 3 Russ Tedrake 3,6 Dorsa Sadigh 1
+ Sergey Levine 2 Percy Liang 1 Chelsea Finn 1 
+ https://openvla.github.io 
+ 
+ Large-Scale Robot Open VLA Closed-Loop 
+ Training Data Robot Control Policy 
+ Vision-Language-Action Model 
+ User: Wipe the table. 
+ Fine-tune VLM w/ Robot Actions: 
+ Open VLA: 
+ 970 k Robot [Δx, Δθ, ΔGrip] = … 
+ Llama 2 7 B 
+ Episodes 
+ Vi T 
+ Base VLM 
+ Multi-Robot Control & Efficient Fine-Tuning Fully 
+ Open-Source 
+ Data 
+ Weights 
+ Code 
+ 
+ Figure 1: Wepresent Open VLA,a 7 B-parameter open-sourcevision-language-action model(VLA),trained
+ on 970 krobotepisodes from the Open X-Embodiment data set[1]. Open VLAsetsa new stateof the artfor
+ generalistrobotmanipulationpolicies.Itsupportscontrollingmultiplerobotsoutof the boxand can bequickly
+ adaptedto new robotdomainsviaparameter-efficientfine-tuning. The Open VLAcheckpoints and Py Torch
+ trainingpipeline are fully open-source and models can bedownloaded and fine-tuned from Hugging Face.
+ Abstract: Largepoliciespretrainedonacombinationof Internet-scalevision-
+ language data and diverserobotdemonstrations have the potentialtochangehow
+ we teachrobots new skills: ratherthantraining new behaviors from scratch,we can
+ fine-tunesuchvision-language-action(VLA)modelstoobtainrobust,generalizable
+ policies for visuomotorcontrol. Yet,widespreadadoptionof VLAs for robotics
+ has been challengingas 1)existing VLAs are largelyclosed and inaccessibleto the
+ public,and 2)priorworkfailstoexploremethods for efficientlyfine-tuning VLAs
+ for new tasks,akeycomponent for adoption.Addressing the sechallenges,weintro-
+ duce Open VLA,a 7 B-parameter open-source VLAtrainedonadiversecollection
+ of 970 kreal-worldrobotdemonstrations. Open VLAbuildsona Llama 2 language
+ modelcombined with avisualencoder that fusespretrainedfeatures from DINOv 2
+ and Sig LIP.Asaproductof the added data diversity and new model components,
+ Open VLAdemonstratesstrongresults for generalistmanipulation,outper for ming
+ closed model ssuchas RT-2-X(55 B)by 16.5%inabsolute task successrateacross
+ 29 tasks and multiplerobotembodiments,with 7 xfewerparameters. Wefurther
+ showthatwe caneffectivelyfine-tune Open VLA for newsettings,withespecially
+ ∗:denotesequalcontribution 
+ Correspondenceto:moojink@stanford.edu, pertsch@berkeley.edu, skaramcheti@stanford.edu
+ 1 Stanford University,2 UCBerkeley,3 Toyota Research Institute,4 Google Deepmind,5 Physical Intelligence,
+ 6 MIT,†Workdoneinpartwhileat Google Deepmind 
+ 4202 
+ pe S 
+ 5 
+ ]OR.sc[ 
+ 3 v 64290.6042:vi Xra 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ stronggeneralizationresultsinmulti-taskenvironmentsinvolvingmultipleobjects
+ andstronglanguagegroundingabilities,andoutper for mexpressive from-scratch
+ imitationlearningmethodssuchas Diffusion Policyby 20.4%Wealsoexplore
+ compute efficiency; as a separate contribution, we show that Open VLA can be
+ fine-tunedonconsumer GPUsviamodernlow-rankadaptationmethods and served
+ efficientlyviaquantization with outahittodownstreamsuccessrate. Finally,we
+ release model checkpoints,fine-tuningnotebooks,andour Py Torchcode base with
+ built-insupport for training VLAsat scaleon Open X-Embodiment data sets.
+ 1 Introduction 
+ Akeyweaknessoflearnedpolicies for roboticmanipulationis the irinabilitytogeneralizebeyond
+ theirtraining data: whileexistingpoliciestrained for individualskillsorlanguageinstructions have
+ thecapacitytoextrapolatebehaviorsto new initialconditionssuchasobjectpositionsorlighting
+ [2,3],theylackrobustnesstoscenedistractorsornovelobjects[4,5]andstruggletoexecuteunseen
+ taskinstructions[6,7]. Yetbeyondrobotics,existingfoundationmodels for vision and language
+ suchas CLIP[8],Sig LIP[9],and Llama 2[10]arecapableof the setypesofgeneralization and more,
+ stemming from the priorscapturedbytheir Internet-scalepretraining data sets. Whilereproducing
+ this scale ofpretraining for roboticsisstillan open challenge—even the largestrobotmanipulation
+ datasets[1,11]only have 100 Kto 1 Mexamples–thisimbalancesuggestsanopportunity: using
+ existing foundation models for vision and language as a core building block for training robotic
+ policies that can generalizetoobjects,scenes,and task sbeyond the irtraining data.
+ Towards this goal,existingworkhasexploredintegratingpretrainedlanguage and vision-language
+ models for roboticrepresentationlearning[12–14]andasacomponentinmodularsystems for task
+ planning and execution[15,16]. Morerecently,they have beenused for directlylearningvision-
+ language-action models [VLAs; 1, 7, 17, 18] for control. VLAs provide a direct instantiation of
+ usingpretrainedvision-and-languagefoundationmodels for robotics,directlyfine-tuningvisually-
+ conditionedlanguagemodels(VLMs)suchas Pa LI[19,20]togeneraterobotcontrolactions. By
+ building off of strong foundation models trained on Internet-scale data, VLAs such as RT-2 [7]
+ demonstrateimpressiverobustnessresults,aswellasanabilitytogeneralizetonovelobjects and
+ tasks,settinganewst and ard for generalistrobotpolicies. Yet,there are twokeyreasonspreventing
+ the widespread use of existing VLAs: 1) current models [1, 7, 17, 18] are closed, with limited
+ visibilityinto model architecture,trainingprocedures,and data mixture,and 2)existingworksdo
+ notprovidebestpractices for deploying and adapting VLAsto new robots,environments,andtasks
+ — especially on commodity hardw are (e.g., consumer-grade GPUs). We argue that to develop a
+ richfoundation for futureresearch and development,roboticsneeds open-source,generalist VLAs
+ thatsupporteffectivefine-tuning and adaptation,akinto the existingecosystemaround open-source
+ languagemodels[21–24]. 
+ To this end, we introduce Open VLA, a 7 B-parameter open-source VLA that establishes a new
+ state of the art for generalist robot manipulation policies.1 Open VLA consists of a pretrained
+ visually-conditionedlanguage model backbone that capturesvisualfeaturesatmultiplegranularities,
+ fine-tuned on a large, diverse dataset of 970 k robot manipulation trajectories from the Open-X
+ Embodiment[1]dataset—adataset that spansawiderangeofrobotembodiments,tasks,andscenes.
+ Asaproductofincreased data diversity and new model components,Open VLAoutperforms the
+ 55 B-parameter RT-2-X model [1, 7], the prior state-of-the-art VLA, by 16.5% absolute success
+ rateacross 29 evaluation task son the Widow Xand Google Robotembodiments. Weadditionally
+ investigateefficientfine-tuningstrategies for VLAs,anewcontributionnotexploredinpriorwork,
+ across 7 diversemanipulation task sspanningbehaviors from objectpick-and-placetocleaninga
+ table. Wefind that fine-tuned Open VLApoliciesclearlyoutper for mfine-tunedpretrainedpolicies
+ suchas Octo[5]. Comp are dtofrom-scratchimitationlearning with diffusionpolicies[3],fine-tuned
+ Open VLAshowssubstantialimprovementon task sinvolvinggroundinglanguagetobehaviorin
+ 1 Open VLAusesmultiplepretrained model components:Sig LIP[9]and Dino V 2[25]visionencodersanda
+ Llama 2[10]language model backbone.Forallthreemodels,weights are open,butnot the irtrainingdataor
+ code.Wereleasetraining data,code and modelweights for reproducing Open VLAontopof the secomponents.
+ 2 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ multi-tasksettings with multipleobjects. Following the seresults,weare the firsttodemonstrate the
+ effectivenessofcompute-efficientfine-tuningmethodsleveraginglow-rankadaptation[Lo RA;26]
+ and model quantization[27]tofacilitateadapting Open VLA model sonconsumer-grade GPUsinstead
+ oflargeservernodes with outcompromisingper for mance. Asafinalcontribution,weopen-source
+ allmodels,deployment and fine-tuningnotebooks,andthe Open VLAcode base for training VLAs
+ at scale, withthehope that the seres our cesenablefutureworkexploring and adapting VLAs for
+ robotics. 
+ 2 Related Work 
+ Visually-Conditioned Language Models Visually-conditionedlanguagemodels(VLMs),which
+ aretrainedon Internet-scale data togeneratenaturallanguage from inputimage(s)andlanguage
+ prompts,have been adopted for myriadapplications from visualquestionanswering[28–31]toobject
+ localization[32,33]. Oneof the keyadvancesfuelingrecent VLMs are modelarchitectures that
+ bridgefeatures from pretrainedvisionencoders[8,9,25]withpretrainedlanguagemodels[10,23,34–
+ 36],directlybuildingonadvancesinbothcomputervision and naturallanguage model lingtocreate
+ powerfulmultimodalmodels. Whileearlyworkexploredvariousarchitectures for cross-attending
+ betweenvision and languagefeatures[37–41],newopen-source VLMs[20,42–44]haveconverged
+ onasimpler“patch-as-token”approach,inwhichpatchfeatures from pretrainedvisualtrans for mers
+ aretreatedastokens,and are thenprojectedinto the inputspaceofalanguage model. Thissimplicity
+ makesiteasytorepurposeexistingtools for traininglanguage model sat scale for VLMtraining. We
+ employ the setoolsin our workto scale VLAtraining,andspecificallyuse VLMs from Karamcheti
+ etal.[44]asourpretrainedbackbone,asthey are trained from multi-resolutionvisualfeatures,fusing
+ low-levelspatialin for mation from DINOv 2[25]withhigher-levelsemantics from Sig LIP[9]toaid
+ invisualgeneralization. 
+ Generalist Robot Policies Arecenttrendinroboticsworkstowardstrainingmulti-task“generalist”
+ robotpolicies[2,6,45–49]onlargediverserobot data sets[1,2,6,11,45,49–56],spanningmany
+ differentrobotembodiments[1,5,53,57–66]. Notably,Octo[5]trainsageneralistpolicy that can
+ controlmultiplerobotsout-of-the-box and allows for flexiblefine-tuningto new robotsetups. A
+ keydifferencebetween the seapproaches and Open VLAis the modelarchitecture. Priorworkslike
+ Octotypicallycomposepretrainedcomponentssuchaslanguageembeddingsorvisualencoders with
+ additional model componentsinitialized from scratch[2,5,6],learningto“stitch”themtogether
+ during the course of policy training. Unlike these works, Open VLA adopts a more end-to-end
+ approach, directly fine-tuning VLMs to generate robot actions by treating them as tokens in the
+ language model vocabulary. Ourexperimentalevaluationshows that thissimpleyetscalablepipeline
+ substantiallyboostsper for mance and generalizationabilityoverpriorgeneralistpolicies.
+ Vision-Language-Action Models Anumberofworks have explored the useof VLMs for robotics,
+ e.g.,forvisualstaterepresentations[12,13],objectdetection[67],high-levelplanning[16],andfor
+ providingafeedbacksignal[68–71]. Othersintegrate VLMsdirectlyintoend-to-endvisuomotor
+ manipulation policies [14, 15], but incorporate significant structure into the policy architecture
+ or require calibrated cameras, which limits their applicability. A number of recent works have
+ exploredsimilarrecipestoours and directlyfine-tunedlargepretrained VLMs for predictingrobot
+ actions[1,7,17,18,72–74]. Suchmodels are oftenreferredtoasvision-language-actionmodels
+ (VLAs), since they fuse robot control actions directly into VLM backbones. This has three key
+ benefits: (1)itper for msalignmentofpretrainedvision and languagecomponentsonalarge,Internet-
+ scalevision-language data set,(2)theuseofagenericarchitecture,notcustom-made for robotcontrol,
+ allowsustoleverage the scalableinfrastructureunderlyingmodern VLMtraining[75–77]andscale
+ totrainingbillion-parameterpolicies with minimalcodemodifications,and(3)itprovidesadirect
+ pathway for roboticstobenefit from the rapidimprovementsin VLMs. Existingworkson VLAs
+ eitherfocusontraining and evaluatinginsinglerobotorsimulatedsetups[72–74,78]andthuslack
+ generality,orareclosed and donotsupportefficientfine-tuningto new robotsetups[1,7,17,18].
+ Mostcloselyrelated,RT-2-X[1]trainsa 55 B-parameter VLApolicyon the Open X-Embodiment
+ dataset and demonstratesstate-of-the-artgeneralistmanipulationpolicyper for mance. However,our
+ work differs from RT-2-X in multiple important aspects: (1) by combining a strong open VLM
+ 3 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Open VLA 
+ Action De-Tokenizer 
+ Δx 
+ 3 Δθ 
+ Llama 2 7 B ΔGrip 
+ 7 D Robot 
+ Input Image Action 
+ 2 
+ MLP Projector Llama Tokenizer 
+ “Put eggplant 
+ Dino V 2 Sig LIP 
+ in bowl” 
+ 1 
+ Language Instruction 
+ “What should the robot do to {task}? A:” 
+ Figure 2:Open VLA model architecture.Givenanimageobservation and alanguageinstruction,themodel
+ predicts 7-dimensionalrobotcontrolactions.Thearchitectureconsistsofthreekeycomponents:(1)avision
+ encoder that concatenates Dino V 2[25]and Sig LIP[79]features,(2)aprojector that mapsvisualfeaturesto
+ thelanguageembeddingspace,and(3)the LLMbackbone,a Llama 27 B-parameterlargelanguage model[10].
+ backbone with aricherrobotpretraining data set,Open VLAoutperforms RT-2-Xin our experiments
+ whilebeinganorderofmagnitudesmaller;(2)wethoroughlyinvestigatefine-tuningof Open VLA
+ modelsto new targetsetups,while RT-2-Xdoesnotinvestigate the fine-tuningsetting;(3)weare
+ thefirsttodemonstrate the effectivenessofmodernparameter-efficientfine-tuning and quantization
+ approaches for VLAs;and(4)Open VLAis the firstgeneralist VLA that isopen-source and thus
+ supportsfutureresearchon VLAtraining,datamixtures,objectives,andinference.
+ 3 The Open VLAModel 
+ Weintroduce the Open VLAmodel,a 7 B-parametervision-language-action model(VLA)trained
+ on 970 krobotdemonstrations from the Open X-Embodiment data set[1]. There are many,largely
+ unexplored, questions around best practices for developing VLA models, e.g., what are the best
+ modelbackbones,datasets,andhyperparameterstouse for training. Below,wedetail our approach
+ fordeveloping Open VLA and summarize our keylearnings. Concretely, wefirst provideabrief
+ overviewofmodern VLMs, whichform the backboneof Open VLA(Section 3.1); thendescribe
+ our basic training recipe and dataset (Section 3.2 and Section 3.3); discuss key design decisions
+ (Section 3.4);andprovidedetailsof the usedinfrastructure for training and inference(Section 3.5).
+ 3.1 Preliminaries: Vision-Language Models 
+ Thearchitectureofmostrecent VLMs[20,42–44]consistsofthreemainparts(see Fig.2): (1)a
+ visualencoder that mapsimageinputstoanumberof“imagepatchembeddings”,(2)aprojector
+ that takes the output embeddings of the visual encoder and maps them into the input space of a
+ language model, and(3)alargelanguage model(LLM)backbone. During VLMtraining, the
+ modelistrainedend-to-end with anexttexttokenpredictionobjectiveonpairedorinterleavedvision
+ andlanguage data curated from various Internets our ces. 
+ Inthiswork,webuildon the Prismatic-7 BVLM[44]. Prismaticfollows the samest and ardarchitec-
+ turedescribedabove,witha 600 M-parametervisualencoder,asmall 2-layer MLPprojector,anda
+ 7 B-parameter Llama 2 language model backbone[10]. Notably,Prismaticusesatwo-partvisualen-
+ coder,consistingofpretrained Sig LIP[79]and Dino V 2[25]models. Inputimagepatches are passed
+ separatelythroughbothencoders and the resultingfeaturevectors are concatenatedchannel-wise. In
+ contrastto the morecommonlyusedvisionencoderssuchas CLIP-[80]or Sig LIP-onlyencoders,
+ theadditionof Dino V 2 featureshas been showntobehelpful for improvedspatialreasoning[44],
+ which can beparticularlyhelpful for robotcontrol. 
+ Sig LIP,Dino V 2,and Llama 2 donotreleasedetailsabout the irtraining data,whichlikelyconsistsof
+ trillionsoftokensof Internet-sourcedimage-text,image-only,andtext-onlydat are spectively. The
+ Prismatic VLMisfine-tunedontopof the secomponentsusing the LLa VA 1.5 datamixture[43],
+ whichcontainsatotalofapproximately 1 Mimage-text and text-only data samples from open-source
+ datasets[29,42,81–83]. 
+ 4 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 3.2 Open VLATraining Procedure 
+ Totrain Open VLA,wefine-tuneapretrained Prismatic-7 BVLMbackbone for robotactionprediction
+ (see Fig.2). Weformulate the actionpredictionproblemasa“vision-language”task,whereaninput
+ observationimage and anaturallanguage task instruction are mappedtoastringofpredictedrobot
+ actions[7]. Toenable the VLM’slanguage model backbonetopredictrobotactions,werepresent
+ theactionsin the outputspaceof the LLMbymappingcontinuousrobotactionstodiscretetokens
+ usedby the language model’stokenizer. Following Brohanetal.[7],wediscretizeeachdimensionof
+ therobotactionsseparatelyintooneof 256 bins. Foreachactiondimension,weset the binwidth
+ touni for mlydivide the intervalbetween the 1 stand 99 thquantileoftheactionsin the training data.
+ Usingquantilesinsteadof the min-maxbounds Brohanetal.[7]usedallowsustoignoreoutlier
+ actionsinthe data that couldotherwisedrasticallyexp and the discretizationinterval and reduce the
+ effectivegranularityof our actiondiscretization. 
+ Using this discretization,weobtain Ndiscreteintegers∈[0...255]foran N-dimensionalrobotac-
+ tion. Unfortunately,thetokenizerusedby Open VLA’slanguagebackbone,the Llamatokenizer[10],
+ only reserves 100 “special tokens” for tokens newly introduced during fine-tuning, which is too
+ fewfor the 256 tokensof our actiondiscretization. Instead,weagainopt for simplicity and follow
+ Brohanetal.[7]’sapproachbysimplyoverwriting the 256 leastusedtokensin the Llamatokenizer’s
+ vocabulary(whichcorrespondsto the last 256 tokens)with our actiontokens. Once the actions are
+ processed into a sequence of tokens, Open VLA is trained with a standard next-token prediction
+ objective, evaluating the cross-entropy loss on the predicted action tokens only. We discuss key
+ designdecisions for implementing this trainingprocedurein Section 3.4. Next,wedescribe the robot
+ datasetwe usefor Open VLAtraining. 
+ 3.3 Training Data 
+ The goal in constructing the Open VLA training dataset is to capture a large diversity of robot
+ embodiments,scenes,andtasks. Thisenables the final model tocontrolvariousrobotsoutof the
+ box and admits efficient fine-tuning to new robot setups. We leverage the Open X-Embodiment
+ dataset[1](Open X)asa base tocurate our training data set. Thefull Open Xdataset,atthetimeof
+ writing,consistsofmorethan 70 individualrobot data sets,withmorethan 2 Mrobottrajectories,
+ that were pooledintoacoherent and easy-to-usedata for matinalargecommunityeffort. Tomake
+ trainingon this datapractical,weapplymultiplestepsof data curationto the raw data set.
+ The goals of this curation are to ensure (1) a coherent input and output space across all training
+ datasets,and(2)abalancedmixofembodiments,tasks,andscenesin the finaltrainingmixture.2 To
+ address(1),wefollow[1,5]andrestrict our trainingdatasettocontainonlymanipulation data sets
+ withatleastone 3 rdpersoncamera and usesingle-armend-effectorcontrol. For(2),weleverage the
+ datamixtureweightsof Octo[5]forall data sets that pass the firstroundoffiltering.Octoheuristically
+ down-weightsorremoveslessdiverse data setsandup-weights data sets with larger task and scene
+ diversity;see Octo Model Teametal.[5]fordetails. 
+ Wealsoexperimented with incorporatingafewadditional data setsinto our trainingmixture that were
+ addedto the Open Xdatasetsince the releaseof Octo,including the DROID data set[11],althoughata
+ conservativemixtureweightof 10%. Inpractice,wefound that the actiontokenaccuracyon DROID
+ remainedlowthroughouttraining,suggestingalargermixtureweightor model mayberequiredtofit
+ itsdiversityin the future. Tonotjeopardizethequalityof the final model,weremoved DROID from
+ the data mixture for the finalthirdoftraining. Weprovideacompleteoverviewof the used data sets
+ andmixtureweightsin Appendix A. 
+ 3.4 Open VLADesign Decisions 
+ When developing the Open VLA model, we explored various design decisions in smaller-scale
+ experiments before starting the final model training run. Concretely, we trained and evaluated
+ Open VLA model son Bridge Data V 2[6]for our initialexperiments,insteadoftrainingon the full
+ 2 Octo[5]demonstratedtrainingacross data sets with heterogeneoussensoryinputs.Whileverypromising,
+ weleaveaninvestigationof VLAtrainingacrossheterogeneoussensormodalities and actionspacestofuture
+ work. 
+ 5 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Open X mixture, to increase iteration speed and reduce computational cost. We summarize key
+ learnings from the seexplorationsbelow. 
+ VLM Backbone. Initially, we experimented with multiple VLM backbones. Apart from Pris-
+ matic[44],wetestedfine-tuning IDEFICS-1[84]and LLa VA[85]forrobotactionprediction. We
+ found that LLa VAand IDEFICS-1 per for medcomparablyontasks with onlyoneobjectin the scene,
+ but LLa VAdemonstratedstrongerlanguagegroundingintasks that involvedmultipleobjectsin the
+ scene and requiredthepolicytomanipulate the correctobject,i.e.,theobjectspecifiedin the language
+ instruction.Concretely,LLa VAimprovedupon IDEFICS-1 by 35%inabsolutesuccessrate,averaged
+ acrossfivelanguagegrounding task sina Bridge Data V 2 sinkenvironment. Thefine-tuned Prismatic
+ VLMpolicyachievedfur the rimprovements,outper for ming the LLa VApolicybyroughly 10%in
+ absolutesuccessrateacrossbothsimplesingle-objecttasks and multi-object,languagegrounding
+ tasks. Weattribute this performancedeltatoimprovedspatialreasoningcapabilitiesaf for dedby the
+ fused Sig LIP-Dino V 2 backbones(see Section 3.1). Inadditionto the per for manceenhancements,
+ Prismatic also provides a modular and easy-to-use code base, so we ultimately chose it to be the
+ backbone for the Open VLAmodel. 
+ Image Resolution. The resolution of input images has significant impact on the computational
+ requirementsof VLAtraining, sincehigher-resolutionimagesresultinmoreimagepatchtokens
+ andthuslongercontextlengths that quadraticallyincreasetrainingcompute. Wecompared VLAs
+ with 224×224 pxand 384×384 pxinputs,butfoundnoper for mancedifferencein our evaluations,
+ while the latter takes 3 x longer to train. We thus opt for a resolution of 224 × 224 px for the
+ final Open VLAmodel. Note that onmany VLMbenchmarks,increasedresolutiondoesimprove
+ per for mance[44,86,87],butwedidnotsee this trend(yet)for VLAs. 
+ Fine-Tuning Vision Encoder. Prior work on VLMs found that freezing vision encoders during
+ VLMtrainingtypicallyleadstohigherper for mance[44]. Intuitively,afrozenvisionencodermay
+ betterpreserve the robustfeatureslearned from its Internet-scalepretraining. However,wefound
+ fine-tuning the visionencoderduring VLAtrainingtobecrucial for good VLAper for mance. We
+ hypothesize that the pretrainedvisionbackbonemaynotcapturesufficientfine-grainedspatialdetails
+ aboutimportantpartsof the scenetoenablepreciseroboticcontrol. 
+ Training Epochs. Typical LLMor VLMtrainingrunscompleteatmostoneortwoepochsthrough
+ their training dataset. In contrast, we found it important for VLA training to iterate through the
+ training data setsignifi can tlymoretimes,withrealrobotper for mancecontinuallyincreasinguntil
+ trainingactiontokenaccuracysurpasses 95%. Ourfinaltrainingruncompletes 27 epochsthroughits
+ training data set. 
+ Learning Rate. Weswept the learningrateacrossmultipleordersofmagnitude for VLAtraining,
+ andachieved the bestresultsusingafixedlearningrateof 2 e-5(thesamelearningrateusedduring
+ VLMpretraining[44]). Wedidnotfindlearningratewarmuptoprovidebenefits.
+ 3.5 Infrastructure for Training and Inference 
+ The final Open VLA model is trained on a cluster of 64 A 100 GPUs for 14 days, or a total of
+ 21,500 A 100-hours,usingabatchsizeof 2048. Duringinference,Open VLArequires 15 GBof GPU
+ memorywhenloadedinbfloat 16 precision(i.e.,withoutquantization)andrunsatapproximately
+ 6 Hzonone NVIDIARTX 4090 GPU(withoutcompilation,speculativedecoding,oro the rinference
+ speed-uptricks). we canfurtherreduce the memoryfootprintof Open VLAduringinferencevia
+ quantization,withoutcompromisingper for manceinreal-worldroboticstasks,asshownin Section 5.4.
+ Wereportinferencespeedonvariousconsumer-andserver-grade GPUsin Fig.6.Forconvenience,we
+ implement are mote VLAinferenceservertoallowreal-timeremotestreamingofactionpredictions
+ to the robot – removing the requirement of having access to a powerful local compute device to
+ control the robot. Werelease this remoteinferencesolutionaspartof our open-sourcecoderelease
+ (Section 4). 
+ 4 The Open VLACode base 
+ Along with ourmodel,werelease the Open VLAcode base,amodular Py Torchcode base for training
+ VLA models (see https://openvla.github.io). It scales from fine-tuning VLAs on individ-
+ ual GPUstotrainingbillion-parameter VLAsonmulti-node GPUclusters, andsupportsmodern
+ 6 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 87.0 85.0 90.0 
+ 70.6 76.7 
+ 60.0 
+ 50.6 52.0 55.0 
+ 38.836.3 40.0 
+ 18.520.0 29.0 25.0 20.0 26.7 26.3 30.0 
+ 8.0 7.5 10.0 
+ 0.0 
+ (Un d s is a e t p e ra n p c e b t a o a r r c a s k n , g c o r e b o s j u e ) n c d t s, (Unseen o r o ie b n je ta c t t i o p n o s s ) itions & (Unseen s h o a b p je e c s t ) sizes & ( & U n c s o e n e c n e p o t b s j e fr c o t m s, t in h s e t r I u n c te ti r o n n e s t) , (Ab s ili p ty e c to ifi e m p d r a o i n m n i p p la u t n ) la g t u e a o g b e j ect
+ 
+ 
+ Put Yellow Corn Stack Blue Cup Put {Red Bottle, 
+ on Pink Plate Lift Eggplant Flip Pot Upright on Pink Cup Eggplant} into Pot
+ Figure 3: Bridge Data V 2 Widow Xrobotevaluationtasks and results. Weevaluate Open VLA and prior
+ state-of-the-artgeneralistrobotpoliciesonacomprehensivesuiteof task scoveringseveralaxesofgeneralization,
+ aswellastasks that specificallyassesslanguageconditioningability.Open VLAachieveshighestoverallper for-
+ mance and evenoutper for msclosed-source model RT-2-Xinallcategoriesexcept for semanticgeneralization.
+ Averagesuccessrates±Std Err are computedacross 170 totalrolloutsperapproach.See Table 4 fordetailed
+ results. 
+ techniquesforlargetrans for mer model trainingsuchasautomaticmixedprecision(AMP,Py Torch
+ [75]),Flash Attention[76],and full ysharded data parallelism(FSDP,Zhaoetal.[77]). Outof the
+ box, the Open VLAcode base has full support for trainingon the Open Xdataset, integrates with
+ Hugging Face’s[21]Auto Modelclass, andsupports Lo RAfine-tuning[26]andquantized model
+ inference[27,88]. 
+ 5 Experiments 
+ Thegoalof our experimentalevaluationsistotest Open VLA’sabilitytoserveasapowerfulmulti-
+ robotcontrolpolicyoutof the box,aswellasbeagoodinitialization for fine-tuningto new robot
+ tasks. Concretely,weaimtoanswer the followingquestions: 
+ 1. Howdoes Open VLAcomp are topriorgeneralistrobotpolicies,whenevaluatingonmultiple
+ robots and varioustypesofgeneralization? 
+ 2. Can Open VLAbeeffectivelyfine-tunedona new robotsetup and task,andhowdoesit
+ comp are tostate-of-the-artdata-efficientimitationlearningapproaches?
+ 
+ 3. Canwe useparameter-efficientfine-tuning and quantizationtoreduce the computationalre-
+ quirements for training and inferenceof Open VLAmodels and make the mmoreaccessible?
+ What are the per for mance-computetrade-offs? 
+ 5.1 Direct Evaluationson Multiple Robot Platforms 
+ Robot Setups and Tasks. Weevaluate Open VLA’sper for mance“out-of-the-box”ontworobot
+ embodiments: the Widow X robot from the Bridge Data V 2 evaluations [6] (see Fig. 1, left) and
+ the mobile manipulation robot from the RT-1 and RT-2 evaluations [2, 7] (“Google robot”; see
+ Fig.1,middle). Bothplatforms have beenextensivelyusedinpriorworks for evaluatinggeneralist
+ robotpolicies[1,2,5,7]. Wedefineacomprehensivesetofevaluation task sineachenvironment
+ thatcoversvariousaxesofgeneralization,suchasvisual(unseenbackgrounds,distractorobjects,
+ colors/appearancesofobjects);motion(unseenobjectpositions/orientations);physical(unseenobject
+ sizes/shapes); and semantic (unseen target objects, instructions, and concepts from the Internet)
+ generalization. Wealsoassesslanguageconditioningabilityinscenes with multipleobjects,testing
+ whether the policy can manipulate the correcttargetobject,asspecifiedin the user’sprompt. See
+ bottomrowof Fig.3 and Fig.4 forexample task imagesin the Bridge Data V 2 and Googlerobot
+ evaluations,respectively. Overall,weevaluatedeachmethodin 170 rollouts(17 tasks with 10 trials
+ each)for Bridge Data V 2 experiments and 60 rollouts(12 tasks with 5 trialseach)for Googlerobot
+ experiments. A detailed breakdown of all tasks and how they differ from the training data is in
+ 7 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Appendix B.Allevaluationsin this and the followingsections are conductedas A/Bevaluations,
+ usingthesametasks with the samesetsofinitialrobot and objectstates,toensurefaircomparison.
+ Comparisons. Wecomp are Open VLA’sper for mancetothreepriorgeneralistmanipulationpolicies:
+ RT-1-X[1],RT-2-X[1],and Octo[5]. RT-1-X(35 Mparameters)and Octo(93 Mparameters)are
+ trans for merpoliciestrained from scratchonsubsetsof the Open Xdataset;Octois the state-of-the-art
+ model among open-source manipulation policies. RT-2-X (55 B parameters) is a state-of-the-art,
+ closed-source VLA that leverages Internet-pretrainedvision and languagebackbones.
+ Theresults are summarizedin Fig.3 for Bridge Data V 2 evaluations and Fig.4 for Googlerobot
+ evaluations(per-taskbreakdownin Appendix,Table 4 and Table 6). Wefind that both RT-1-Xand
+ Octo struggle on the tested tasks, often failing to manipulate the correct object, especially when
+ distractors are present,andinsomecasescausing the robottowaveitsarmaroundaimlessly. Note
+ that our evaluations test even larger degrees of generalization than the evaluations per for med in
+ thosepriorworkstochallenge the Internet-pretrained VLAmodels. Thus,lowerper for manceof
+ models with out Internetpretrainingisexpected. RT-2-Xclearlyoutper for msboth RT-1-Xand Octo,
+ demonstrating the benefitsoflarge,pretrained VLMs for robotics. 
+ Notably,Open VLAper for mscomparablyto RT- 
+ 2-X on Google robot evaluations and signifi- 
+ 78.3 85.0 88.0 82.982.9 
+ cantlyoutperforms RT-2-Xon Bridge Data V 2 
+ 72.0 
+ evaluations despite being an order of magni- 
+ tude smaller (7 B vs. 55 B parameters). Qual- 44.0 
+ 33.3 
+ 26.7 32.0 34.3 
+ itatively, we find that both RT-2-X and Open- 
+ VLA exhibit markedly more robust behaviors 14.3 
+ thantheo the rtestedmodels,suchasapproach- 
+ ing the correct object when distractor objects (Tasks & conditions seen in (Unseen objects, tasks,
+ training data) backgrounds, & concepts)
+ arepresent,properlyorienting the robot’send- 
+ effector to align with the orientation of the 
+ target object, and even recovering from mis- 
+ Move Coke Can 
+ takes such as insecurely grasping objects (see Pick Coke Can to Taylor Swift
+ https://openvla.github.ioforqualitative Figure 4:Googlerobotevaluationresults.Weevaluate
+ rolloutexamples). RT-2-Xachieveshigherper- generalistrobotpoliciesonin-distribution and out-of-
+ formance in semantic generalization tasks, as distribution(OOD)taskson the mobilemanipulatorused
+ in RT-1 and RT-2 evaluations[2,7].Wefind that Open-
+ shown in Fig. 3, which is expected given that 
+ VLAand RT-2-Xattaincomparableper for mance and
+ ituseslarger-scale Internetpretraining data and 
+ signifi can tlyoutperform RT-1-Xand Octooverall.Aver-
+ isco-fine-tuned with bothrobotaction data and agesuccessrates±Std Err are computedacross 60 total
+ Internetpretraining data tobetterpreserve the rolloutsperapproach.See Table 6 fordetailedresults.
+ pretraining knowledge, rather than being fine- 
+ tunedsolelyonrobot data,like Open VLA.However,Open VLAper for mscomparablyorbetterin
+ all other task categories in both Bridge Data V 2 and Google robot evaluations. The per for mance
+ difference can beattributedtoacombinationoffactors: wecuratedamuchlargertraining data set
+ for Open VLAwith 970 ktrajectories(vs. 350 kfor RT-2-X);weper for medmorec are fulcleaningof
+ thetraining data set and,e.g.,filteredoutall-zeroactionsin the Bridge data set(see Appendix Cfora
+ detaileddiscussion);and Open VLAusesafusedvisionencoder that combinespretrainedsemantic
+ andspatialfeatures. See Appendix Dforablationanalysesof the secomponents.
+ 5.2 Data-Efficient Adaptationto New Robot Setups 
+ Whilepriorworksmainlyfocusedondirectlyevaluating VLAs“out-of-the-box”[1,7,16],effective
+ fine-tuningof VLA model sto new tasks and robotsetupsislargelyunexplored,yetiskey for their
+ widespreadadoption. Inthissection,weinvestigate Open VLA’sabilitytobequicklyadaptedtoa
+ newreal-worldrobotsetup. (See Appendix Eforfine-tuningexperimentsinsimulation.)
+ Robotsetups and tasks. Wetestasimplefine-tuningrecipe for the Open VLAmodel: fullfine-
+ tuningofall model parameters,usingsmall data sets with 10–150 demonstrationsofatarget task(see
+ Fig.5;weexploreparameter-efficientfine-tuningapproachesin Section 5.3). Wetest Open VLAin
+ twosetups: Franka-Tabletop,astationary,table-mounted Franka Emika Panda 7-Do Frobotarm;
+ and Franka-DROID,the Frankarobotarmsetup from the recentlyreleased DROID data set[11],
+ 8 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Franka-Tabletop Franka-DROID 
+ 
+ 43.437.141.535.2 63.8 66.7 53.5 33.3 46.7 60.0 93.3 80.0 13.3 53.3 83.3 63.3 26.7 70.0 93.3 19.427.830.6 16.7 69.4 27.822.2 66.769.4 77.8 16.725.0 91.7 44.450.0 35.0 26.7 38.3 21.7 58.3
+ 0.0 
+ 
+ 
+ 
+ Narrow Single-Instruction Tasks Diverse Multi-Instruction Tasks Visual Robustness
+ Figure 5: Adapting to new robot setups. We evaluate the state-of-the-art Diffusion Policy trained from
+ scratchonseven Franka Emika Pan data sks(10–150 demonstrationseach),aswellasgeneralistrobotpolicies
+ Octo and Open VLAfine-tunedon the same data. Diffusion Policyexhibitsstrongper for manceonnarrow
+ single-instructiontasks,while Octo and Open VLAper for mbetterondiversefine-tuning task sinvolvingmultiple
+ instructions and distractorobjects. Overall,Open VLAachieveshighestaggregateper for manceacrossboth
+ setups,suggesting that itisaneffectivedefault for learningapolicyonadownstream task.Averagesuccessrates
+ ±Std Err are computedacross 129 rolloutsperapproach(99 for Franka-Tabletoptasks and 30 for Franka-DROID
+ tasks).See Table 7 fordetailedresults. 
+ mounted on a movable standing desk. The setups use 5 Hz and 15 Hz non-blocking controllers,
+ respectively. Wechoose Frankarobotarmsas the targetembodiment for ourfine-tuningexperiments
+ sincethey are widelyusedin the robotlearningcommunity and thusalikely“target”of Open VLA
+ fine-tuning. Wetestonsetups with differentcontrolfrequenciestotest Open VLA’sapplicabilitytoa
+ rangeofusecases. 
+ Comparisons. Wecompareto Diffusion Policy[3],astate-of-the-artdata-efficientimitationlearning
+ approach, trained from scratch. We also comp are to Diffusion Policy (matched), a version of
+ Diffusion Policy that matches the input and outputspecificationsof Open VLA.3 Additionally,we
+ evaluate Octo[5]fine-tunedon the target data set,sinceitiscurrently the bestgeneralistpolicy that
+ supportsfine-tuning (fine-tuningof RT-2-X isnotsupported throughits inference API).Wealso
+ fine-tune Open VLAon the sametarget data set,and the resultingpolicyisdenotedby Open VLA.
+ Finally, as an ablation experiment, we comp are to Open VLA (scratch), where we directly fine-
+ tune the underlying base Prismatic VLM on the target robot setup – rather than fine-tuning the
+ Open X-pretrained Open VLAmodel–toassess the benefitoflarge-scalerobotpretraining.
+ Wepresent the resultsin Fig.5(per-taskbreakdownin Appendix,Table 7). Wefind that bothversions
+ of Diffusion Policy are competitive with oroutperform the generalistpolicies Octo and Open VLA
+ onnarrowersingle-instruction task slike“Put Carrotin Bowl”and“Pour Corninto Pot”, butthe
+ pretrainedgeneralistpoliciesper for mbetterinmorediversefine-tuningtasks that involvemultiple
+ objectsin the scene and requirelanguageconditioning. Open Xpretraining for Octo and Open VLA
+ enablesthe model stobetteradaptto the semorediverse task swherelanguagegroundingisimportant;
+ weseeevidence for thisin the lowerper for manceof Open VLA(scratch). 
+ Overall,wefind that Open VLAachieves the highestaverageper for mance. Notably,mostpriorworks
+ achievestrongper for manceonlyinei the rnarrowsingle-instructionordiversemulti-instructiontasks,
+ resultinginwidelyvaryingsuccessrates. Open VLAis the onlyapproach that achievesatleast 50%
+ successrateacrossalltestedtasks, suggestingthatit can beastrongdefaultoption for imitation
+ learning tasks, particularly if they involve a diverse set of language instructions. For narrower
+ but highly dexterous tasks, Diffusion Policy still shows smoother and more precise trajectories;
+ incorporatingactionchunking and temporalsmoothing,asimplementedin Diffusion Policy,may
+ help Open VLAattain the samelevelofdexterity and maybeapromisingdirection for futurework
+ (see Section 6 foradetaileddiscussionofcurrentlimitations). 
+ 3 Thefull Diffusion Policyusesatwo-stepobservationhistory with bothimages and proprioceptivestate,and
+ per for msrecedinghorizoncontrolbypredictingachunkof T futureactions and executing the first Xactionsin
+ open-loopfashionbe for epredicting the nextchunk(for 15 Hzcontrol,weset T =16,X =8 likein the DROID
+ priorwork[11];for 5 Hzcontrol,wereduce the chunksizesto T = 8,X = 3). Itisalso the onlymethod
+ in Section 5.2 thatpredictsabsolute Cartesiancoordinatestocontrol the robot;allo the rmethodsuserelative
+ positioncontrol.Diffusion Policy(matched)usesasingleimageasinput,hasnoproprioceptivein for mation and
+ noobservationhistory,andpredictsasinglerelativepositioncontrolaction with outactionchunking.
+ 9 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 5.3 Parameter-Efficient Fine-Tuning 
+ The full fine-tuningrunsof Open VLAin the previoussectionused 8 A 100 GPUs for 5-15 hoursper
+ task(dependingon the datasetsize)toachievehighper for mance. While this issubstantiallyless
+ computethanwhatisrequired for VLApretraining,inthissectionweexploreevenmorecompute-
+ andparameter-efficientfine-tuningapproaches and investigate the ireffectiveness.
+ Concretely, we comp are the follow- 
+ Table 1:Parameter-efficientfine-tuningevaluation.Lo RAfine-
+ ingfine-tuningapproaches: fullfine- tuningachieves the bestper for mance-computetrade-off,matching
+ tuningupdatesallweightsduringfine- fullfine-tuningper for mancewhiletrainingonly 1.4%ofthe model
+ tuning, as described in Section 5.2; parameters.Meansuccess±Std Errcomputedacross 33 rolloutsper
+ lastlayeronlyfine-tunesonly the last approachonselect Franka-Tabletoptasks(see Table 8 fordetails).
+ ∗:Shardedacross 2 GPUs with FSDP[77]. 
+ layerof Open VLA’strans for merback- 
+ bone and the tokenembeddingmatrix; Strategy Success Rate Train Params(×106) VRAM(batch 16)
+ frozen vision freezes the vision en- Full FT 69.7±7.2% 7,188.1 163.3 GB*
+ coderbutfine-tunesallo the rweights; Lastlayeronly 30.3±6.1% 465.1 51.4 GB
+ sandwich fine-tuning unfreezes the Frozenvision 47.0±6.9% 6,760.4 156.2 GB*
+ Sandwich 62.1±7.9% 914.2 64.0 GB 
+ vision encoder,tokenembeddingma- Lo RA,rank=32 68.2±7.5% 97.6 59.7 GB 
+ trix, and last layer; and Lo RA uses rank=64 68.2±7.8% 195.2 60.5 GB 
+ thepopularlow-rankadaptationtech- 
+ niqueof Huetal.[26]withmultiplerankvaluesr,appliedtoalllinearlayersof the model.
+ Wereportfine-tuningsuccessratesacrossmultiple Franka-Tabletoptasks,aswellastrainingparame-
+ tercount and GPUmemoryrequirements,in Table 1.4 Wefind that onlyfine-tuning the network’s
+ lastlayerorfreezing the visionencoderleadstopoorper for mance,suggesting that fur the radaptation
+ of the visual features to the target scene is crucial. In contrast, “sandwich fine-tuning” achieves
+ betterper for mancesinceitfine-tunes the visionencoder,anditconsumesless GPUmemorysince
+ it does not fine-tune the full LLM backbone. Lastly, Lo RA achieves the best trade-off between
+ per for mance and trainingmemoryconsumption,outper for ming“sandwichfine-tuning”andmatching
+ fullfine-tuningper for mancewhilefine-tuningonly 1.4%oftheparameters. Wefind that the Lo RA
+ rankhasnegligibleeffectonpolicyper for mance and thusrecommendusingadefaultrankofr =32.
+ With Lo RA,we canfine-tune Open VLAona new task within 10-15 hoursonasingle A 100 GPU–
+ an 8 xreductionincomputecomp are dto full fine-tuning. 
+ 5.4 Memory-Efficient Inferencevia Quantization 
+ Precision Bridge Success VRAM 
+ bfloat 16 71.3±4.8% 16.8 GB 
+ int 8 58.1±5.1% 10.2 GB 
+ int 4 71.9±4.7% 7.0 GB 
+ N/A Table 2:Per for mance with quantizedin- 
+ ference.4-bitquantizationmatches the per-
+ Figure 6: Open VLAinferencespeed for various GPUs.Both formanceofbfloat 16 inference(ourdefault
+ bfloat 16 andint 4 quantizationachievehighthroughput,especially approach)whilereducing the GPUmemory
+ on GPUs with Ada Lovelacearchitecture(RTX 4090,H 100).Fur- footprintbymorethanhalf.Meansuccess
+ therspeed-ups are possible with modern LLMinferenceframe- ±Std Errcomputedacross 8 representative
+ workslike Tensor RT-LLM[89]. ♠: Modelshardedacrosstwo Bridge Data V 2 tasks[6]and 80 rolloutsper
+ GPUstofit. approach(see Table 5 fordetails). 
+ Open VLA,a 7 B-parameter model,consumesmorememoryatinferencetimethanprior open-source
+ generalistpoliciessuchas Octo,whichhas<100 Mparameters. Wefollowbest-practices from LLM
+ servingbysaving and loading Open VLAinbfloat 16 precision for inference(ourdefaultapproach),
+ whichcuts the memoryfootprintinhalf,allowingustoserve Open VLAon GPUs with only 16 GB
+ 4 In Section 5.3 and Section 5.4,weexperiment with aversionof the Open VLAmodel that ispretrained with
+ asmallerrobot data mixture(thesame Open Xdatasetmixtureas Octo)andhasaslightlysmallerarchitecture
+ whichonlyusesa Sig LIP[79]visionbackboneinsteadof the fused Dino Sig LIPencoder. Wefind that this
+ simplerarchitecturestillachievesstrongper for manceinbothfine-tuningtasks and“out-of-the-box”tasks.
+ 10 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ of GPUmemory. Inthissection,wetestwhe the rwe canfurtherreduce the requiredmemory for
+ policyinference and broadenaccessibilityof VLApolicies,byusingmodernquantizationtechniques
+ developed for serving LLMs[27,88]. Theseapproachesloadtheweightsof the networkatlower
+ precision,therebytradingoffreducedmemoryrequirements for potentiallyreducedinferencespeed
+ andaccuracy. 
+ Concretely,weinvestigateserving the Open VLAmodel with 8-bitand 4-bitprecisionon 8 represen-
+ tative Bridge Data V 2 tasks. Wereportmemoryfootprint and rolloutper for mancein Table 2. We
+ alsoreportachievablecontrolfrequenciesonvariousconsumer-andserver-grade GPUsin Fig.6.
+ Weobserve that 8-bitquantizationslowsdowninferenceacrossmost GPUs,dueto the overheadof
+ theaddedquantizationoperations. 4-bitinferenceachieveshigherthroughput,sincereduced GPU
+ memorytransfercompensates for the quantizationoverhead. 
+ As a result of the reduced inference speed, we observe a substantial per for mance decrease with
+ 8-bitquantization: onthe A 5000 GPUwe use for ourevaluations, we canonlyrun the modelat
+ 1.2 Hz,whichsignifi can tlychangesthesystemdynamicscomp are dto the training data set for the
+ 5 Hznon-blockingcontrollerusedin the Bridge Data V 2 tasks.5 Notably,4-bitquantizationresultsin
+ similarper for manceasbfloat 16 half-precisioninferencedespiterequiringlessthanhalf the amount
+ of GPUmemory. 4-bitquantizedmodels can runat 3 Hzon the A 5000,thusmorecloselymatching
+ thesystemdynamicsduring data collection. 
+ 6 Discussion and Limitations 
+ Inthiswork,wepresented Open VLA,astate-of-the-art,open-sourcevision-language-action model
+ thatobtainsstrongperformance for cross-embodimentrobotcontrolout-of-the-box. Wealsodemon-
+ strated that Open VLAcan beeasilyadaptedto new robotsetupsviaparameter-efficientfine-tuning
+ techniques. 
+ Thecurrent Open VLA model hasseverallimitations. First,itcurrentlyonlysupportssingle-image
+ observations. Inreality,real-worldrobotsetups are heterogeneous,withawiderangeofpossible
+ sensoryinputs[5]. Exp and ing Open VLAtosupportmultipleimage and proprioceptiveinputsaswell
+ asobservationhistoryisanimportantavenue for futurework. Exploring the useof VLMspretrained
+ oninterleavedimage and text data mayfacilitatesuchflexible-input VLAfine-tuning.
+ Secondly,improving the inferencethroughputof Open VLAiscriticaltoenable VLAcontrol for
+ high-frequency control setups such as ALOHA [90], which runs at 50 Hz. This will also enable
+ testing VLAsonmoredexterous,bi-manualmanipulation task sthanwhatweinvestigatedin this
+ work. Exploring the useofactionchunkingoralternativeinference-timeoptimizationtechniques
+ suchasspeculativedecoding[91]offerpotentialremedies. 
+ Additionally,thereisroom for fur the rper for manceimprovements. While Open VLAoutperforms
+ prior generalist policies, it does not yet offer very high reliability on the tested tasks, typically
+ achieving<90%successrate. 
+ Finally, due to compute limitations, many VLA design questions remain underexplored: What
+ effectdoesthesizeof the base VLMhaveon VLAper for mance? Doesco-trainingonrobotaction
+ prediction data and Internet-scalevision-language data substantiallyimprove VLAper for mance?
+ Whatvisualfeatures are best-suited for VLAmodels? Wehope that the releaseof the Open VLA
+ model and code base will enablethecommunitytojointlyinvestigate the sequestions.
+ Acknowledgments 
+ We are grateful to the Toyota Research Institute for providing significant funding and compute
+ res our cesrequiredtocarryout this research. Wealsothank the Stanford Center for Researchon
+ Foundation Models for providingadditionalcomputeres our ces and Google Deep Mind for alpha
+ accessto the RT-2-XAPI for ourevaluations. Weacknowledgeadditionalsupport from Volkswagen,
+ Physical Intelligence,ONRgrants N 00014-22-1-2621 and N 00014-22-1-2293,the National Science
+ Foundationthrough IIS-2246811,and DARPAANSR. 
+ 5 Weattribute the per for mancelosstolowinferencespeed,sinceboth 8-bitand 4-bitquantizationachieve
+ comparabletokenaccuracytobfloat 16 inferencewhenevaluatedofflineontraining data.See Appendix D.4 for
+ supportingdetails. 
+ 11 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ References 
+ [1] Open X-Embodiment Collaboration,A.Padalkar,A.Pooley,A.Jain,A.Bewley,A.Herzog,
+ A.Irpan,A.Khazatsky,A.Rai,A.Singh,A.Brohan,A.Raffin,A.Wahid,B.Burgess-Limerick,
+ B.Kim,B.Schölkopf,B.Ichter,C.Lu,C.Xu,C.Finn,C.Xu,C.Chi,C.Huang,C.Chan,
+ C.Pan,C.Fu,C.Devin,D.Driess,D.Pathak,D.Shah,D.Büchler,D.Kalashnikov,D.Sadigh,
+ E.Johns,F.Ceola,F.Xia,F.Stulp,G.Zhou,G.S.Sukhatme,G.Salhotra,G.Yan,G.Schiavi,
+ H. Su, H.-S. Fang, H. Shi, H. B. Amor, H. I. Christensen, H. Furuta, H. Walke, H. Fang,
+ I.Mordatch,I.Radosavovic,I.Leal,J.Liang,J.Kim,J.Schneider,J.Hsu,J.Bohg,J.Bingham,
+ J.Wu,J.Wu,J.Luo,J.Gu,J.Tan,J.Oh,J.Malik,J.Tompson,J.Yang,J.J.Lim,J.Silvério,
+ J.Han,K.Rao,K.Pertsch,K.Hausman,K.Go,K.Gopalakrishnan,K.Goldberg,K.Byrne,
+ K.Oslund,K.Kawaharazuka,K.Zhang,K.Majd,K.Rana,K.Srinivasan,L.Y.Chen,L.Pinto,
+ L.Tan,L.Ott,L.Lee,M.Tomizuka,M.Du,M.Ahn,M.Zhang,M.Ding,M.K.Srirama,
+ M. Sharma, M. J. Kim, N. Kanazawa, N. Hansen, N. Heess, N. J. Joshi, N. Suenderhauf,
+ N. D. Palo, N. M. M. Shafiullah, O. Mees, O. Kroemer, P. R. Sanketi, P. Wohlhart, P. Xu,
+ P. Sermanet, P. Sund are san, Q. Vuong, R. Rafailov, R. Tian, R. Doshi, R. Martín-Martín,
+ R.Mendonca,R.Shah,R.Hoque,R.Julian,S.Bustamante,S.Kirmani,S.Levine,S.Moore,
+ S. Bahl, S. Dass, S. Song, S. Xu, S. Haldar, S. Adebola, S. Guist, S. Nasiriany, S. Schaal,
+ S.Welker,S.Tian,S.Dasari,S.Belkhale,T.Osa,T.Harada,T.Matsushima,T.Xiao,T.Yu,
+ T.Ding,T.Davchev,T.Z.Zhao,T.Armstrong,T.Darrell,V.Jain,V.Vanhoucke,W.Zhan,
+ W.Zhou,W.Burgard,X.Chen,X.Wang,X.Zhu,X.Li,Y.Lu,Y.Chebotar,Y.Zhou,Y.Zhu,
+ Y.Xu,Y.Wang,Y.Bisk,Y.Cho,Y.Lee,Y.Cui,Y.hua Wu,Y.Tang,Y.Zhu,Y.Li,Y.Iwasawa,
+ Y.Matsuo,Z.Xu,and Z.J.Cui. Open X-Embodiment: Roboticlearning data sets and RT-X
+ models. https://arxiv.org/abs/2310.08864,2023. 
+ [2] A.Brohan,N.Brown,J.Carbajal,Y.Chebotar,J.Dabis,C.Finn,K.Gopalakrishnan,K.Haus-
+ man, A. Herzog, J. Hsu, J. Ibarz, B. Ichter, A. Irpan, T. Jackson, S. Jesmonth, N. Joshi,
+ R.Julian,D.Kalashnikov,Y.Kuang,I.Leal,K.-H.Lee,S.Levine,Y.Lu,U.Malla,D.Manju-
+ nath,I.Mordatch,O.Nachum,C.Parada,J.Peralta,E.Perez,K.Pertsch,J.Quiambao,K.Rao,
+ M.Ryoo,G.Salazar,P.Sanketi,K.Sayed,J.Singh,S.Sontakke,A.Stone,C.Tan,H.Tran,
+ V.Vanhoucke,S.Vega,Q.Vuong,F.Xia,T.Xiao,P.Xu,S.Xu,T.Yu,and B.Zitkovich. Rt-1:
+ Robotics trans for mer for real-world control at scale. In ar Xiv preprint ar Xiv:2212.06817,
+ 2022. 
+ [3] C.Chi, S.Feng, Y.Du,Z.Xu,E.Cousineau,B.Burchfiel,and S.Song. Diffusionpolicy:
+ Visuomotorpolicylearningviaactiondiffusion. In Proceedingsof Robotics: Science and
+ Systems(RSS),2023. 
+ [4] A.Xie,L.Lee,T.Xiao,and C.Finn. Decomposing the generalizationgapinimitationlearning
+ forvisualroboticmanipulation. ar Xivpreprintar Xiv:2307.03659,2023.
+ [5] Octo Model Team,D.Ghosh,H.Walke,K.Pertsch,K.Black,O.Mees,S.Dasari,J.Hejna,
+ C.Xu,J.Luo,T.Kreiman,Y.Tan,D.Sadigh,C.Finn,and S.Levine. Octo: Anopen-source
+ generalistrobotpolicy. https://octo-models.github.io,2023. 
+ [6] H. Walke, K. Black, A. Lee, M. J. Kim, M. Du, C. Zheng, T. Zhao, P. Hansen-Estruch,
+ Q.Vuong,A.He,V.Myers,K.Fang,C.Finn,and S.Levine. Bridgedatav 2: Adataset for
+ robotlearningat scale,2023. 
+ [7] A.Brohan,N.Brown,J.Carbajal,Y.Chebotar,X.Chen,K.Choromanski,T.Ding,D.Driess,
+ A.Dubey,C.Finn,P.Florence,C.Fu,M.G.Arenas,K.Gopalakrishnan,K.Han,K.Hausman,
+ A.Herzog,J.Hsu,B.Ichter,A.Irpan,N.Joshi,R.Julian,D.Kalashnikov,Y.Kuang,I.Leal,
+ L. Lee, T.-W. E. Lee, S. Levine, Y. Lu, H. Michalewski, I. Mordatch, K. Pertsch, K. Rao,
+ K.Reymann,M.Ryoo,G.Salazar,P.Sanketi,P.Sermanet,J.Singh,A.Singh,R.Soricut,
+ H.Tran,V.Vanhoucke,Q.Vuong,A.Wahid,S.Welker,P.Wohlhart,J.Wu,F.Xia,T.Xiao,
+ P. Xu, S. Xu, T. Yu, and B. Zitkovich. Rt-2: Vision-language-action models transfer web
+ knowledgetoroboticcontrol. Inar Xivpreprintar Xiv:2307.15818,2023. 
+ 
+ 12 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ [8] A.Radford, J.W.Kim, C.Hallacy, A.Ramesh, G.Goh, S.Agarwal, G.Sastry, A.Askell,
+ P.Mishkin,J.Clark,G.Krueger,and I.Sutskever. Learningtransferablevisualmodels from
+ natural language supervision. In International Conference on Machine Learning (ICML),
+ volume 139,pages 8748–8763,2021. 
+ [9] X. Zhai, B. Mustafa, A. Kolesnikov, and L. Beyer. Sigmoid loss for language image pre-
+ training. In International Conferenceon Computer Vision(ICCV),2023. 
+ 
+ [10] H.Touvron,L.Martin,K.Stone,P.Albert,A.Almahairi,Y.Babaei,N.Bashlykov,S.Batra,
+ P.Bhargava,S.Bhosale,etal. Llama 2: Openfoundation and fine-tunedchatmodels. ar Xiv
+ preprintar Xiv:2307.09288,2023. 
+ [11] A.Khazatsky, K.Pertsch, S.Nair, A.Balakrishna, S.Dasari, S.Karamcheti, S.Nasiriany,
+ M.K.Srirama,L.Y.Chen,K.Ellis,P.D.Fagan,J.Hejna,M.Itkina,M.Lepert,Y.J.Ma,
+ P.T.Miller,J.Wu,S.Belkhale,S.Dass,H.Ha,A.Jain,A.Lee,Y.Lee,M.Memmel,S.Park,
+ I.Radosavovic,K.Wang,A.Zhan,K.Black,C.Chi,K.B.Hatch,S.Lin,J.Lu,J.Mercat,
+ A.Rehman,P.R.Sanketi,A.Sharma,C.Simpson,Q.Vuong,H.R.Walke,B.Wulfe,T.Xiao,
+ J.H.Yang,A.Yavary,T.Z.Zhao,C.Agia,R.Baijal,M.G.Castro,D.Chen,Q.Chen,T.Chung,
+ J.Drake,E.P.Foster,J.Gao,D.A.Herrera,M.Heo,K.Hsu,J.Hu,D.Jackson,C.Le,Y.Li,
+ K.Lin,R.Lin,Z.Ma,A.Maddukuri,S.Mirch and ani,D.Morton,T.Nguyen,A.O’Neill,
+ R.Scalise,D.Seale,V.Son,S.Tian,E.Tran,A.E.Wang,Y.Wu,A.Xie,J.Yang,P.Yin,
+ Y.Zhang,O.Bastani,G.Berseth,J.Bohg,K.Goldberg,A.Gupta,A.Gupta,D.Jayaraman,
+ J.J.Lim,J.Malik,R.Martín-Martín,S.Ramamoorthy,D.Sadigh,S.Song,J.Wu,M.C.Yip,
+ Y.Zhu,T.Kollar,S.Levine,and C.Finn. Droid: Alarge-scalein-the-wildrobotmanipulation
+ dataset. 2024. 
+ [12] S.Nair,A.Rajeswaran,V.Kumar,C.Finn,and A.Gupta. R 3 m: Auniversalvisualrepresenta-
+ tion for robotmanipulation. In Co RL,2022. 
+ [13] S.Karamcheti,S.Nair,A.S.Chen,T.Kollar,C.Finn,D.Sadigh,and P.Liang. Language-
+ driven representation learning for robotics. Ar Xiv, abs/2302.12766, 2023. URL https:
+ //api.semanticscholar.org/Corpus ID:257205716. 
+ 
+ [14] M. Shridhar, L. Manuelli, and D. Fox. Cliport: What and where pathways for robotic
+ manipulation. In Conferenceonrobotlearning,pages 894–906.PMLR,2022.
+ [15] A.Stone,T.Xiao,Y.Lu,K.Gopalakrishnan,K.-H.Lee,Q.Vuong,P.Wohlhart,B.Zitkovich,
+ F. Xia, C. Finn, et al. Open-world object manipulation using pre-trained vision-language
+ models. ar Xivpreprintar Xiv:2303.00905,2023. 
+ 
+ [16] D.Driess,F.Xia,M.S.Sajjadi,C.Lynch,A.Chowdhery,B.Ichter,A.Wahid,J.Tompson,
+ Q.Vuong,T.Yu,etal. Palm-e: Anembodiedmultimodallanguage model. ar Xivpreprint
+ ar Xiv:2303.03378,2023. 
+ [17] A. S. et al. Introducing rfm-1: Giving robots human-like reason-
+ ing capabilities, 2024. URL https://covariant.ai/insights/ 
+ introducing-rfm-1-giving-robots-human-like-reasoning-capabilities/.
+ 
+ [18] Wayve.Lingo-2:Driving with naturallanguage.2024.URLhttps://wayve.ai/thinking/
+ lingo-2-driving-with-language/. 
+ [19] X.Chen,X.Wang,S.Changpinyo,A.J.Piergiovanni,P.Padlewski,D.M.Salz,S.Goodman,
+ A.Grycner,B.Mustafa,L.Beyer,A.Kolesnikov,J.Puigcerver,N.Ding,K.Rong,H.Akbari,
+ G. Mishra, L. Xue, A. V. Thapliyal, J. Bradbury, W. Kuo, M. Seyedhosseini, C. Jia, B. K.
+ Ayan, C. Riquelme, A. Steiner, A. Angelova, X. Zhai, N. Houlsby, and R. Soricut. Pali:
+ Ajointly-scaledmultilinguallanguage-image model. Ar Xiv, abs/2209.06794, 2022. URL
+ https://api.semanticscholar.org/Corpus ID:252222320. 
+ 
+ 13 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ [20] X.Chen,X.Wang,L.Beyer,A.Kolesnikov,J.Wu,P.Voigtlaender,B.Mustafa,S.Goodman,
+ I.M.Alabdulmohsin, P.Padlewski, D.M.Salz, X.Xiong, D.Vlasic, F.Pavetic, K.Rong,
+ T.Yu,D.Keysers,X.-Q.Zhai,and R.Soricut. Pa LI-3 visionlanguagemodels: Smaller,faster,
+ stronger. ar Xivpreprintar Xiv:2310.09199,2023. 
+ [21] T.Wolf,L.Debut,V.Sanh,J.Chaumond,C.Delangue,A.Moi,P.Cistac,T.Rault,R.Louf,
+ M.Funtowicz,J.Davison,S.Shleifer,and... Trans for mers: State-of-the-artnaturallanguage
+ processing. In Proceedingsof the 6 th International Conferenceon Learning Representations,
+ 2020. URLhttps://arxiv.org/abs/1910.03771. 
+ [22] H. Touvron, T. Lavril, G. Izacard, X. Martinet, M.-A. Lachaux, T. Lacroix, B. Rozière,
+ N.Goyal,E.Hambro,F.Azhar,etal. Llama: Open and efficientfoundationlanguagemodels.
+ ar Xivpreprintar Xiv:2302.13971,2023. 
+ 
+ [23] A.Q.Jiang,A.Sablayrolles,A.Mensch,C.Bamford,D.S.Chaplot,D.d.l.Casas,F.Bress and,
+ G.Lengyel,G.Lample,L.Saulnier,etal. Mistral 7 b. ar Xivpreprintar Xiv:2310.06825,2023.
+ [24] G.Team,T.Mesnard,C.Hardin,R.Dadashi,S.Bhupatiraju,S.Pathak,L.Sifre,M.Rivière,
+ M.S.Kale,J.Love,etal. Gemma: Open model sbasedongeminiresearch and technology.
+ ar Xivpreprintar Xiv:2403.08295,2024. 
+ [25] M. Oquab, T. Darcet, T. Moutakanni, H. Vo, M. Szafraniec, V. Khalidov, P. Fernandez,
+ D.Haziza, F.Massa, A.El-Nouby, etal. Dinov 2: Learningrobustvisualfeatures with out
+ supervision. ar Xivpreprintar Xiv:2304.07193,2023. 
+ 
+ [26] E. J. Hu, Y. Shen, P. Wallis, Z. Allen-Zhu, Y. Li, S. Wang, L. Wang, and W. Chen. Lora:
+ Low-rankadaptationoflargelanguagemodels. ar Xivpreprintar Xiv:2106.09685,2021.
+ [27] T.Dettmers, A.Pagnoni, A.Holtzman, and L.Zettlemoyer. Qlora: Efficientfinetuningof
+ quantizedllms. Advancesin Neural Information Processing Systems,36,2024.
+ 
+ [28] Y.Goyal,T.Khot,D.Summers-Stay,D.Batra,and D.Parikh. Making the Vin VQAmatter:
+ Elevating the roleofimageunderst and inginvisualquestionanswering. In Computer Vision
+ and Pattern Recognition(CVPR),2017. 
+ [29] D.A.Hudson and C.D.Manning. GQA:Anew data set for real-worldvisualreasoning and
+ compositional question answering. In Computer Vision and Pattern Recognition (CVPR),
+ 2019. 
+ 
+ [30] A.Singh,V.Natarajan,M.Shah,Y.Jiang,X.Chen,D.Batra,D.Parikh,and M.Rohrbach.
+ Towards VQAmodels that can read. In Computer Vision and Pattern Recognition(CVPR),
+ 2019. 
+ [31] J. P. Bigham, C. Jayant, H. Ji, G. Little, A. Miller, R. C. Miller, R. Miller, A. Tatarowicz,
+ B.White,S.White,and T.Yeh. Viz Wiz: nearlyreal-timeanswerstovisualquestions. In User
+ Interface Softw are and Technology(UIST),pages 333–342,2010. 
+ [32] S. Kazemzadeh, V. Ordonez, M. Matten, and T. Berg. Refer It Game: Referring to objects
+ in photographs of natural scenes. In Empirical Methods in Natural Language Processing
+ (EMNLP),pages 787–798,2014. 
+ 
+ [33] L. Yu, P. Poirson, S. Yang, A. C. Berg, and T. L. Berg. Modeling context in referring
+ expressions. In European Conferenceon Computer Vision(ECCV),2016. 
+ [34] T. Mesnard, C. Hardin, R. Dadashi, S. Bhupatiraju, S. Pathak, L. Sifre, M. Rivière, M. S.
+ Kale, J. Love, P. Tafti, L. Hussenot, P. G. Sessa, A. Chowdhery, A. Roberts, A. Barua,
+ A.Botev,A.Castro-Ros,A.Slone,A.Héliou,A.Tacchetti,A.Bulanova,A.Paterson,B.Tsai,
+ B. Shahriari, C. L. Lan, C. A. Choquette-Choo, C. Crepy, D. Cer, D. Ippolito, D. Reid,
+ E.Buchatskaya, E.Ni, E.Noland, G.Yan, G.Tucker, G.-C.Muraru, G.Rozhdestvenskiy,
+ 
+ 14 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ H.Michalewski,I.Tenney,I.Grishchenko,J.Austin,J.Keeling,J.Labanowski,J.-B.Lespiau,
+ J.Stanway,J.Brennan,J.Chen,J.Ferret,J.Chiu,J.Mao-Jones,K.Lee,K.Yu,K.Milli can,
+ L.L.Sjoesund,L.Lee,L.Dixon,M.Reid,M.Mikuła,M.Wirth,M.Sharman,N.Chinaev,
+ N.Thain,O.Bachem,O.Chang,O.Wahltinez,P.Bailey,P.Michel,P.Yotov,R.Chaabouni,
+ R.Comanescu,R.Jana,R.Anil,R.Mc Ilroy,R.Liu,R.Mullins,S.L.Smith,S.Borgeaud,
+ S.Girgin,S.Douglas,S.Pandya,S.Shakeri,S.De,T.Klimenko,T.Hennigan,V.Feinberg,
+ W.Stokowiec,Y.hui Chen,Z.Ahmed,Z.Gong,T.Warkentin,L.Peran,M.Giang,C.Farabet,
+ O.Vinyals,J.Dean,K.Kavukcuoglu,D.Hassabis,Z.Ghahramani,D.Eck,J.Barral,F.Pereira,
+ E.Collins,A.Joulin,N.Fiedel,E.Senter,A.Andreev,and K.Kenealy. Gemma: Openmodels
+ basedongeminiresearch and technology. ar Xivpreprintar Xiv:2403.08295,2024.
+ [35] Y.Li,S.Bubeck,R.Eldan,A.D.Giorno,S.Gunasekar,and Y.T.Lee. Textbooks are allyou
+ needii: phi-1.5 technicalreport. ar Xivpreprintar Xiv:2309.05463,2023.
+ [36] J.Bai,S.Bai,Y.Chu,Z.Cui,K.Dang,X.Deng,Y.Fan,W.Ge,Y.Han,F.Huang,etal. Qwen
+ technicalreport. ar Xivpreprintar Xiv:2309.16609,2023. 
+ 
+ [37] J.Li,D.Li,C.Xiong,and S.C.H.Hoi. BLIP:Bootstrappinglanguage-imagepre-training
+ forunifiedvision-languageunderstanding and generation. In International Conferenceon
+ Machine Learning(ICML),2022. 
+ [38] J.Li,D.Li,S.Savarese,and S.C.H.Hoi. BLIP-2:Bootstrappinglanguage-imagepre-training
+ with frozen image encoders and large language models. In International Conference on
+ Machine Learning(ICML),2023. 
+ [39] W.Dai,J.Li,D.Li,A.M.H.Tiong,J.Zhao,W.Wang,B.A.Li,P.Fung,and S.C.H.Hoi.
+ Instruct BLIP:Towardsgeneral-purposevision-languagemodels with instructiontuning. ar Xiv
+ preprintar Xiv:2305.06500,2023. 
+ 
+ [40] H.H.Tanand M.Bansal. LXMERT:Learningcross-modalityencoderrepresentations from
+ trans for mers. In Empirical Methodsin Natural Language Processing(EMNLP),2019.
+ [41] H.Laurençon,L.Saulnier,L.Tronchon,S.Bekman,A.Singh,A.Lozhkov,T.Wang,S.Karam-
+ cheti,A.M.Rush,D.Kiela,M.Cord,and V.Sanh. OBELICS:Anopenweb-scalefiltered
+ datasetofinterleavedimage-textdocuments. In Neural Information Processing Systems Track
+ on Datasets and Benchmarks(Neur IPS Data sets and Benchmarks),2023. 
+ 
+ [42] H. Liu, C. Li, Q. Wu, and Y. J. Lee. Visual instruction tuning. In Advances in Neural
+ Information Processing Systems(Neur IPS),2023. 
+ [43] H.Liu,C.Li,Y.Li,and Y.J.Lee. Improved base lines with visualinstructiontuning. ar Xiv
+ preprintar Xiv:2310.03744,2023. 
+ 
+ [44] S.Karamcheti,S.Nair,A.Balakrishna,P.Liang,T.Kollar,and D.Sadigh. Prismaticvlms:
+ Investigating the design space of visually-conditioned language models. ar Xiv preprint
+ ar Xiv:2402.07865,2024. 
+ [45] D. Kalashnikov, A. Irpan, P. Pastor, J. Ibarz, A. Herzog, E. Jang, D. Quillen, E. Holly,
+ M. Kalakrishnan, V. Vanhoucke, et al. QT-Opt: Scalable deep rein for cement learning for
+ vision-basedroboticmanipulation. ar Xivpreprintar Xiv:1806.10293,2018.
+ 
+ [46] D.Kalashnkov,J.Varley,Y.Chebotar,B.Swanson,R.Jonschkowski,C.Finn,S.Levine,and
+ K.Hausman. Mt-opt: Continuousmulti-taskroboticrein for cementlearningat scale. ar Xiv,
+ 2021. 
+ [47] F.Ebert,Y.Yang,K.Schmeckpeper,B.Bucher,G.Georgakis,K.Daniilidis,C.Finn,and
+ S.Levine. Bridge data: Boostinggeneralizationofroboticskills with cross-domain data sets.
+ ar Xivpreprintar Xiv:2109.13396,2021. 
+ 
+ 15 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ [48] K. Ehsani, T. Gupta, R. Hendrix, J. Salvador, L. Weihs, K.-H. Zeng, K. P. Singh, Y. Kim,
+ W.Han,A.Herrasti,etal. Imitatingshortestpathsinsimulationenableseffectivenavigation
+ andmanipulationin the realworld. ar Xivpreprintar Xiv:2312.02976,2023.
+ [49] H. Bharadhwaj, J. Vakil, M. Sharma, A. Gupta, S. Tulsiani, and V. Kumar. Roboagent:
+ Generalizationandefficiencyinrobotmanipulationviasemanticaugmentations and action
+ chunking. ar Xivpreprintar Xiv:2309.01918,2023. 
+ 
+ [50] L.Pinto and A.Gupta. Supersizingself-supervision: Learningtograsp from 50 ktries and
+ 700 robothours. In 2016 IEEEinternationalconferenceonrobotics and automation(ICRA),
+ pages 3406–3413.IEEE,2016. 
+ [51] A.Mandlekar,Y.Zhu,A.Garg,J.Booher,M.Spero,A.Tung,J.Gao,J.Emmons,A.Gupta,
+ E. Orbay, et al. Roboturk: A crowds our cing platform for robotic skill learning through
+ imitation. In Conferenceon Robot Learning,pages 879–893.PMLR,2018. 
+ [52] A. Gupta, A. Murali, D. P. Gandhi, and L. Pinto. Robot learning in homes: Improving
+ generalization and reducing data setbias. Advancesinneuralin for mationprocessingsystems,
+ 31,2018. 
+ 
+ [53] S.Dasari,F.Ebert,S.Tian,S.Nair,B.Bucher,K.Schmeckpeper,S.Singh,S.Levine,and
+ C.Finn. Robonet: Large-scalemulti-robotlearning. Co RL,2019. 
+ [54] S. Cabi, S. G. Colmenarejo, A. Novikov, K. Konyushkova, S. Reed, R. Jeong, K. Zolna,
+ Y.Aytar,D.Budden,M.Vecerik,O.Sushkov,D.Barker,J.Scholz,M.Denil,N.de Freitas,
+ and Z.Wang. Scaling data-drivenrobotics with rewardsketching and batchrein for cement
+ learning. RSS,2019. 
+ 
+ [55] E. Jang, A. Irpan, M. Khansari, D. Kappler, F. Ebert, C. Lynch, S. Levine, and C. Finn.
+ Bc-z: Zero-shot task generalization with roboticimitationlearning. In Conferenceon Robot
+ Learning,pages 991–1002.PMLR,2022. 
+ [56] H.-S. Fang, H. Fang, Z. Tang, J. Liu, C. Wang, J. Wang, H. Zhu, and C. Lu. Rh 20 t: A
+ comprehensive robotic dataset for learning diverse skills in one-shot. Towards Generalist
+ Robots: Learning Paradigms for Scalable Skill Acquisition@Co RL 2023,3:5,2023.
+ 
+ [57] C. Devin, A. Gupta, T. Darrell, P. Abbeel, and S. Levine. Learning modular neural net-
+ workpolicies for multi-task and multi-robottransfer. In Proceedingsof IEEEInternational
+ Conferenceon Robotics and Automation,2017. 
+ [58] E.S.Hu,K.Huang,O.Rybkin,and D.Jayaraman. Knowthyself: Transferablevisualcontrol
+ policiesthroughrobot-awareness. In International Conferenceon Learning Representations,
+ 2022. 
+ 
+ [59] J. H. Yang, D. Sadigh, and C. Finn. Polybot: Training one policy across robots while
+ embracing variability. In 7 th Annual Conference on Robot Learning, 2023. URL https:
+ //openreview.net/forum?id=HEIRj 51 lc S. 
+ [60] S.Reed,K.Zolna,E.Parisotto,S.G.Colmenarejo,A.Novikov,G.Barth-maron,M.Giménez,
+ Y.Sulsky,J.Kay,J.T.Springenberg,T.Eccles,J.Bruce,A.Razavi,A.Edwards,N.Heess,
+ Y.Chen,R.Hadsell,O.Vinyals,M.Bordbar,and N.de Freitas.Ageneralistagent.Transactions
+ on Machine Learning Research,2022. ISSN 2835-8856. 
+ [61] G.Salhotra,I.-C.A.Liu,and G.Sukhatme. Bridgingactionspacemismatchinlearning from
+ demonstrations. ar Xivpreprintar Xiv:2304.03833,2023. 
+ 
+ [62] I.Radosavovic, B.Shi, L.Fu, K.Goldberg, T.Darrell, and J.Malik. Robotlearning with
+ sensorimotorpre-training. In Conferenceon Robot Learning,2023. 
+ 
+ 16 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ [63] D.Shah,A.Sridhar,A.Bhorkar,N.Hirose,and S.Levine. Gnm: Ageneralnavigation model
+ to drive any robot. In 2023 IEEE International Conference on Robotics and Automation
+ (ICRA),pages 7226–7233.IEEE,2023. 
+ [64] K. Bousmalis, G. Vezzani, D. Rao, C. Devin, A. X. Lee, M. Bauza, T. Davchev, Y. Zhou,
+ A.Gupta,A.Raju,etal. Robocat: Aself-improvingfoundationagent for roboticmanipulation.
+ ar Xivpreprintar Xiv:2306.11706,2023. 
+ [65] D.Shah,A.Sridhar,N.Dashora,K.Stachowicz,K.Black,N.Hirose,and S.Levine. Vi NT:A
+ foundation model for visualnavigation. In 7 th Annual Conferenceon Robot Learning,2023.
+ URLhttps://arxiv.org/abs/2306.14846. 
+ 
+ [66] J. Yang, C. Glossop, A. Bhorkar, D. Shah, Q. Vuong, C. Finn, D. Sadigh, and S. Levine.
+ Pushing the limits of cross-embodiment learning for manipulation and navigation. ar Xiv
+ preprintar Xiv:2402.19432,2024. 
+ [67] S.Y.Gadre,M.Wortsman,G.Ilharco,L.Schmidt,and S.Song. Cowsonpasture: Baselines
+ and benchmarks for language-driven zero-shot object navigation. In Proceedings of the
+ IEEE/CVFConferenceon Computer Vision and Pattern Recognition, pages 23171–23181,
+ 2023. 
+ 
+ [68] Y.Du, K.Konyushkova, M.Denil, A.Raju, J.Landon, F.Hill, N.de Freitas, and S.Cabi.
+ Vision-language model sassuccessdetectors. ar Xivpreprintar Xiv:2303.07280,2023.
+ [69] Y.J.Ma,V.Kumar,A.Zhang,O.Bastani,and D.Jayaraman. Liv: Language-imagerepresen-
+ tations and rewards for roboticcontrol. In International Conferenceon Machine Learning,
+ pages 23301–23320.PMLR,2023. 
+ [70] X.Zhang,Y.Ding,S.Amiri,H.Yang,A.Kaminski,C.Esselink,and S.Zhang. Grounding
+ classical task plannersviavision-languagemodels. ar Xivpreprintar Xiv:2304.08587,2023.
+ 
+ [71] S. Sontakke, J. Zhang, S. Arnold, K. Pertsch, E. Bıyık, D. Sadigh, C. Finn, and L. Itti.
+ Roboclip:Onedemonstrationisenoughtolearnrobotpolicies.Advancesin Neural Information
+ Processing Systems,36,2024. 
+ [72] J.Huang,S.Yong,X.Ma,X.Linghu,P.Li,Y.Wang,Q.Li,S.-C.Zhu,B.Jia,and S.Huang.
+ Anembodiedgeneralistagentin 3 dworld. In Proceedingsof the International Conferenceon
+ Machine Learning(ICML),2024. 
+ 
+ [73] X. Li, M. Liu, H. Zhang, C. Yu, J. Xu, H. Wu, C. Cheang, Y. Jing, W. Zhang, H. Liu,
+ et al. Vision-language foundation models as effective robot imitators. ar Xiv preprint
+ ar Xiv:2311.01378,2023. 
+ [74] H.Zhen,X.Qiu,P.Chen,J.Yang,X.Yan,Y.Du,Y.Hong,and C.Gan. 3 d-vla: 3 dvision-
+ language-actiongenerativeworld model. ar Xivpreprintar Xiv:2403.09631,2024.
+ 
+ [75] Py Torch. Automatic mixed precision. URL https://pytorch.org/docs/stable/amp.
+ html. 
+ [76] T.Dao. Flashattention-2: Fasterattention with betterparallelism and workpartitioning. ar Xiv
+ preprintar Xiv:2307.08691,2023. 
+ 
+ [77] Y.Zhao,A.Gu,R.Varma,L.Luo,C.-C.Huang,M.Xu,L.Wright,H.Shojanazeri,M.Ott,
+ S. Shleifer, et al. Pytorch fsdp: experiences on scaling fully sharded data parallel. ar Xiv
+ preprintar Xiv:2304.11277,2023. 
+ [78] N.Dorka, C.Huang, T.Welschehold, and W.Burgard. Whatmattersinemployingvision
+ languagemodels for tokenizingactionsinrobotcontrol? In First Workshopon Vision-Language
+ Models for Navigation and Manipulationat ICRA 2024. 
+ 
+ 17 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ [79] X. Zhai, B. Mustafa, A. Kolesnikov, and L. Beyer. Sigmoid loss for language image pre-
+ training. In Proceedings of the IEEE/CVF International Conference on Computer Vision,
+ pages 11975–11986,2023. 
+ [80] A.Radford, J.W.Kim, C.Hallacy, A.Ramesh, G.Goh, S.Agarwal, G.Sastry, A.Askell,
+ P.Mishkin,J.Clark,etal. Learningtransferablevisualmodels from naturallanguagesupervi-
+ sion. In Internationalconferenceonmachinelearning,pages 8748–8763.PMLR,2021.
+ [81] P.Sharma,N.Ding,S.Goodman,and R.Soricut.Conceptualcaptions:Acleaned,hypernymed,
+ image alt-text dataset for automatic image captioning. In Proceedings of the 56 th Annual
+ Meetingof the Association for Computational Linguistics(Volume 1: Long Papers),pages
+ 2556–2565,2018. 
+ 
+ [82] C.Schuhmann,R.Vencu,R.Beaumont,R.Kaczmarczyk,C.Mullis,A.Katta,T.Coombes,
+ J.Jitsev,and A.Komatsuzaki.Laion-400 m:Open data setofclip-filtered 400 millionimage-text
+ pairs. ar Xivpreprintar Xiv:2111.02114,2021. 
+ [83] O. Sidorov, R. Hu, M. Rohrbach, and A. Singh. Textcaps: a dataset for image captioning
+ withreadingcomprehension. In Computer Vision–ECCV 2020: 16 th European Conference,
+ Glasgow,UK,August 23–28,2020,Proceedings,Part II 16,pages 742–758.Springer,2020.
+ 
+ [84] H.Face. Introducingidefics: Anopenreproductionofstate-of-the-artvisuallangage model.
+ Hugging Face Blog,2024. 
+ [85] H.Liu,C.Li,Q.Wu,and Y.J.Lee. Visualinstructiontuning. Advancesinneuralin for mation
+ processingsystems,36,2024. 
+ 
+ [86] B.Mc Kinzie,Z.Gan,J.-P.Fauconnier,S.Dodge,B.Zhang,P.Dufter,D.Shah,X.Du,F.Peng,
+ F.Weers,etal. Mm 1: Methods,analysis&insights from multimodalllmpre-training. ar Xiv
+ preprintar Xiv:2403.09611,2024. 
+ [87] J. Lin, H. Yin, W. Ping, Y. Lu, P. Molchanov, A. Tao, H. Mao, J. Kautz, M. Shoeybi, and
+ S.Han. Vila: Onpre-training for visuallanguagemodels. ar Xivpreprintar Xiv:2312.07533,
+ 2023. 
+ [88] T. Dettmers, M. Lewis, Y. Belkada, and L. Zettlemoyer. Gpt 3. int 8 (): 8-bit matrix multi-
+ plicationfortrans for mersat scale. Advancesin Neural Information Processing Systems,35:
+ 30318–30332,2022. 
+ 
+ [89] NVIDIA. Tensorrt-llm. URLhttps://github.com/NVIDIA/Tensor RT-LLM.
+ [90] T.Z.Zhao,V.Kumar,S.Levine,and C.Finn. Learningfine-grainedbimanualmanipulation
+ withlow-costhardw are. ar Xivpreprintar Xiv:2304.13705,2023. 
+ 
+ [91] Y.Leviathan,M.Kalman,and Y.Matias. Fastinference from trans for mersviaspeculative
+ decoding. In International Conferenceon Machine Learning,pages 19274–19286.PMLR,
+ 2023. 
+ [92] A.Brohan,N.Brown,J.Carbajal,Y.Chebotar,J.Dabis,C.Finn,K.Gopalakrishnan,K.Haus-
+ man,A.Herzog,J.Hsu,etal. Rt-1: Roboticstransformer for real-worldcontrolat scale. ar Xiv
+ preprintar Xiv:2212.06817,2022. 
+ 
+ [93] E.Rosete-Beas,O.Mees,G.Kalweit,J.Boedecker,and W.Burgard. Latentplans for task
+ agnostic offline rein for cement learning. In Proceedings of the 6 th Conference on Robot
+ Learning(Co RL),2022. 
+ [94] O.Mees,J.Borja-Diaz,and W.Burgard. Groundinglanguage with visualaf for dancesover
+ unstructured data. In Proceedings of the IEEE International Conference on Robotics and
+ Automation(ICRA),London,UK,2023. 
+ 
+ 18 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ [95] S.Dass,J.Yapeter,J.Zhang,J.Zhang,K.Pertsch,S.Nikolaidis,and J.J.Lim. CLVRjaco
+ play data set,2023. URLhttps://github.com/clvrai/clvr_jaco_play_dataset.
+ [96] J.Luo,C.Xu,X.Geng,G.Feng,K.Fang,L.Tan,S.Schaal,and S.Levine. Multi-stagecable
+ routingthroughhierarchicalimitationlearning. ar Xivpreprintar Xiv:2307.08927,2023.
+ 
+ [97] A.Mandlekar,Y.Zhu,A.Garg,J.Booher,M.Spero,A.Tung,J.Gao,J.Emmons,A.Gupta,
+ E.Orbay,S.Savarese,and L.Fei-Fei. Robo Turk: Acrowds our cingplatform for roboticskill
+ learningthroughimitation. Co RR,abs/1811.02790,2018. URLhttp://arxiv.org/abs/
+ 1811.02790. 
+ [98] Y.Zhu,A.Joshi,P.Stone,and Y.Zhu. Viola: Imitationlearning for vision-basedmanipulation
+ withobjectproposalpriors,2023. 
+ 
+ [99] L. Y. Chen, S. Adebola, and K. Goldberg. Berkeley UR 5 demonstration dataset. https:
+ //sites.google.com/view/berkeley-ur 5/home. 
+ [100] G.Zhou,V.Dean,M.K.Srirama,A.Rajeswaran,J.Pari,K.Hatch,A.Jain,T.Yu,P.Abbeel,
+ L.Pinto,C.Finn,and A.Gupta. Trainoffline,testonline: Arealrobotlearningbenchmark,
+ 2023. 
+ 
+ [101] C.Lynch,A.Wahid,J.Tompson,T.Ding,J.Betker,R.Baruch,T.Armstrong,and P.Florence.
+ Interactivelanguage: Talkingtorobotsinrealtime. IEEERobotics and Automation Letters,
+ 2023. 
+ [102] S.Belkhale,Y.Cui,and D.Sadigh. Hydra: Hybridrobotactions for imitationlearning. arxiv,
+ 2023. 
+ 
+ [103] Y.Zhu,P.Stone,and Y.Zhu. Bottom-upskilldiscovery from unsegmenteddemonstrations for
+ long-horizonrobotmanipulation. IEEERobotics and Automation Letters,7(2):4126–4133,
+ 2022. 
+ [104] Z. J. Cui, Y. Wang, N. M. M. Shafiullah, and L. Pinto. From play to policy: Conditional
+ behaviorgeneration from uncuratedrobot data. ar Xivpreprintar Xiv:2210.10047,2022.
+ 
+ [105] M.Heo,Y.Lee,D.Lee,and J.J.Lim. Furniturebench: Reproduciblereal-worldbenchmark
+ forlong-horizoncomplexmanipulation. In Robotics: Science and Systems,2023.
+ [106] G.Yan,K.Wu,and X.Wang. ucsdkitchens dataset. August 2023. 
+ 
+ [107] S.Nasiriany,T.Gao,A.Mandlekar,and Y.Zhu. Learning and retrieval from prior data for
+ skill-basedimitationlearning. In Conferenceon Robot Learning(Co RL),2022.
+ 
+ [108] H.Liu,S.Nasiriany,L.Zhang,Z.Bao,and Y.Zhu. Robotlearningon the job: Human-in-
+ the-loopautonomy and learningduringdeployment. In Robotics: Science and Systems(RSS),
+ 2023. 
+ [109] G.Quere,A.Hagengruber,M.Iskandar,S.Bustamante,D.Leidner,F.Stulp,and J.Vogel.
+ Shared Control Templates for Assistive Robotics. In 2020 IEEEInternational Conferenceon
+ Robotics and Automation(ICRA),page 7,Paris,France,2020. 
+ [110] S. Saxena, M. Sharma, and O. Kroemer. Multi-resolution sensing for real-time control
+ with vision-language models. In 7 th Annual Conference on Robot Learning, 2023. URL
+ https://openreview.net/forum?id=Wu Bv 9-IGDUA. 
+ 
+ [111] R.Shah,R.Martín-Martín,and Y.Zhu. MUTEX:Learningunifiedpolicies from multimodal
+ task specifications. In 7 th Annual Conference on Robot Learning, 2023. URL https:
+ //openreview.net/forum?id=Pwqiqaa Ez J. 
+ 
+ 19 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ [112] X.Zhu,R.Tian,C.Xu,M.Ding,W.Zhan,and M.Tomizuka. Fanucmanipulation: Adataset
+ forlearning-basedmanipulation with fanucmate 200 idrobot. 2023. 
+ [113] R.Mendonca,S.Bahl,and D.Pathak. Structuredworldmodels from humanvideos. Co RL,
+ 2023. 
+ 
+ [114] J.Luo, C.Xu, F.Liu, L. Tan, Z. Lin, J.Wu, P. Abbeel, and S. Levine. Fmb: a functional
+ manipulationbenchmark for generalizableroboticlearning. ar Xivpreprintar Xiv:2401.08553,
+ 2024. 
+ [115] N. M. M. Shafiullah, A. Rai, H. Etukuru, Y. Liu, I. Misra, S. Chintala, and L. Pinto. On
+ bringingrobotshome,2023. 
+ [116] B. Liu, Y. Zhu, C. Gao, Y. Feng, Q. Liu, Y. Zhu, and P. Stone. Libero: Benchmarking
+ knowledgetransfer for lifelongrobotlearning. Advancesin Neural Information Processing
+ Systems,36,2024. 
+ 
+ [117] V.Sanh,L.Debut,J.Chaumond,and T.Wolf. Distilbert,adistilledversionofbert: smaller,
+ faster,cheaper and lighter. ar Xivpreprintar Xiv:1910.01108,2019. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 20 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ A Data Mixture Details 
+ We list our used data mixture in Table 3. The mixture mostly follows [5], with a few additional
+ datasets. 
+ 
+ Open VLATraining dataset Mixture 
+ Fractal[92] 12.7% 
+ Kuka[45] 12.7% 
+ Bridge[6,47] 13.3% 
+ Taco Play[93,94] 3.0% 
+ Jaco Play[95] 0.4% 
+ Berkeley Cable Routing[96] 0.2% 
+ Roboturk[97] 2.3% 
+ Viola[98] 0.9% 
+ Berkeley Autolab UR 5[99] 1.2% 
+ Toto[100] 2.0% 
+ Language Table[101] 4.4% 
+ Stanford Hydra dataset[102] 4.4% 
+ Austin Buds dataset[103] 0.2% 
+ NYUFranka Play dataset[104] 0.8% 
+ Furniture Bench dataset[105] 2.4% 
+ UCSDKitchen dataset[106] <0.1% 
+ Austin Sailor dataset[107] 2.2% 
+ Austin Sirius dataset[108] 1.7% 
+ DLREDANShared Control[109] <0.1% 
+ IAMLab CMUPickup Insert[110] 0.9% 
+ UTAustin Mutex[111] 2.2% 
+ Berkeley Fanuc Manipulation[112] 0.7% 
+ CMUStretch[113] 0.2% 
+ BC-Z[55] 7.5% 
+ FMB Data set[114] 7.1% 
+ Dobb E[115] 1.4% 
+ DROID[11] 10.0%6 
+ Table 3:Open VLAtrainingdatamixtureusing data sets from the Open X-Embodiment data set[1],following[5]
+ withafewadditions. 
+ B Evaluation Tasks and Detailed Results 
+ Inthissection,weprovidemoredetailson the Bridge Data V 2 Widow Xand Googlerobotevaluations
+ discussedin Section 5.1,aswellas the Franka-Tabletop and Franka-DROIDfine-tuningevaluations
+ discussedin Section 5.2. 
+ B.1 Bridge Data V 2 Widow XEvaluation Details 
+ Herewefocusspecificallyon Bridge Data V 2 evaluationsdiscussedin Section 5.1.
+ B.1.1 Bridge Data V 2 Evaluation Tasks 
+ Asdescribedin Section 5.1,weevaluateeachgeneralistrobotmanipulationpolicyon 17 tasks with
+ 10 trialseach. Inthissection,weprovidedetailson the taskcategories and individualtasks.
+ In total, we evaluate on 5 visual generalization tasks, 2 motion generalization tasks, 3 physical
+ generalizationtasks,4 semanticgeneralizationtasks,and 3 languagegroundingtasks. Note that all
+ tasksweevaluateonintroducesome for mofdistributionshiftsincewe are unabletoprocure the
+ exactobjectsusedin the original data set(otherdistributionshiftsnaturallyariseas were producea
+ real-worldtestenvironmentoriginallyconstructe data differentlocation;see Appendix B.1.2 fora
+ detaileddiscussiononsuchdistributionshifts). All 17 tasks are depictedin Fig.7. Eachrolloutis
+ 6 Weremove DROID for the lastthirdoftrainingduetoslowlearningprogress(see Section 3.3)andre-
+ distributeitsmixtureweightsacrossallo the rdatasets. 
+ 21 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Put Eggplant into Pot (Easy Version) Put Eggplant into Pot
+ 
+ 
+ 
+ Put Cup from Counter into Sink Put Eggplant into Pot (w/ Clutter)
+ 
+ 
+ 
+ Put Yellow Corn on Pink Plate 
+ 
+ 
+ 
+ Lift Eggplant Put Carrot on Plate (w/ Height Change)
+ 
+ 
+ 
+ Put Carrot on Plate Flip Pot Upright 
+ 
+ 
+ Lift AAA Battery 
+ 
+ 
+ 
+ Move Skull into Drying Rack Lift White Tape 
+ 
+ 
+ 
+ Take Purple Grapes out of Pot Stack Blue Cup on Pink Cup
+ 
+ 
+ 
+ Put Eggplant into Pot Put Red Bottle into Pot 
+ 
+ 
+ 
+ Lift Cheese Lift Red Chili Pepper 
+ 
+ 
+ 
+ Put Blue Cup on Plate Put Pink Cup on Plate 
+ .ne G 
+ lausi V 
+ .ne G 
+ noito M 
+ .ne G 
+ lacisyh P 
+ .ne G 
+ citname S 
+ gnidnuor G 
+ egaugna L 
+ Figure 7: Bridge Data V 2 Widow Xrobotevaluationtasks. Weevaluateeverygeneralistrobotpolicyon 4
+ typesout-of-distribution(OOD)generalizationtasks: visual,motion,physical,andsemantic(asdefinedin
+ Section 5.1).Everypairofimagesshowsthestartstate and anexampleendstateafter the robotcompletes the
+ task.Wealsorigorouslyassesslanguagegroundingin the 3 tasksshownin the bottom 3 rows,bychanging the
+ promptwhilefixingtheinitialstate and testingwhether the policy can approach the correcttargetobject.
+ 22 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ markedasafailure(0)orsuccess(1). Insomemoredifficulttasks,werecordpartialsuccesses(0.5);
+ wedescribetheconditions for partialcreditin the taskdescriptionsbelow. 
+ Belowwedescribeeachof the 17 tasks,intheordershownin Fig.7: 
+ 1. Put Eggplantinto Pot(Easy Version): Therobot’sgoalistopickup the eggplant and
+ dropitinto the pot. Thisisavisualgeneralization task becausewe useah and craftedpaper
+ pot that hasadifferentappearancethanthepotusedin the original Bridge Data V 2 training
+ dataset (since we are unable to procure the original pot). Unlike all 16 other tasks, for
+ thisparticular task weinitialize the robot’send-effectordirectlyabove the eggplantbefore
+ rollingout the policy;hence,wecall this the“Easy Version”ofthe“Put Eggplantinto Pot”
+ task. 
+ 2. Put Eggplantinto Pot: Thisis the same task asdescribedabove,except that the robot’s
+ end-effector is not initialized directly above the eggplant. Instead, we initialize it in a
+ position that isfixedacrossallrollouts,whichmeans that the robotmusthorizontallyreach
+ for the eggplant first before manipulating it. (Note: The same applies to all other tasks
+ describedbelow.) Thisisavisualgeneralization task for the samereasonasabove.
+ 3. Put Cupfrom Counterinto Sink: Therobot’sgoalistopickup the pinkcup from either
+ thekitchencountertopordryingrack and placeitintothesinkon the right. Thisisavisual
+ generalization task becausewe useapinkcupra the rthanabluecup(abluecupisusedin
+ theoriginal Bridge Data V 2 dataset,butwefind that noneof the methodsweevaluateisable
+ tomanipulateitreliably–mostlikelybecausethecolorofthecupblendsin with the color
+ ofthesink). 
+ 4. Put Eggplantinto Pot(w/Clutter): Thisis the sametaskas the“Put Eggplantinto Pot”
+ task,except that itismoredifficultdueto the presenceofseveraldistractorobjects. Itisa
+ visualgeneralization task for thesamereasondiscussedin the normal“Put Eggplantinto
+ Pot”task,andevenmoresogivenunseendistractorsin the scene. Partialcredit(0.5 outof
+ 1)isrewardedwhentherobotmovestowards the correcttargetobject. 
+ 5. Put Yellow Cornon Pink Plate: Therobot’sgoalistopickup the yellowcorn and place
+ it on the pink plate. This is a visual generalization task due to the presence of unseen
+ distractorobjectsin the scene,suchasagreendinosauronthecountertopin the backsection
+ of the sink. Partial credit (0.5 out of 1) is rewarded when the robot moves towards the
+ correcttargetobject. 
+ 6. Lift Eggplant:Therobot’sgoalistograsp and lifttheeggplantinto the air. Thisisamotion
+ generalization task because the eggplantisinitializedinunseenpositions and/ororienta-
+ tions,and the robotis for cedtomovebeyonditstrainingdistributionofpositions and/or
+ orientations and oftenper for mlong-rangereachinginordertocomplete the task. (Note:
+ Long-rangereachingisnotdemonstratedin this environmentin the original Bridge Data V 2
+ demonstrations;see Appendix B.1.2 fordetails.) Wefind that this task,thoughseemingly
+ simple,isdeceptivelychallenging for manypolicies. Partialcredit(0.5 outof 1)isrewarded
+ whentherobotmakescontact with the eggplant. 
+ 7. Put Carroton Plate(w/Height Change):Therobot’sgoalistopickup the carrot and place
+ iton the yellowplate. Thisisamotiongeneralization task because the plateiselevated
+ fromitsusualpositionatthebottomof the sink, and the robotmustadjustitstrajectory
+ tocorrectlyplacethecarroton the elevatedplatform(withoutknockingdown the platein
+ theprocess). Partialcredit(0.5 outof 1)isrewardedwhentherobotgrasps the carrot and
+ touches the platewithit. 
+ 8. Put Carroton Plate: Thisis the same task asabove,except that the plateisatitsnormal
+ position(atthebottomof the sinkordryingrack). Weconsider this aphysicalgeneraliza-
+ tion task becausethecarrothasadifferentsize and shapethantheoneusedin the original
+ Bridge Data V 2 dataset,whichisshorter and narrower.(Note that the previousversionof this
+ tasklistedabovewouldalsotechnicallybeaphysicalgeneralization task sinceitinvolves
+ thesamecarrot,butwelistitunder the“motiongeneralization”categorysincethatis the
+ focusthere.) 
+ 23 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 9. Flip Pot Upright: Therobot’sgoalistomanipulate the potsuch that itisorientedupright
+ inthesinkattheendof the episode. Thisisaphysicalgeneralization task because this
+ pothasadifferentsize and shapethantheoneusedin the original Bridge Data V 2 training
+ demonstrations(thepotwe useiswider and shorter). 
+ 10. Lift AAABattery:Therobot’sgoalissimplytograsp the AAAbattery and liftitupinto the
+ air. Thisisconsideredaphysicalgeneralization task because the batteryismuchsmaller
+ andthinnerthantargetobjectsseenin the Bridge Data V 2 trainingdemonstrationsin this
+ environment;see Appendix B.1.2 fordetails. (Note that thistargetobjectdoesnotexistin
+ theoriginal Bridge Data V 2 demonstrationsin this environment,sothisisalsoaninstanceof
+ “semanticgeneralization”,butweclassifyitsolelyas“physicalgeneralization”sincethatis
+ themainfocushere). 
+ 11. Move Skullinto Drying Rack: Therobot’sgoalistograsp the skullwinduptoy and drop
+ itintotheyellowdryingrackintheleftpartof the sink. Thisisasemanticgeneralization
+ tasksince the skullisanunseentargetobject(doesnotappearin the Bridge Data V 2 training
+ demonstrations). 
+ 12. Lift White Tape: Therobot’sgoalistograsp and liftthewhiterolloftapeinto the air.
+ Thisisasemanticgeneralization task since the whitetaperollisanunseentargetobject
+ (doesnotappearin the Bridge Data V 2 trainingdemonstrations). (Note that this task may
+ alsobeconsideredas“physicalgeneralization”becauseofitsshapebeingdifferentthan the
+ objectsseenin the trainingdemonstrationsin this environment;mostpoliciesstruggleto
+ graspobjects with thisringstructure,andtheyoftenmove the robot’send-effectordirectly
+ into the centerregion.) 
+ 13. Take Purple Grapesoutof Pot: Therobot’sgoalistograsp the purplegrapeslyinginside
+ thesteelpot and removeit from the pot(byliftingitout and/ordroppingitanywhereoutside
+ thepot).Thisisasemanticgeneralization task becauseitisanunseenlanguageinstruction;
+ therobothasneverseen this taskin the original Bridge Data V 2 training data set.
+ 14. Stack Blue Cupon Pink Cup:Therobot’sgoalistograsp the bluecup and placeitsecurely
+ on top of the pink cup. This is a semantic generalization task because it is an unseen
+ languageinstruction;therobothasneverseenthistaskin this environmentin the original
+ Bridge Data V 2 training data set. Partialcredit(0.5 outof 1)isrewardedwhen the robot
+ graspsthebluecup and touchesthepinkcup with the bluecup. 
+ 15. Put{Eggplant,Red Bottle}into Pot: Thisisalanguagegrounding task. Therobot’sgoal
+ istoputthespecifiedtargetobjectinto the pot. Both the eggplant and redbottle are present
+ inthescene. Weconductpairedevaluations: for the sameinitialstate,weprompt the policy
+ totarget the eggplantinoneepisode,andthentheredbottlein the nextepisode. Wetest
+ eachmethod 5 times with the eggplant and 5 times with the redbottle,using the sameset
+ of 5 initialstates for bothtargetobjects. Partialcredit(0.5 outof 1)isrewardedwhen the
+ robotmovestowards the correcttargetobject. 
+ 16. Lift{Cheese,Red Chili Pepper}: Thisisalanguagegrounding task. Therobot’sgoalis
+ tograsp and lift the specifiedtargetobject. Weconductpairedevaluationsasdescribedin
+ the task above. Partialcredit(0.5 outof 1)isrewardedwhen the robotmovestowards the
+ correcttargetobject. 
+ 17. Put {Blue Cup, Pink Cup} on Plate: This is a language grounding task. The robot’s
+ goalistograspthespecifiedtargetobject and placeitonto the plate. Weconductpaired
+ evaluationsasdescribedino the rlanguagegroundingtasks. Partialcredit(0.5 outof 1)is
+ rewardedwhentherobotmovestowards the correcttargetobject. 
+ B.1.2 Comparing Evaluation Tasksto Original Bridge Data V 2 Training Data 
+ Weconduct our evaluationsinasinkenvironmentusedin the original Bridge Data V 2 dataset[6].
+ Wereproducetheenvironmenttomatch the originalenvironmentin the Bridge Data V 2 dataset with
+ roughapproximations for the robot’slocationrelativeto the sink,aswellas the camera’splacement
+ 
+ 24 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ relativeto the scene. Giventhelackofprecisemeasurementsofthesepositionsin the original data set,
+ weareunabletoreproduce the exactenvironmentsetup,andnaturaldistributionshiftsarisedueto
+ slightlydifferentrobot,sink,andcameraplacements. Inaddition,sinceweevaluaterobotpolicies
+ in a different location than where the training demonstrations were collected from, other natural
+ distributionshiftsarise. Forexample, thelightingconditions and background(e.g., visibleareas
+ behind the sink)areinevitablydifferentthanwhatwasseenin the training data set. Fur the rmore,we
+ areunabletoprocuretheexactsetofobjectsusedin the original Bridge Data V 2 dataset,sothere are
+ distributionshiftsbetween the objectsusedattraintime and thoseusedattesttime.
+ Despiteall the sechallenges,wefind that certaingeneralistpolicies,suchas Open VLAand RT-2-X,
+ can still generalize and perform various tasks fairly reliably “out-of-the-box”. Other generalist
+ policies,suchas RT-1-Xand Octo,canalsocompletesometasks,though the ystrugglewhentested
+ withmoredifficultgeneralization task sinour Bridge Data V 2 evaluationsuite.
+ The original Bridge Data V 2 dataset includes demonstrations of the following seven tasks in this
+ specificsinkenvironment: “Flip Pot Upright”,“Put Carroton Plate”,“Put Cupfrom Counter(or
+ Drying Rack)into Sink”,“Put Eggplantinto Pot”,“Put Knifeon Cutting Board”,“Put Spoonin Pot”,
+ and“Turn Lever Verticalto Front”. See Fig.8 forsamplesimagesofallthesetasks from the original
+ dataset. Note that alltrainingdemonstrationscollectedin this environment are initializedsuch that
+ therobot’send-effectorispositioneddirectlyabovethetargetobjectinthebeginningof the episode.
+ (However,thisisnot the caseacrossallenvironmentsin the Bridge Data V 2 dataset;insomeother
+ environments,therobotisinitializedfartheraway from the targetobject,soitmusthorizontallyreach
+ for the objectfirstbe for emanipulatingit.) 
+ 
+ Flip Pot Upright Put Carrot on Plate Put Cup from Counter into Sink
+ 
+ 
+ Turn Lever Vertical to Front
+ 
+ 
+ 
+ Put Eggplant into Pot Put Knife on Cutting Board Put Spoon in Pot 
+ 
+ 
+ 
+ 
+ 
+ Figure 8:Original Bridge Data V 2 sinkenvironmenttasks.Images from sampledemonstrationsin the sink
+ environment from the original Bridge Data V 2 datasetreveal that alldemonstrationsin this environment were
+ initializedsuch that the robot’send-effectorwaspositionedimmediatelyabove the targetobject.Note that these
+ initialstates are different from the initialstateswe usein our Bridge Data V 2 evaluation task sshownin Fig.7.
+ Inourevaluations,wealwaysinitialize the robot’send-effectortoafixedlocationabove the sink,ratherthan
+ positioningitdirectlyabove the targetobject(except for onetask:“Put Eggplantinto Pot(Easy Version)”).
+ Inour Bridge Data V 2 evaluationsuite,onlyone task–“Put Eggplantinto Pot(Easy Version”)–is
+ initialized with the robot’send-effectorhoveringdirectlyover the targetobject;inall 16 othertasks,
+ theend-effectorisinitialize data fixedlocationabovethesinksuch that the robotmusthorizontally
+ reach towards the object. This initial condition, in combination with the distribution shifts we
+ introducein the varioustypesof OODgeneralizationin our evaluationsuite,challenges the generalist
+ policies and requiresahighdegreeofrobustnessinordertocomplete the taskssuccessfully. Hence,
+ thesuccessrates for policieslike RT-1-Xand Octo are lowerthanwhatisreportedinpriorworks.
+ However,wefindthato the rpoliciessuchas RT-2-Xand Open VLAstillachieverelativelystrong
+ per for mancedespiteall the sedistributionshifts and challenges. 
+ 
+ 25 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ B.1.3 Detailed Bridge Data V 2 Evaluation Results 
+ See Table 4 for the full Bridge Data V 2 Widow Xevaluationresults. Thenumberofsuccesses for each
+ method,outof 10 trials,islisted for eachof 17 tasks. Open VLAachievesstrongestper for mancein
+ themajorityofthetasks and hasthehighestaggregatesuccessrateamong the generalistpolicies.
+ RT-2-Xalsoshowsgoodper for mance,outper for ming RT-1-Xand Octo,thoughitdoesnotperform
+ aswellas Open VLA.RT-1-Xand Octogenerallyexperiencedifficultyin the segeneralizationtasks.
+ 
+ Table 4:Detailed Bridge Data V 2 Widow Xevaluationresults.Wereportper for manceon the fullevaluation
+ suiteof 17 tasks(discussedin Section 5.1),includingvisual/motion/physical/semanticgeneralizationtasks and
+ languagegroundingtasks.Note that partialsuccess(scoreof 0.5)ispossible for sometasks;see Appendix B.1.1
+ fordetails. Wefind that Open VLAper for msbestinmosttasks and achieveshighestper for manceoverall,
+ followedby RT-2-X.Ontheo the rhand,RT-1-Xand Octostrugglein the evaluations,onlygetting 0–2 successes
+ inseveraltasks.See Fig.7 forillustrationsofalltasks. 
+ RT-1-X Octo RT-2-X Open VLA(ours) 
+ Category Task #Trials 
+ #Successes #Successes #Successes #Successes
+ Visualgen Put Eggplantinto Pot(Easy Version) 10 1 5 7 10 
+ Visualgen Put Eggplantinto Pot 10 0 1 5 10 
+ Visualgen Put Cupfrom Counterinto Sink 10 1 1 0 7 
+ Visualgen Put Eggplantinto Pot(w/Clutter) 10 1 3.5 6 7.5 
+ Visualgen Put Yellow Cornon Pink Plate 10 1 4 8 9 
+ Motiongen Lift Eggplant 10 3 0.5 6.5 7.5 
+ Motiongen Put Carroton Plate(w/Height Change) 10 2 1 4.5 4.5 
+ Physicalgen Put Carroton Plate 10 1 0 1 8 
+ Physicalgen Flip Pot Upright 10 2 6 5 8 
+ Physicalgen Lift AAABattery 10 0 0 2 7 
+ Semanticgen Move Skullinto Drying Rack 10 1 0 5 5 
+ Semanticgen Lift White Tape 10 3 0 0 1 
+ Semanticgen Take Purple Grapesoutof Pot 10 6 0 5 4 
+ Semanticgen Stack Blue Cupon Pink Cup 10 0.5 0 5.5 4.5 
+ Languagegrounding Put{Eggplant,Red Bottle}into Pot 10 2.5 4 8.5 7.5 
+ Languagegrounding Lift{Cheese,Red Chili Pepper} 10 1.5 2.5 8.5 10 
+ Languagegrounding Put{Blue Cup,Pink Cup}on Plate 10 5 5.5 8.5 9.5 
+ Mean Success Rate 18.5±2.7% 20.0±2.6% 50.6±3.5% 70.6±3.2%
+ Additionally,in Table 5,weprovidethe full evaluationresults for the quantizedinferenceexperi-
+ ments that weresummarizedin Table 2. For the seevaluations,wetestpolicieson 8 representative
+ Bridge Data V 2 tasksspanningall task categoriesin the fullevaluationsuite. 
+ Table 5:Fullquantizedinferenceresults.Herewepresentthedetailedversionof the resultsshownin Table 2.
+ bfloat 16 int 8 int 4 
+ Category Task #Trials 
+ #Successes #Successes #Successes 
+ Visualgen Put Eggplantinto Pot(Easy Version) 10 9 7 9 
+ Visualgen Put Eggplantinto Pot 10 7 7 7 
+ Visualgen Put Cupfrom Counterinto Sink 10 5 3 7 
+ Motiongen Lift Eggplant 10 6 4 7.5 
+ Physicalgen Put Carroton Plate 10 6 5 7 
+ Physicalgen Lift AAABattery 10 7 5 3 
+ Semanticgen Take Purple Grapesoutof Pot 10 8 8 9 
+ Languagegrounding Put{Eggplant,Red Bottle}into Pot 10 9 7.5 8 
+ Mean Success Rate 71.3±4.8% 58.1±5.1% 71.9±4.7%
+ B.2 Google Robot Evaluation Details 
+ Inthissection,weprovidemoredetailson the Googlerobotevaluationsintroducedin Section 5.1.
+ B.2.1 Google Robot Evaluation Tasks 
+ Onthe Googlerobot,weevaluateeachgeneralistrobotpolicyon 12 tasks with 5 rolloutseach,fora
+ totalof 60 rollouts. Thefirstfive task stestonin-distributionconditions,and the lastseven task stest
+ onmoredifficultout-of-distribution(OOD)conditions. Alltasks are depictedin Fig.9. Eachrollout
+ ismarkedasafailure(0)orsuccess(1). 
+ Wedescribe the 12 tasksbelow: 
+ 1. Pick Coke Can(in-distribution): Therobotispositionedinfrontofaplat for mwitha can
+ of Cokeontopofit. Therobot’sgoalistograsp and lift the Coke can. 
+ 26 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Figure 9: Googlerobotevaluationtasks. Weevaluateeverygeneralistrobotpolicyonin-distributiontasks
+ andout-of-distribution(OOD)generalizationtasks. OOD task sinvolveunseenbackgrounds,targetobjects,
+ instructions/objectrelations,andsemanticconcepts(e.g.,photos from the Internet that donotappearinrobot
+ action data). 
+ 
+ 2. Move Applenear Green Can(in-distribution):Therobotispositionedinfrontofaplatform
+ withanapple and agreensoda can ontopofit. Therobot’sgoalistograsp the apple and
+ moveitnextto the green can. 
+ 3. Move Blue Chip Bagnear Apple(in-distribution): Therobotispositionedinfrontofa
+ plat for mwithabluebagofchips and anappleontopofit. Therobot’sgoalistograsp the
+ bluebagofchips and moveitcloseto the apple. 
+ 
+ 4. Place Coke Can Upright(in-distribution): Therobotispositionedinfrontofaplatform
+ withacanof Cokeontopofit,andthe can isorientedhorizontallyonitsside. Therobot’s
+ goalistograsp the Coke can andorientittobeinaverticalposition. 
+ 5. Open Middle Drawer(in-distribution): Therobotispositionedinfrontofasetofthree
+ drawers. Therobot’sgoalistograspthemiddledrawerhandle and pull the drawer open.
+ 6. Move Orangenear Brown Chip Bag(OOD):Therobotispositionedinfrontofaplatform
+ withabrownbagofchips and anorangeontopofit. Atablecloth with bluesky and white
+ cloudpatternscoverstheplat for munderneath the objects. Therobot’sgoalistograsp the
+ orange and bringitnextto the bagofchips. Thistaskis OODbecause the orangeisan
+ unseenobjectrelativeto the training data set,and the tableclo this anunseenbackground.7
+ 
+ 7 See Appendixof Brohanetal.[7]foradetailedlistof OODconditionsin Googlerobotevaluations.
+ 
+ 27 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 7. Pick Pepsi Can(OOD):Therobotispositionedinfrontofaplat for mwithacanof Pepsi
+ ontopofit. Atablecloth with brightyellow/brownpatternscovers the plat for munderneath
+ thecan. Therobot’sgoalistograsp and lift the can. Thistaskis OODbecause the Pepsi
+ canisanunseenobject,and the tableclo this anunseenbackground. 
+ 8. Pick Banana(OOD):Therobotispositionedinfrontofaplat for mwithanapple,acan
+ of Coke,andabanana. Therobot’sgoalistograsp and lift the banana. Thistaskis OOD
+ because the bananaisanunseentargetobject. 
+ 9. Pick Green Cup(OOD):Therobotispositionedinfrontofaplat for mwithabanana,acan
+ of Pepsi,andagreencup. Therobot’sgoalistograsp and lift the greencup. Thistaskis
+ OODbecauseallobjectsinthescene are unseenin the training data. 
+ 10. Place Appleon Plate(OOD):Therobotispositionedinfrontofaplat for mwithaplate and
+ anapple. Therobot’sgoalistograsptheapple and moveitonto the plate. Thistaskis OOD
+ becauseitisanovelinstructiondescribinganunseenobjectrelation:trainingdemonstrations
+ onlycovermovingtheapplenear the plate,ratherthanplacingitontopof theplate.
+ 
+ 11. Place Bananain Pan(OOD):Therobotispositionedinfrontofaplat for mwithapan and
+ abanana. Therobot’sgoalistograspthebanana and moveitinto the pan. Thistaskis OOD
+ because the bananaisanunseentargetobject,anditisanovelinstructiondescribingan
+ unseenobjectrelation,asexplainedin the previous task. 
+ 12. Move Coke Canto Taylor Swift(OOD):Therobotispositionedinfrontofaplat for mwith
+ acanof Coke and photosofthreedifferentcelebrities,including Taylor Swift. Therobot’s
+ goalistograsp the can andmoveitto the photoof Taylor Swift. Thistaskis OODbecause
+ thephotosofthecelebrities are unseenin the robotinteraction data. 
+ B.2.2 Detailed Google Robot Evaluation Results 
+ 
+ 
+ Table 6:Detailed Googlerobotevaluationresults.Wereport full evaluationresults for Googlerobotevaluations
+ discussedin Section 5.1. Eachgeneralistpolicyisevaluated with 60 rolloutsacross 12 tasks,coveringboth
+ in-distribution and out-of-distribution(OOD)testingconditions.Inthebottomrow,wereportmeansuccessrate
+ ±Std Err for eachpolicy.Open VLAand RT-2-Xbothsignifi can tlyoutperform RT-1-Xand Octooverall(we
+ bold the meansuccessrate for bothduetooverlappingerrorbars).See Fig.9 forillustrationsofalltasks.
+ RT-1-X Octo RT-2-X Open VLA(ours) 
+ Category Task #Trials 
+ #Successes #Successes #Successes #Successes
+ In-distribution Pick Coke Can 5 5 1 5 5 
+ In-distribution Move Applenear Green Can 5 3 3 3 5 
+ In-distribution Move Blue Chip Bagnear Apple 5 0 3 4 5 
+ In-distribution Place Coke Can Upright 5 0 0 4 4 
+ In-distribution Open Middle Drawer 5 0 4 2 3 
+ OOD Move Orangenear Brown Chip Bag 5 1 2 5 5 
+ OOD Pick Pepsi Can 5 3 0 5 4 
+ OOD Pick Banana 5 5 3 5 5 
+ OOD Pick Green Cup 5 1 0 5 5 
+ OOD Place Appleon Plate 5 0 0 4 4 
+ OOD Place Bananain Pan 5 0 0 2 4 
+ OOD Move Coke Cannear Taylor Swift 5 2 0 3 2 
+ Mean Success Rate 33.3±6.1% 26.7±5.8% 78.3±5.4% 85.0±4.6%
+ Fullresults for the Googlerobotevaluations are shownin Table 6. Overall,wefind that RT-1-Xand
+ Octoexperiencedifficultyon the evaluationtasks;they are oftenunabletoachieveasinglesuccess
+ out of five trials in several tasks. On the other hand, RT-2-X and Open VLA demonstrate strong
+ per for mance, completing every task at least two times out of five trials; these two VLA policies
+ per for mcomparably with eacho the ron this particul are valuationsuite. 
+ B.3 Data-Efficient Adaptation Experiment Details 
+ Inthissection,weprovidemoredetailson the data-efficientadaptationexperimentsdiscussedin
+ Section 5.2,whereweinvestigate the effectivenessoffine-tuned Open VLApolicieson new robot
+ setupssuchas Franka-Tabletop and Franka-DROID. 
+ 28 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ B.3.1 Franka-Tabletop and Franka-DROIDTasks 
+ Wecollect 10–150 demonstrationsofeachofseventasks. Thefirstsix task scorrespondtoarobot
+ setupwhichwedenoteas“Franka-Tabletop”(Franka Emika Pandarobotmountedontopofatable),
+ and the final task correspondstoarobotsetupwhichwecall“Franka-DROID”. 
+ Inthe Franka-Tabletopsetup,thefirstthreeofsix task scorrespondtosingle-instructiontasks and
+ arenarrow,while the lastthree task scorrespondtomulti-instruction task sinwhichmultipleobjects
+ arepresentinthescene and therobotmustmanipulatethecorrectonedependingon the language
+ instruction. 
+ 
+ 
+ In-Distribution Out-of-Distribution 
+ 
+ 
+ Put Carrot in Bowl 
+ 
+ 
+ 
+ 
+ Pour Corn into Pot 
+ 
+ 
+ 
+ 
+ Flip Pot Upright 
+ 
+ 
+ 
+ 
+ Move <object> onto Plate 
+ 
+ 
+ 
+ 
+ 
+ Knock <object> Over 
+ 
+ 
+ 
+ 
+ Cover <object> with Towel 
+ sksa T 
+ noitcurtsn I-elgni S 
+ worra N 
+ sksa T 
+ noitcurtsn I-itlu M 
+ esrevi D 
+ Figure 10: Franka-Tabletopfine-tuningtasks. Franka-Tabletop task susedin the data-efficientadaptation
+ experimentsin Section 5.2 anddescribedindetailin Fig.10 aredepictedabove. Thefirstthreeofsixtasks,
+ shownin the topthreerows,onlyinvolveasingleinstruction,whilethelastthree task sin the bottomthree
+ rowsinvolvemultipleobjects and instructions(theinstructionsspecify the targetobjectortargetlocation).
+ Thefirstcolumnshowssampleinitialstatesmatching the training data distribution,while the secondcolumn
+ showsout-of-distribution(OOD)initialstates(e.g.,unseenbackgrounds,targetobjects,distractors,andobject
+ positions/orientations).Everypolicyin Section 5.2 isevaluated with 10–12 rolloutsonin-distributiontasks and
+ 5–6 rolloutson OODtasks. 
+ 29 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Belowwedescribeeachof the six Franka-Tabletop task sshownin Fig.10: 
+ 1. Put Carrotin Bowl(single-instruction): Therobot’sgoalistograsp the carrot and placeit
+ into the bowl. Wecollect 50 demonstrationsof this task for the training data set,randomly
+ placingthecarrot and thebowlatdifferentlocationson the tableineveryepisode.Thecarrot
+ isalwaysinitializedontheleftsideof the bowl. Duringevaluation,eachtrialisrecordedas
+ asuccess(1)orfailure(0);thereisnopartialcredit. 
+ 2. Pour Corninto Pot(single-instruction): Therobot’sgoalistograsp the redbowl,move
+ towards the steel pot, and pour the contents (a yellow corn) into the pot. We collect 50
+ demonstrationsof this task for the training data set,randomlyplacingthebowl and the potat
+ differentlocationson the tableineveryepisode. Thebowlisalwaysinitializedon the right
+ sideof the pot. Duringevaluation,eachtrialisrecordedasasuccess(1)orfailure(0);there
+ isnopartialcredit. 
+ 3. Flip Pot Upright (single-instruction): The robot’s goal is to grasp the steel pot (which
+ is initially oriented vertically), rotate it to be in the upright position, and place it back
+ onto the table. We collect only 10 demonstrations of this task for the training dataset,
+ randomly placing the steel pot at various locations within a small section of the table.
+ Duringevaluation,eachtrialisrecordedasasuccess(1),failure(0),orpartialsuccess(0.5).
+ Partialsuccessesincludegrasping the potbutnotorientingitupright,orknockingitoverto
+ theuprightpositionbutnotc are fullyguidingit. Therobotmustreleasethepotat the endof
+ theepisode for fullcredit. 
+ 4. Move <object> onto Plate (multi-instruction): The robot’s goal is to grasp one out of
+ threeobjects(dependingonthetargetspecifiedin the languageinstruction)andplaceit
+ ontheplateontherightsideof the table. Wecollect 150 demonstrationsof this task for
+ thetraining data set,randomlyplacingdifferentcombinationsofthreeobjectson the table
+ andselectingoneas the target. Theplateisalwaysinitializedontherightsideof the table.
+ Duringevaluation,eachtrialisrecordedasasuccess(1),failure(0),orpartialsuccess(0.5).
+ Partialsuccessisrecordedwhenthefirstobject that the robotmakescontactwi this the
+ correcttargetobject(i.e.,theobjectspecifiedin the languageinstruction),but the robotdoes
+ notcomplete the task. 
+ 5. Knock<object>Over(multi-instruction): Therobot’sgoalistoapproachoneoutofthree
+ objects (depending on the target specified in the language instruction) and push it until
+ itfallsover. Wecollect 70 demonstrationsof this task for the training data set,randomly
+ placingdifferentcombinationsofthreeobjectsonthetable and selectingoneas the target.
+ Duringevaluation,eachtrialisrecordedasasuccess(1),failure(0),orpartialsuccess(0.5).
+ Partialsuccessisrecordedwhenthefirstobject that the robotmakescontactwi this the
+ correcttargetobject(i.e.,theobjectspecifiedin the languageinstruction),but the robotdoes
+ notcomplete the task. 
+ 6. Cover<object>with Towel(multi-instruction): Therobot’sgoalistograsp the bluetowel
+ andplaceitononeoutofthreeobjects(dependingonthetargetspecifiedin the language
+ instruction). Wecollect 45 demonstrationsof this task for the training data set,randomly
+ placingdifferentcombinationsofthreeobjectson the table. Duringevaluation,eachtrial
+ isrecordedasasuccess(1),failure(0),orpartialsuccess(0.5). Partialsuccessisrecorded
+ whenthefirstobject that therobottouches with thetowelis the correcttargetobject(i.e.,
+ theobjectspecifiedin the languageinstruction),buttherobotdoesnotcomplete the task
+ (e.g.,itdropsthetowelontothetableinsteadofontopof the targetobject). Fullcreditis
+ givenwhenanypartofthetowelisrestingoverthetopsurfaceof the targetobject,i.e.,the
+ objectdoesnotneedtobe full ycovered. 
+ Forevery Franka-Tabletop task,weevaluateeachmethod with 10–12 in-distributiontrials and 5–6
+ OOD generalization trials. The in-distribution and OOD test conditions are depicted in Fig. 10
+ (secondcolumn). 
+ Wedescribe the OODtestconditions for eachof the six task sbelow: 
+ 30 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 1. Put Carrotin Bowl(OOD):Aneggplant(unseenobject)replaces the carrot.
+ 2. Pour Corninto Pot(OOD):Anunseenbrowntableclothcovers the tabletop. 
+ 3. Flip Pot Upright(OOD):Anunseenwhitetableclothcovers the tabletop 
+ 4. Move<object>onto Plate(OOD):Asetofthreeunseenobjects are placedon the table.
+ 
+ 5. Knock<object>Over(OOD):Twounseendistractorobjects(redplasticcup and brown
+ box)arepositionedbehind the setofthreeseenobjects. 
+ 6. Cover<object>with Towel(OOD):Thethreeobjectson the table are placedupside-down
+ andatunseenpositions. 
+ Finally,inthe Franka-DROIDenvironment,weexperiment with onetask and variantsofit: Wipe
+ Table(see Fig.11). Inthis task,therobot’sgoalistograb the brush and sweepallthreesmallbrown
+ objectsinto the dustpan. Wecollect 70 demonstrations for this task for the training data set,varying
+ thepositionsofall the objects. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Figure 11: Franka-DROIDfine-tuning task. The“Wipe Table”taskshownhereis the final task usedin
+ thedata-efficientadaptationexperimentsin Section 5.2. Theleftimageshows the initialconditionsforan
+ in-distributiontrial.Therightimageshowsanout-of-distributiontrialinwhichunseendistractorobjects are
+ presenton the table.Tofullycomplete the task,therobotmustgrab the brush and sweepallthreeobjectsinto
+ thedustpan. 
+ Attesttime,weevaluateonin-distributionconditionsmatching the training data(Fig.11,left),as
+ wellasout-of-distribution(OOD)conditionsinwhichdistractorobjects are alsopresentin the scene
+ onthetable(Fig.11,right). Since the rearevariouspossibleoutcomes for eachtrial,wedefinea
+ scoringrubricasfollows: Themaximumscore for eachtrialis 2 points. Thepolicyreceives the full
+ 2 pointsiftherobotsweepsallthreeobjectsinto the dustpan. Itreceives 1 point for successfully
+ sweepingoneortwoobjectsinto the dustpan. Otherwise, itreceives 0 points. Weevaluateeach
+ policy with 18 in-distributiontrials and 12 OODtrials,soeachpolicyreceivesanaggregatescoreout
+ of 60 points. 
+ B.3.2 Detailed Franka-Tabletop and Franka-DROIDEvaluation Results 
+ Fullevaluationresults for both Franka-Tabletop and Franka-DROIDevaluations are shownin Table 7.
+ We evaluate the methods discussed in Section 5.2. We find that Diffusion Policy demonstrates
+ strongper for manceon the single-instruction Franka-Tabletoptasks(e.g.,“Put Carrotin Bowl”and
+ “Pour Cornin Pot”),outper for mingo the rmethods. However,Open VLAand Octoachievehigher
+ per for mance in the more diverse multi-instruction tasks (“Move <object> onto Plate”, “Knock
+ <object>Over”,and“Cover<object>with Towel”). Inthe Franka-DROIDenvironment,Open VLA
+ obtainsbestresults. Overall,wefind that Open VLAachieves the highestaverageper for manceacross
+ bothtasks. 
+ Additionally,in Table 8,weshowthedetailedversionof the parameter-efficientfine-tuningexperiment
+ resultssummarizedin Table 1. Intheseexperiments,we use are presentativesubsetoftwo Franka-
+ Tabletoptasks,withbothin-distribution and OODvariants: onenarrowsingle-instruction task(“Put
+ Carrotin Bowl”)andonediversemulti-instruction task(“Move<object>onto Plate”). we usethe
+ samenumberoftrainingdemonstrationsusedin Section 5.2(50 and 150,respectively),whichis
+ delineatedin Appendix B.3.1. 
+ 31 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Table 7:Detailed data-efficientadaptationexperimentresults.Herewepresent the fullbreakdownofresults
+ summarizedin Fig.5.Wereport the per for manceof Diffusion Policytrained from scratchon new robottasks,
+ aswellasgeneralistpoliciesfine-tunedon the same data. Eachpolicyistestedagainstbothin-distribution
+ andout-of-distribution(OOD)generalizationconditions(see Fig.10 for Franka-Tabletoptasks and Fig.11 for
+ Franka-DROIDtasks).Wefind that nosinglepolicyper for msbestonalltasks:Diffusion Policyachieveshigh
+ successratesonsingle-instructiontasks,while Open VLAand Octoper for mswellondiversemulti-instruction
+ tasks.Intermsofaggregateper for mance,however,Open VLAobtains the highestaveragesuccessrateacross
+ bothenvironments. 
+ Diffusion Policy Open VLA Open VLA 
+ #trials Diffusion Policy Octo 
+ (matched) (scratch) (ours) 
+ Franka-Tabletop(5 Hz) “Put Carrotin Bowl”(in-distribution) 10 90.0% 80.0% 40.0% 70.0% 70.0%
+ “Put Carrotin Bowl”(OOD) 5 20.0% 0.0% 20.0% 0.0% 40.0% 
+ “Pour Corninto Pot”(in-distribution) 10 100.0% 90.0% 0.0% 10.0% 50.0%
+ “Pour Corninto Pot”(OOD) 5 80.0% 60.0% 0.0% 20.0% 60.0% 
+ “Flip Pot Upright”(in-distribution) 10 100.0% 85.0% 40.0% 85.0% 100.0%
+ “Flip Pot Upright”(OOD) 5 50.0% 20.0% 0.0% 40.0% 80.0% 
+ “Move<object>onto Plate”(in-distribution) 12 25.0% 25.0% 41.7% 8.3% 75.0%
+ “Move<object>onto Plate”(OOD) 6 8.3% 33.3% 8.3% 33.3% 58.3% 
+ “Knock<object>Over”(in-distribution) 12 33.3% 25.0% 83.3% 75.0% 75.0%
+ “Knock<object>Over”(OOD) 6 16.7% 16.7% 33.3% 58.3% 83.3% 
+ “Cover<object>with Towel”(in-distribution) 12 16.7% 20.8% 91.7% 41.7% 50.0%
+ “Cover<object>with Towel”(OOD) 6 16.7% 33.3% 91.7% 50.0% 50.0%
+ Average 48.5±4.9% 43.4±4.7% 43.4±4.4% 43.4±4.6% 67.2±4.0%
+ Franka-DROID(15 Hz) “Wipe Table”(in-distribution) 18 50.0% 27.8% 52.8% 25.0% 55.6%
+ “Wipe Table”+Distractors(OOD) 12 12.5% 25.0% 16.7% 16.7% 62.5%
+ Average 35.0±8.0% 26.7±7.5% 38.3±8.5% 21.7±6.6% 58.3±7.2%
+ Table 8: Detailedparameter-efficientfine-tuningexperimentresults. Herewepresent the detailed task
+ per for manceresultssummarizedin Table 1. 
+ #trials Full FT Lastlayeronly Frozenvision Sandwich Lo RA,r=32 Lo RA,r=64
+ Franka-Tabletop(5 Hz) “Put Carrotin Bowl”(in-distribution) 10 90.0 40.0 40.0 90.0 60.0 90.0
+ “Put Carrotin Bowl”(OOD) 5 40.0 0.0 40.0 0.0 60.0 40.0 
+ “Move<object>onto Plate”(in-distribution) 12 79.2 33.3 50.0 75.0 75.0 62.5
+ “Move<object>onto Plate”(OOD) 6 41.7 33.3 58.3 41.7 75.0 66.7 
+ Average 69.7±7.2% 30.3±6.1% 47.0±6.9% 62.1±7.9% 68.2±7.5% 68.2±7.8%
+ C RT-2-Xvs. Open VLAin Bridge Data V 2 Evaluations 
+ Inthissection,weprovideadditionaldetailson RT-2-Xvs. Open VLAcomparisonsin Bridge Data V 2
+ evaluationsdiscussedin Section 5.1. Asdiscussedpreviously,Open VLAispretrainedonalarger
+ subsetof Open Xdatathan RT-2-Xandusesafused Sig LIP-Dino V 2 visionbackbonera the rthana
+ singlevisualencoder. However,inadditionto the sefactors,webelieve that Open VLA’ssignificant
+ improvementupon RT-2-Xspecificallyin Bridge Data V 2 evaluations(asshownin Fig.3)alsostems
+ frommorec are fulpreprocessingof the Bridge data set. 
+ During the development of the Open VLA model, we discovered that the original version of the
+ Bridge Data V 2 datasetcontainedmanytransitions with all-zero(no-op)actions. Forinstance,in
+ everydemonstration,anall-zeroactionwasrecordedas the ground-truthactionin the firsttimestep.
+ Consequently, training a highly expressive VLA model on the original dataset without any data
+ preprocessingledtoapolicy that frequentlypredictedall-zeroactions and frozeduringevaluations.
+ Therefore, we simply filtered out the first transition in every demonstration when training the
+ Open VLAmodel,and this wassufficient for mitigating the freezingbehaviorinmostcases.
+ However, the RT-2-X model was trained without such data preprocessing, so it often suffers the
+ aforementionedfreezingbehaviorifdeployedoutofthebox with outmodifying the modelquerying
+ procedure–whichseverelydeterioratesrolloutper for mance. Since this isaproprietary model that
+ isinfeasible for ustore-train(e.g.,with our preprocessedversionof the Bridge Data V 2 dataset),
+ wemitigated this issuebysimplyquerying the second-most-likelyaction from the model,since the
+ first-most-likelyactionwasoftenallzeroswhile the second-most-likelyactionwasnot.(Note that this
+ isthesameworkaround that wasappliedby the developersof the RT-2-Xmodel for Bridge Data V 2
+ evaluationsreportedin the Open X-Embodimentexperiments[1].) Thisworkaroundledtomuch
+ stronger RT-2-X per for mance on Bridge Data V 2 evaluations – though we believe that it is still
+ suboptimalcomp are dtore-trainingthe model onthepreprocessedversionof the dataset.
+ Wealsotriedtodynamicallyquery RT-2-X,i.e.,byfirstsampling the first-most-likelyaction and
+ thensampling the second-most-likelyactionif the firsto new asallzeros. However,weempirically
+ 32 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ found that dynamicqueryingledtoworseper for mancethansimplyquerying the second-most-likely
+ actionatalltimes. Wehypothesize that thisisduetoachangein the robot’sdynamics that arises
+ fromdynamicquerying: pausingin the middleofatrajectorytore-query the modelleadstoslight
+ interruptionsin the robot’smovementduetonon-negliblelatencyin the queryingpipeline,andthis
+ leadstosubtleper for mancedegradation. Therefore, wereport the per for manceof RT-2-Xwhen
+ alwaysquerying the second-most-likelyaction,asdonein the Open X-Embodimentproject[1].
+ D Additional Experiments and Ablations 
+ In this section, we conduct several additional experiments to analyze the effects of individual
+ componentsof the Open VLA model architecture and trainingscheme,aswellasprovidequantitative
+ evidence for claimsmadeinearliersectionsof this work. Weaimtoanswer the followingquestions:
+ 1. Howimportantis Open Xtraining and howdoesitimpact Open VLA’sper for mance(Ap-
+ pendix D.1)? 
+ 
+ 2. Whateffectdoesusingafused Sig LIP-Dino V 2 visionencoderhaveon Open VLA’sper for-
+ mance,comp are dtousinga Sig LIP-onlyvisionencoder(Appendix D.2)? 
+ 3. Isitbettertofine-tuneorfreeze the visionencoderin Open VLA(Appendix D.3)?
+ 4. Howdo the quantizedinferenceresultsdiscussedin Section 5.3 changewhenpolicyper for-
+ manceisdisentangled from modelinferencespeed(Appendix D.4)? 
+ 
+ Wediscusstheexperimentalsetup and resultsaddressingeachof the abovequestionssequentiallyin
+ thefollowingsections. 
+ D.1 Open XTraining Data Ablation Experiments 
+ Asdiscussedin Section 3.3,Open VLAistrainedonalarge data setofrobotembodiments,scenes,and
+ tasks from the Open X-Embodiment data set[1](Open X).Inthissection,weablate the Open Xmixture
+ andtraina VLApolicysolelyononerobot data set,toassess the impactof Open Xtrainingonpolicy
+ per for mance.Note that wehavealreadyobserved the negativeeffectofablating Open Xtrainingin the
+ fine-tuningregime,asdiscussedin Section 5.2(see Open VLA(Scratch)),butwediscussadditional
+ experimentsonano the rrobotembodimentin this sectiontoprovidemoresupportingevidence.
+ Experimentalsetup and tasks. Wecomp are the original Open VLAmodel with Open VLA-Bridge,
+ which is produced by taking the same pretrained VLM as Open VLA (Prismatic VLM [44]) and
+ fine-tuningitsolelyon Bridge Data V 2[6]ratherthan the entire Open Xtrainingmixturediscussed
+ in Appendix A.Weevaluate Open VLAand Open VLA-Bridgeonasubsetof 8 representativetasks
+ from the Bridge Data V 2 Widow Xrobotevaluationsuitediscussedin Appendix B.1.1. Thetasks are
+ listedin Table 9. 
+ Results. Results for the Open X training mixture ablation are shown in Table 9. By comparing
+ Open VLAwith Open VLA-Bridge,wesee that per for mancedropsdrastically(reductionof 30 percent
+ inabsolutesuccessrate),whichdemonstrates the importanceof Open Xpretrainingonfinalpolicy
+ per for mance.Although the languagegroundingper for manceisnotimpacted,weobserveper for mance
+ reductionacrossallgeneralizationcategories. Thisresultsuggests that the largediversityofscenes,
+ objects,and task sin the Open Xtrainingmixtureisessential for unlockingimprovedgeneralization
+ capabilitiesin the Open VLAmodel. 
+ D.2 Dualvs. Single Vision Encoder Experiments 
+ The Open VLA model architectureconsistsofafusedvisionbackbone that combines the Sig LIP[9]
+ and Dino V 2[25]encoders. Inthissection,weablate the Dino V 2 componenttoassess the importance
+ ofusingadualvisionencoder. 
+ Experimentalsetup and tasks. Weinstantiatea model, Open VLA-Bridge-Sig LIP,whichisa
+ versionof Open VLA that istrainedonlyon Bridge Data V 2 andconsistsofonly the Sig LIPencoder
+ as the vision backbone. We comp are this model with the Open VLA-Bridge model discussed in
+ the previous section (Appendix D.1), which shares the same model architecture as the original
+ Open VLAmodel and isonlytrainedon Bridgerobot data. Therefore,theonlydifferencebetween
+ Open VLA-Bridge-Sig LIPand Open VLA-Bridgeis that the formeromits the Dino V 2 encoderin the
+ 33 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Table 9:Bridge Data V 2 Widow Xablationexperimentresults.Weevaluatevariousmethodsonasubsetof
+ 8 representative task stoassess the importanceofdifferentcomponentsof the Open VLA model architecture
+ andtrainingscheme.Open VLA-Bridgeisaversionof Open VLA with out Open Xtraining(itistrainedonlyon
+ Bridge Data V 2),and Open VLA-Bridge-Sig LIPadditionallyablates the fusedvisionbackbonebyremoving
+ the Dino V 2 encoder(itsvisionbackboneonlyconsistsof the Sig LIPencoder).Weobserve that both Open X
+ training and the fusedvisionencoderimprovepolicyper for mance,though the formerhasamuchgreatereffect
+ than the latter. 
+ Open VLA Open VLA-Bridge Open VLA-Bridge-Sig LIP
+ Category Task #Trials 
+ #Successes #Successes #Successes 
+ Visualgen Put Eggplantinto Pot(Easy Version) 10 10 8 8 
+ Visualgen Put Eggplantinto Pot 10 10 2 3 
+ Visualgen Put Cupfrom Counterinto Sink 10 7 4 2 
+ Motiongen Lift Eggplant 10 7.5 5.5 6.5 
+ Physicalgen Put Carroton Plate 10 8 4 1 
+ Physicalgen Lift AAABattery 10 7 2 2 
+ Semanticgen Take Purple Grapesoutof Pot 10 4 3 3 
+ Languagegrounding Put{Eggplant,Red Bottle}into Pot 10 7.5 8 7 
+ Mean Success Rate 76.3±4.8% 45.6±5.6% 40.6±5.5% 
+ visionbackbone. Weevaluatethese model son the samesubsetof 8 Bridge task sdescribedin the
+ previoussection. 
+ Results. Results for the dualvisionencoderablation are shownin Table 9. Thedropinper for mance
+ from Open VLA-Bridgeto Open VLA-Bridge-Sig LIPimplies that additionallyincluding the Dino V 2
+ encoderin the visionbackboneimprovespolicyper for mance. However,the 5 percentreductionin
+ per for mancehereisnotassignifi can tasthe 30 percentdropinper for manceobserved from ablating
+ Open Xtraining. Thelow-levelspatialfeaturesrepresentedin Dino V 2 appeartoaidgeneralizationin
+ onlysomecases. 
+ D.3 Fine-Tunedvs. Frozen Vision Encoder Experiments 
+ Asdiscussedin Section 3.4,priorworkon VLMsobservedhigherper for mance from freezing the
+ visionencoderthanfine-tuningitsparameters[44].However,whentraining Open VLA,wefine-tuned
+ all 7 Bparametersin the model,including the Sig LIP-Dino V 2 visionbackbone,aswediscovered
+ earlyonduringdevelopment that fine-tuning the visionencoderledtohigher-per for ming VLAs—a
+ findingwhichheldacrossvariouspretrained VLMs and modelarchitectures. Wediscussdetailsof
+ suchfindingsbelow. 
+ Experimentalsetup and tasks. Inthissection, wereport the per for manceoftwo VLApolicies
+ producedbyfine-tuningtwodifferentpretrainedmodels from the Prismatic VLMs[44]repositoryon
+ Bridge Data V 2. Thetwopretrainedmodels are named Sig LIPVi T-SO 224 pxand LLa Vav 1.57 B
+ (Reproduction);see Karamchetietal.[44]fordetailson the irarchitectures and trainingmixtures.
+ We evaluate both policies on various Bridge tasks shown in Table 10. Note that the evaluation
+ configurationsherediffer from previouslydiscussed Bridgeevaluations,sotheresults are notdirectly
+ comparabletoresultsino the rsimil are xperiments. 
+ Results. Results for the fine-tunedvs. frozenvisionencoderexperiments are shownin Table 10. We
+ find that for both VLAstested,fine-tuning the visionencoderleadstosignifi can tlyhighersuccess
+ ratesacrossvarioustasks. Qualitatively,insomecases,deploying the frozenvisionencoderpolicies
+ leadstounstablerobotbehaviors that are clearlysuboptimal. Consequently,wedecidedearlyon
+ duringdevelopmenttonotconductfur the rexperimentation with frozenvisionencoders.
+ D.4 Additional Quantized Inference Experiments: Disentangling Policy Per for mance and
+ Model Inference Speed 
+ In Section 5.3, we evaluated Open VLA with different levels of precision at inference time: half
+ precision (bfloat 16), 8-bit quantization, and 4-bit quantization. 8-bit quantization led to lower
+ Bridge Data V 2 per for mance relative to the other two approaches, and we hypo the sized that the
+ reductioninper for mancewascausedbylower model inferencespeed from the operationsusedin
+ 8-bitquantization. Inthissection,weconductexperimentstoassess the veracityof this claim.
+ Specifically,weevaluate Open VLAagain with the threedifferentlevelsofprecisionlistedabove,
+ but now with blocking control. In otherwords, each actionis fullyexecuted onthe robotbefore
+ thenextoneispredictedbythepolicy and executedby the controller. Thisschemecontrolssystem
+ 34 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Table 10:Fine-tunedvs.frozenvisionencoderexperimentresults.Weevaluate the per for manceoffine-tuning
+ (“Fine-Tuned”)vs. freezing the visionencoder(“Frozen Vision”)intwo VLApoliciesbuiltontopoftwo
+ differentpretrained VLMs from the Prismatic VLMs[44]repository.Bridge Data V 2 Widow Xtasksshownhere
+ areper for medin the samesinkenvironmentused for other Bridgeexperimentsin this work(however,theinitial
+ environmentconfigurationsherediffer,astheseevaluations were conducte data nearlierstagein the project).
+ Wefind that fine-tuning the visionencoderiscrucialtoobtaingoodpolicyper for mance.Certainfrozenvision
+ encoderevaluations were discontinuedduetoverypoor(near-zero)per for mance and unstablerobotbehaviors.
+ Among the evaluationswherebothfrozenvision and fine-tunedapproaches are tested,fine-tuning the vision
+ encoderleadsto 80.0%averagesuccessversus 46.7%averagesuccess from leavingitfrozen.
+ Sig LIPVi T-SO 224 px LLa Vav 1.57 B(Reproduction)
+ Frozen Vision Fine-Tuned Frozen Vision Fine-Tuned
+ Task #Trials 
+ #Successes #Successes #Successes #Successes
+ Put Eggplantinto Pot 10 7 10 5 9 
+ Put Cornon Plate 10 10 9 0 9 
+ Mean Success Rate 85 95 25 90 
+ Put{Eggplant,Red Bottle}into Pot 4 2 4 – 3 
+ Put{Blue Cup,Pink Cup}on Plate 4 0 0 – 0 
+ Lift{Cheese,Red Chili Pepper} 4 0 3 – 2 
+ Put{Strawberry,Lime}into Pot 4 1 0 – 3 
+ Move{Sushi,Grapes} 4 3 4 – 3 
+ Mean Success Rate 30 55 – 55 
+ dynamicsacrossmethods with varyingamountsoflatency and thusallowsustotest the qualityof
+ apolicy’sactionpredictions,independentofitspredictionspeed. Effectively,theprecisionlevels
+ that have higherthroughput–bfloat 16 and 4-bitquantization–are for cedtorunslowertomatch the
+ dynamicsobservedwhendeploying Open VLAwith 8-bitprecision.Therefore,weexpect Open VLA’s
+ per for mance with 8-bitprecisiontomatch the per for manceofbfloat 16 and 4-bitprecisionunder
+ blockingcontrol. 
+ Experimentalsetup and tasks. Wereport the per for manceof Open VLA with blockingcontrol
+ andquantizedinferenceon the samesubsetof 8 Bridge Data V 2 tasksusedin Appendix D.1 and
+ Appendix D.2. 
+ Results. Quantizedinferenceexperimentresults with blockingcontrol are shownin Table 11. Unlike
+ in Table 2, where 8-bit quantization led to the worst rollout per for mance due to low inference
+ speed,hereweobserve that 8-bitquantizationper for mscomparablytobfloat 16 precision and 4-bit
+ quantizationgiven that weevaluate with blockingcontroltoremove the influenceofvaryinginference
+ speedson task per for mance. Thisconfirms our hypothesisabout the effectofinferencespeedon 8-bit
+ quantizationper for manceinpreviousexperiments(whenusingnon-blockingcontrol). Wealsosee
+ nosubstantialper for mancedegradationwhenusing the lowestprecision,4-bit,asalsoobservedin
+ Section 5.3. 
+ Table 11: Quantizedinferenceexperimentresults with blockingcontrol. Wereport the successrate and
+ standarderrorof Open VLAonvarious Bridge Data V 2 Widow Xtasks with bfloat 16 precision(thedefault
+ approach),8-bitquantization(int 8),and 4-bitquantization(int 4)atinferencetime.Allaveragesuccessrates
+ haveoverlappingerrorbars,whichsuggests that allmethodsper for mcomparably.
+ bfloat 16 int 8 int 4 
+ Category Task #Trials 
+ #Successes #Successes #Successes 
+ Visualgen Put Eggplantinto Pot(Easy Version) 10 10 10 10 
+ Visualgen Put Eggplantinto Pot 10 9 10 10 
+ Visualgen Put Cupfrom Counterinto Sink 10 5 5 3 
+ Motiongen Lift Eggplant 10 8 7 7.5 
+ Physicalgen Put Carroton Plate 10 10 10 10 
+ Physicalgen Lift AAABattery 10 3 6 4 
+ Semanticgen Take Purple Grapesoutof Pot 10 2 2 2 
+ Languagegrounding Put{Eggplant,Red Bottle}into Pot 10 9 9.5 8.5 
+ Mean Success Rate 70.0±5.1% 74.4±4.9% 68.8±5.2%
+ 35 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ E LIBEROSimulation Experiments 
+ Ourpreviousdiscussionsin Section 5.2 and Section 5.3 focusedonadapting Open VLAtonovel
+ real-worldrobotsetups and tasks.Thissectionexploresadapting Open VLAtosimulatedrobotsetups
+ andtasks,specificallyutilizing the LIBERObenchmark[116]. Ourexperimentationinsimulation
+ offerstwokeyadvantages: 
+ 1. Demonstration of versatility: We show that Open VLA, despite having been pretrained
+ exclusivelyonreal-worldrobot data,caneffectivelyadapttosimulateddomains,overcoming
+ potentialdisparitiesbetweenreal-worldandsimulatedenvironments and dynamics.
+ 2. Enhancedaccessibility and reproducibility:Integrationof Open VLAintoapubliclyavailable
+ simulationplat for mmakes our model moreaccessibletoo the rresearchers,especiallythose
+ whomaynot have accesstorobotichardw are. Additionally,simulatedexperiments are more
+ easilyreproducedthan the irreal-worldcounterparts. 
+ 
+ Wediscuss the experimentalsetupin Appendix E.1 and the resultsin Appendix E.2. Werelease the
+ materialsrequiredtoreproduce the experimentsalong with the Open VLAcode base.
+ E.1 LIBEROSimulation Experimental Setup 
+ Simulationsetup and tasks. The LIBERObenchmark[116]consistsoff our task suitesdesigned
+ forstudyinglifelonglearninginroboticmanipulation,andtheoriginalpaper the reforeinvestigates
+ both for ward and backwardtransfertoavarietyoftasks. Inourexperiments,wefocussolelyon
+ supervisedfine-tuningon the target task suite,measuring the per for manceofvariouspoliciestrained
+ viabehavioralcloningonsuccessfuldemonstrationsof the tasks. 
+ Weper for mexperiments with the followingf our task suites,whicheachcontain 10 tasks with 50
+ human-teleoperateddemonstrationseach: 
+ • LIBERO-Spatial consists of the same set of objects but different layouts, and tests the
+ model’sunderst and ingofspatialrelationships. 
+ 
+ • LIBERO-Object consists of the same scene layouts but different objects, and tests the
+ model’sunderst and ingofobjecttypes. 
+ • LIBERO-Goalconsistsof the sameobjects and layoutsbutdifferent task goals,andtests
+ themodel’sknowledgeofdifferent task-orientedbehaviors. 
+ • LIBERO-Long (also called LIBERO-10) consists of long-horizon tasks with diverse
+ objects,layouts,andtasks. 
+ 
+ Wemakethefollowingmodificationstoeachof the training data setsabove: 
+ 1. To accommodate methods requiring higher-resolution images (such as 256×256 px or
+ 224×224 px),weregeneratealldemonstrationsatanincreasedresolutionof 256×256 px.
+ Originally, the data setprovidedby the benchmarkconsistsof 128×128 pximages. We
+ find that simply upscaling these images to 256 × 256 px results in poor image quality.
+ Therefore,wechoosetobegin with higher-resolutionimages,which can bedownscaled
+ asnecessary,ensuringhigherimagequalityacrossvariousresolutionrequirements. These
+ higher-resolutionimages were obtainedbysteppingthrough the simulationenvironments
+ with the actions stored in the provided human-collected demonstrations and saving the
+ imagesrenderedby the simulator. 
+ 2. Wefilteroutall“no-op”actions from the dataset,i.e.,actions that havenear-zeromagnitude
+ inthetranslationandrotationcomponents and donotchangethestateof the robot’sgripper.
+ Wefind that thissimple data cleaningstepiscrucial for highlyexpressivesingle-steppolicies
+ suchas Open VLA,whichotherwiselearntoimitate the seno-opactions and consequently
+ freezeindefinitelyatcertainstatesduringevaluation. 
+ 3. Werotateallthird-personimagesatbothtrain and testtimeby 180 degreesbecausewe
+ observe that the LIBEROenvironmentsreturnimages that are upsidedownon our hardw are.
+ 
+ 36 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 4. Sincewetrainpoliciesviaimitationlearning,whichexpectsdemonstrationstobesuccessful,
+ wereplayalldemonstrationsin the correspondingsimulationenvironments and filterout the
+ demonstrations that failtocomplete the task(asdeterminedby the environments’success
+ criteria). As a result, we remove 68 of 500 LIBERO-Spatial demonstrations, 46 of 500
+ LIBERO-Objectdemonstrations,72 of 500 LIBERO-Goaldemonstrations,and 121 of 500
+ LIBERO-Longdemonstratinos. 
+ 5. Forallmethodsin our comparisons,weonlyutilize the staticthird-personcameraimages;
+ wedonotusethewristcameraimages that are additionallyprovidedin the original data sets.
+ Thisis for sakeofhavingfaircomparisons, as Open VLA’svisualinputsonlyconsistof
+ third-personcameraimages. 
+ Comparisons. Themethods that wecomp are include Diffusion Policy 8 [3]trained from scratch,
+ Octo[5]fine-tunedon the target data set,and Open VLAfine-tunedon the target data setvia Lo RA
+ (r =32)asdescribedin Section 5.3. Eachpolicyistrainedindependentlyoneachof the tasksuites
+ above(ratherthantrainingasinglepolicyonallf our suitescombined). Allpolicies are trained with
+ thesamesetofdemonstrations,soallmethodsbenefit from the datacleaningstepsdescribedabove.
+ Evaluationdetails. Toensurelowervariancein the experimentalresults,allmethods are evaluated
+ across 500 trials for each task suite,andthereportedper for manceis the averagesuccessrateover
+ threer and omseeds(resultingin 1500 totaltrialsperstatistic). Althoughwemodify the training
+ datasets,asdescribedearlier,wedonotchangethetestenvironmentsbutratheruse the sameinitial
+ environmentconfigurationsprovidedby the original LIBERObenchmark. 
+ E.2 LIBEROSimulation Experimental Results 
+ Wepresent the LIBEROexperimentalresultsin Table 12. Importantly,weobserve that Open VLAcan
+ beeffectivelyadaptedto task sin the LIBEROsimulationenvironments,asitobtainshighestaverage
+ successrate and rankamong the testedmethods. However,wefind that the overallmarginbetween
+ Open VLA and the other methods are tighter here than in the real-world fine-tuning experiments
+ discussed in Section 5.2. We attribute this to the fact that Open VLA was pretrained with purely
+ real-worldrobot data and nosimulation data,whichsuggests that fine-tuning the modelonsimulated
+ robot task smaynotbeaseffectiveasfine-tuningitonreal-world task sdueto the domaingapbetween
+ simulated and real-worldenvironments and dynamics. Weseeevidence for thisnotionin the results
+ obtained by Octo – another policy pretrained on large amounts of real-world robot data – which
+ alsoonlyachievesasmallboostinoverallper for mancerelativetoasimple,strong base linesuchas
+ Diffusion Policytrained from scratch. Weexpectincreasedgainsinper for mance for the pretrained
+ and fine-tunedmethodsifsimulation data isaddedto the pretraining data mixture.
+ Table 12:LIBEROsimulationbenchmarkresults.Wereport the successrate(SR)andst and arderrorofeach
+ method for the four task suitesin the LIBERObenchmark,averagedoverthreer and omseeds with 500 trials
+ each.Inaddition,weshow the rankingofeachmethod with ineach task suite,wherearankof 1 indicates the
+ strongestmethodin the suite and arankof 3 indicates the weakestmethod.(Theaveragerankingisimportantto
+ notesinceitinformswhichmethodmaybemostsuitabletouseasadefault for avarietyoftasks;itismore
+ informativethan the averagesuccessrate,whichisnotnormalizedbyindividual task suitedifficulty.)Overall,
+ wefind that fine-tuned Open VLAachieveshighestaveragesuccessrate and rank,followedbyfine-tuned Octo
+ andthen Diffusion Policytrained from scratch. 
+ LIBERO-Spatial LIBERO-Object LIBERO-Goal LIBERO-Long Average
+ SR(↑) Rank(↓) SR(↑) Rank(↓) SR(↑) Rank(↓) SR(↑) Rank(↓) SR(↑) Rank(↓)
+ Diffusion Policy from scratch 78.3±1.1% 3 92.5±0.7% 1 68.3±1.2% 3 50.5±1.3% 3 72.4±0.7% 2.5
+ Octofine-tuned 78.9±1.0% 2 85.7±0.9% 3 84.6±0.9% 1 51.1±1.3% 2 75.1±0.6% 2
+ Open VLAfine-tuned(ours) 84.7±0.9% 1 88.4±0.8% 2 79.2±1.0% 2 53.7±1.3% 1 76.5±0.6% 1.5
+ 
+ 
+ 8 we use the implementationof Diffusion Policy that isdescribedin the DROID data setpaper[11],which
+ conditionsactiongenerationon Distil BERT[117]languageembeddingsof the tasklabel.
+ 
+ 37 
+ 
+ 
