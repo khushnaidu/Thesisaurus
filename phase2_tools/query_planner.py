@@ -4,14 +4,12 @@ class QueryPlanner:
     def __init__(self):
         # Keyword patterns for routing
         self.patterns = {
-            'datasets': ['dataset', 'data', 'training data', 'evaluation'],
-            'vision_models': ['vision', 'encoder', 'visual', 'clip', 'dino'],
-            'training': ['training', 'hyperparameter', 'optimizer', 'learning rate', 'batch size'],
-            'hardware': ['hardware', 'robot', 'gpu', 'sensor', 'gripper', 'compute'],
-            'year': ['year', 'when', 'published', 'recent'],
-            'paper_details': ['paper', 'tell me about', 'details', 'what is'],
-            'semantic': ['how', 'explain', 'compare', 'strategy', 'method', 'approach', 'similar'],
-            'arxiv': ['find', 'search for', 'arxiv', 'recent papers', 'new papers', 'web', 'look up', 'search web', 'online'],
+            'datasets': ['common datasets', 'all datasets', 'list datasets'],
+            'vision_models': ['vision models', 'visual models', 'what models'],
+            'training': ['training setup', 'hyperparameter', 'optimizer', 'learning rate', 'batch size'],
+            'hardware': ['what hardware', 'what robots', 'robot platforms'],
+            'arxiv': ['arxiv', 'look up', 'web', 'find papers', 'search for papers', 'similar papers', 'recent papers'],
+            'semantic': ['how does', 'explain', 'tell me about', 'what is', 'compare'],
         }
     
     def analyze_query(self, query):
@@ -42,19 +40,20 @@ class QueryPlanner:
             'tools': []
         }
         
-        # Route based on categories
+        # Priority 1: Check for web/arXiv search first
+        if 'arxiv' in categories:
+            plan['tools'].append({
+                'name': 'search_arxiv',
+                'params': {'query': query, 'max_results': 5}
+            })
+            return plan
+        
+        # Priority 2: Database queries (only if explicitly asked)
         if 'datasets' in categories:
-            if 'common' in query.lower() or 'all' in query.lower() or 'list' in query.lower():
-                plan['tools'].append({
-                    'name': 'get_all_datasets',
-                    'params': {}
-                })
-            else:
-                # Check if specific dataset mentioned
-                plan['tools'].append({
-                    'name': 'semantic_search',
-                    'params': {'query': query, 'top_k': 5}
-                })
+            plan['tools'].append({
+                'name': 'get_all_datasets',
+                'params': {}
+            })
         
         if 'vision_models' in categories:
             plan['tools'].append({
@@ -74,35 +73,11 @@ class QueryPlanner:
                 'params': {}
             })
         
-        if 'year' in categories:
-            plan['tools'].append({
-                'name': 'get_papers_by_year',
-                'params': {}
-            })
-        
-        # Check for specific paper references
-        paper_keywords = ['rt-1', 'rt-2', 'openvla', 'octo', 'rebot']
-        for keyword in paper_keywords:
-            if keyword in query.lower():
-                paper_id = keyword.replace('-', '')
-                plan['tools'].append({
-                    'name': 'get_paper_metadata',
-                    'params': {'paper_id': paper_id}
-                })
-                break
-        
-        # If semantic/conceptual question or no specific category matched
+        # Priority 3: Semantic search (default for everything else)
         if 'semantic' in categories or len(plan['tools']) == 0:
             plan['tools'].append({
                 'name': 'semantic_search',
                 'params': {'query': query, 'top_k': 5}
-            })
-        
-        # Check if they want to search arXiv
-        if 'arxiv' in categories or 'find' in query.lower() or 'search for' in query.lower():
-            plan['tools'].append({
-                'name': 'search_arxiv',
-                'params': {'query': query, 'max_results': 5}
             })
         
         return plan
