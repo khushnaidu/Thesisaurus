@@ -1,6 +1,6 @@
-from database_tool import DatabaseTool
-from vector_search_tool import VectorSearchTool
-from web_search_tool import WebSearchTool
+from .database_tool import DatabaseTool
+from .vector_search_tool import VectorSearchTool
+from .web_search_tool import WebSearchTool
 
 
 class ToolRegistry:
