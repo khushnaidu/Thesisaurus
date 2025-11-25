@@ -35,13 +35,17 @@ Do not ask follow-up questions or generate additional Q&A examples."""
     def _format_datasets(self, datasets):
         text = "Datasets found:\n"
         for ds in datasets[:10]:
-            text += f"- {ds['name']}: used in {ds['paper_count']} papers\n"
+            name = ds.get('name') or ds.get('dataset_name', 'Unknown')
+            paper_count = ds.get('paper_count', 0)
+            text += f"- {name}: used in {paper_count} papers\n"
         return text
     
     def _format_vision_models(self, models):
         text = "Vision models found:\n"
         for m in models[:10]:
-            text += f"- {m['model_name']}: used in {m['paper_count']} papers\n"
+            model_name = m.get('model_name') or m.get('vision_encoder', 'Unknown')
+            paper_count = m.get('paper_count', 0)
+            text += f"- {model_name}: used in {paper_count} papers\n"
         return text
     
     def _format_training(self, setups):
@@ -59,14 +63,17 @@ Do not ask follow-up questions or generate additional Q&A examples."""
     def _format_hardware(self, hardware):
         text = "Hardware found:\n"
         for h in hardware[:10]:
-            text += f"- {h['hardware_name']}: used in {h['paper_count']} papers\n"
+            hw_name = h.get('hardware_name') or h.get('robot_platform', 'Unknown')
+            paper_count = h.get('paper_count', 0)
+            text += f"- {hw_name}: used in {paper_count} papers\n"
         return text
     
     def _format_search_results(self, results):
         text = "Relevant content:\n"
         for i, r in enumerate(results[:5], 1):
-            text += f"\n{i}. From {r.get('paper_id')}:\n"
-            text += f"{r.get('text', '')[:300]}...\n"
+            paper_id = r.get('paper_id', 'unknown paper')
+            content = r.get('text', r.get('content', ''))[:300]
+            text += f"\n{i}. From {paper_id}:\n{content}...\n"
         return text
     
     def _format_paper(self, paper):
