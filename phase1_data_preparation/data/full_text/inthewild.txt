@@ -1,0 +1,1170 @@
+ 
+ 
+ 
+ 
+ 
+ Learning Generalizable Robotic Reward Functions 
+ 
+ from “In-The-Wild” Human Videos 
+ 
+ 
+ Annie S. Chen, Suraj Nair, Chelsea Finn 
+ Stanford University 
+ 
+ 
+ Abstract—We are motivated by the goal of generalist robots ”In-the-wild” Human Videos Robot Videos
+ that can complete a wide range of tasks across many en- Many Environments, Many Tasks One Environment, Few Tasks
+ vironments. Critical to this is the robot’s ability to acquire 
+ some metric of task success or reward, which is necessary for 
+ rein for cement learning, planning, or knowing when to ask for 
+ help. For a general-purpose robot operating in the real world, 
+ this reward function must also be able to generalize broadly 
+ across environments, tasks, and objects, while depending only 
+ on on-board sensor observations (e.g. RGB images). While deep 
+ learning on large and diverse datasets has shown promise as a 
+ DVD Reward 
+ pathtowardssuchgeneralizationincomputervision and natural Function 
+ language,collectinghighquality data setsofroboticinteractionat 
+ Training 
+ scaleremainsan open challenge.Incontrast,“in-the-wild”videos 
+ ofhumans(e.g.You Tube)containanextensivecollectionofpeople Unseen Environment Human Demo Testing
+ doing interesting tasks across a diverse range of settings. In this Unseen Task
+ work, we propose a simple approach, Domain-agnostic Video 
+ Discriminator (DVD), that learns multi task reward functions 
+ DVD Reward 
+ by training a discriminator to classify whether two videos are 
+ Function 
+ per for ming the same task, and can generalize by virtue of 
+ learning from a small amount of robot data with a broad dataset 
+ of human videos. We find that by leveraging diverse human 
+ datasets, this reward function (a) can generalize zero shot to Task Completion
+ unseen environments, (b) generalize zero shot to unseen tasks, 
+ and (c) can be combined with visual model predictive control to 
+ solve robotic manipulation tasks on a real Widow X 200 robot in 
+ an unseen environment from a single human demo. 
+ I. INTRODUCTION 
+ Despite recent progress in robotic learning on tasks ranging Figure 1: Reward Learning and Planning from In-The-Wild
+ from grasping [24] to in-hand manipulation [31], the long- Human Videos. During training (top), the agent learns a reward
+ function from a small set of robot videos in one environment, and
+ standing goal of the “generalist robot” that can complete many 
+ a large set of in-the-wild human videos spanning many tasks and
+ tasks across environments and objects has remained out of 
+ environments. At test time (bottom), the learned reward function is
+ reach. While there are numerous challenges to overcome in conditioned upon a task specification (a human video of the desired
+ achieving this goal, one critical aspect of learning general task),andproduces are wardfunctionwhich the robot can usetoplan
+ purpose robotic policies is the ability to learn general purpose actionsorlearnapolicy.Byvirtueoftrainingondiversehum and ata,
+ this reward function generalizes to unseen environments and tasks.
+ reward functions. Such reward functions are necessary for the 
+ robottodetermineitsownproficiencyat the specified task from 
+ its on-board sensor observations (e.g. RGB camera images). robots at a large scale remains challenging for a number of
+ Moreover, unless these reward functions can generalize across reasons,suchasneedingtobalance data quality with scalability,
+ varying environments and tasks, an agent cannot hope to use and maintaining safety without relying heavily on human
+ them to learn generalizable multi-task policies. supervision and resets. Alternatively, You Tube and similar
+ While prior works in computer vision and NLP [11, 12, 4] sources contain enormous amounts of “in-the-wild” visual data
+ haveshownnotablegeneralizationvialarge and diverse data sets, of humans interacting in diverse environments. Robots that can
+ translating these successes to robotic learning has remained learn reward functions from such data have the potential to be
+ challenging, partially due to the dearth of broad, high-quality able to generalize broadly due to the breadth of experience in
+ robotic interaction data. Motivated by this, a number of recent this widely available data source.
+ works have taken important steps towards the collection of Of course, using such “in-the-wild” data of humans for
+ large and diverse data setsofroboticinteraction[28,22,10,53] robotic learning comes with a myriad of challenges. First, such
+ and have shown some promise in enabling generalization [10]. data often will have tremendous domain shift from the robot’s
+ At the same time, collecting such interaction data on real observationspace,inboththemorphologyof the agent and the
+ 1202 
+ ra M 
+ 13 
+ ]OR.sc[ 
+ 1 v 71861.3012:vi Xra 
+
+ 
+ 
+ 
+ 
+ visualappearanceof the scene(e.g.see Figure 1).Fur the rmore, which study single task problems in a single environment, the
+ the human’s action space in these “in-the-wild” videos is often focusof this workisinlearninggeneralizablemulti-taskreward
+ quite different from the robot’s action space, and as a result functions for visual robotic manipulation that can produce
+ there may not always be a clear mapping between human and rewards for different tasks by conditioning on a single video
+ robot behavior. Lastly, in practice these videos will often be of a human completing the task.
+ low quality, noisy, and may have an extremely diverse set of 
+ B. Robotic Learning from Human Videos 
+ viewpoints or backgrounds. Critically however, this data is 
+ plentiful and already exists, and is easily accessible through A number of works have studied learning robotic behavior
+ websites like You Tube or in pre-collected academic datasets fromhumanvideos.Oneapproachistoexplicitlyper for msome
+ like the Something-Something data set [21], allowing them form of object or hand tracking in human videos, which can
+ to be incorporated into the robot learning process with little then be translated into a sequence of robot actions or motion
+ additional supervision cost or collection overhead. primitives for task execution [26, 52, 30, 25, 36]. Unlike these
+ Given the above challenges, how might one actually learn works,whichh and-design the mapping from ahumansequence
+ reward functions from these videos? The key idea behind our to robot behaviors, we aim to learn the functional similarity
+ approach is to train a classifier to predict whether two videos between human and robot videos through data.
+ are completing the same task or not. By leveraging the activity More recently, a range of techniques have been proposed for
+ labels that come with many human video datasets, along with end-to-end learning from human videos. One such approach
+ a modest amount of robot demos, this model can capture the is to learn to translate human demos or goals to the robot
+ functional similarity between videos from drastically different perspective directly through pixel based translation with paired
+ visual domains. This approach, which we call a Domain- [27, 44] or unpaired [47] data. Other works attempt to infer
+ agnostic Video Discriminator (DVD), is simple and therefore actions, rewards, or state-values of human videos and use them
+ can be readily scaled to large and diverse datasets, including for learning predictive models [40] or RL [14, 39]. Learning
+ heterogeneous data sets with bothpeopleandrobots and without keypoint [51, 8] or object/task centric representations from
+ any dependence on a close one-to-one mapping between the videos [42, 38, 34] is another promising strategy to learning
+ robot and human data. Once trained, DVD conditions on a rewards and representations between domains. Simulation has
+ human video as a demonstration, and the robot’s behavior also been leveragedassupervisiontolearnsuchrepresentations
+ as the other video, and outputs a score which is an effective [32] or to produce human data with domain randomization [3].
+ measure of task success or reward. Finally,meta-learning[54]andsub task discovery[41,20]have
+ The core contribution of this work is a simple technique also been exploredastechniques for acquiringrobotrewardsor
+ for learning multi-task reward functions from a mix of robot demos from human videos. In contrast to the majority of these
+ and in-the-wild human videos, which measures the functional works, which usually study a small set of human videos in a
+ similarity between the robot’s behavior and that of a human similar domain as the robot, we explicitly focus on leveraging
+ demonstrator. We find that this method is able to handle the “in-the-wild” human videos, specifically large and diverse sets
+ diversity of human videos found in the Something-Something- of crowd-sourced videos from the real world from an existing
+ V 2 [21] dataset, and can be used in conjunction with visual dataset, which contains many different individuals, viewpoints,
+ model predictive control (VMPC) to solve tasks. Most notably, backgrounds, objects, and tasks.
+ we find that by training on diverse human videos (even from Our approach is certainly not the first to study using such
+ unrelated tasks), our learned reward function is able to more in-the-wildhumanvideos.Works that haveusedobjecttrackers
+ effectively generalize to unseen environments and unseen tasks [52], simulation [32], and sub-task discovery [20] have also
+ than when only using robot data, yielding a 15-20% absolute been applied on in-the-wild video datasets like You Cook [9],
+ improvement in downstream task success. Lastly, we evaluate Something-Something [21], and Activity Net [15]. Learning
+ ourmethodonareal Widow X 200 robot,andfind that itenables from such videos has also shown promise for navigation
+ generalizationtoanunseen task inanunseenenvironmentgiven problems [6]. Most related to this work is Concept 2 Robot
+ only a single human demonstration video. [43], which learns robotic reward functions using videos from
+ the Something-Something dataset [21] by using a pretrained
+ II. RELATEDWORK 
+ video classifier. Unlike Concept 2 Robot, our method learns a
+ A. Reward Learning 
+ reward function that is conditioned on a human video demo,
+ The problem of learning reward functions from demonstra- andthus can beusedtogeneralizeto new tasks.Fur the rmore,in
+ tions of tasks, also known as inverse rein for cement learning Section IV-D, we empirically find that our proposed approach
+ or inverse optimal control [1], has a rich literature of prior provides are ward that generalizestounseenenvironments with
+ work [35, 58, 50, 17, 18]. A number of recent works have much greater success than the Concept 2 Robot classifier.
+ generalized this setting beyond full demonstrations to the case 
+ C. Robotic Learning from Large Datasets 
+ wherehumansprovideonlydesiredoutcomesorgoals[19,45]. 
+ Fur the rmore, both techniques have been shown to be effective Much like our work, a number of prior works have studied
+ for learning manipulation tasks on real robots in challenging how learning from broad datasets can enhance generalization
+ high dimensional settings [17, 45, 57]. Unlike these works, in robot learning [16, 33, 56, 13, 22, 24, 10, 5]. These works
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ DVD DVD DVD 
+ Label = 1 Label = 0 Label = 1 
+ 
+ “Closing Something” = “Pushing Something Away” ≠ “Pushing Something Away” =
+ “Closing Something” “Closing Something” “Pushing Something Away” 
+ Figure 2: Training DVD. DVD is trained to predict if two videos are completing the same task or not. By leveraging task labels from
+ in-the-wild human video datasets and a small number of robot demos, DVD is trained comp are a video of a human to that of a robot (left,
+ middle) and to comp are pairs of human videos which may have significant visual differences, but may still be doing the same task (right).
+ By training on these visually diverse examples, DVD is forced to learn the functional similarity between the videos.
+ havelargelystudied the problemofcollectinglarge and diverse for the task of “move two objects apart”, the reward depends
+ robotic datasets in scalable ways [28, 22, 10, 53, 7] as well not only on the current state, but on how close together the
+ as techniques for learning general purpose policies from this objects were initially.Weinsteadassume that the rewardattime
+ style of data in an offline [13, 5] or online [33, 29, 24] fashion. t is only dependent on the last H <T timesteps, specifically
+ While our motivation of achieving generalization by learning states s . Our goal then is to learn a parametric model
+ t−H:t 
+ from diverse data heavily overlaps with the above works, our which estimates the underlying reward function for each task,
+ approach fundamentally differs in that it aims to sidestep the conditioned on a task-specifying video. That is, given (1) a
+ challenges associated with collecting diverse robotic data by sequence of H states s and (2) a video demonstration
+ 1:H 
+ instead leveraging existing human data sources. d =s∗ of variable length for each task T , we aim to learn
+ i 1:tdi i 
+ arewardfunction R (s ,d )thatapproximates R (s )for
+ θ 1:H i i 1:H 
+ III. LEARNINGGENERALIZABLEREWARDFUNCTIONS each i. Such a non-Markovian reward can then be optimized
+ WITHDOMAIN-AGNOSTICVIDEODISCRIMINATORS 
+ using a number of strategies, ranging from open-loop planners
+ In this section, we describe our problem setting and intro- to policies with memory or frame stacking.
+ duce Domain-agnostic Video Discriminators (DVD), a simple For training the reward function R , we assume access to a
+ θ 
+ approach for learningrewardfunctions that leveragein-the-wild dataset Dh = {Dh }N of videos of humans doing N < K
+ Ti i=1 
+ human videos to generalize to unseen environments and tasks. tasks{T }N .There are novisualconstraintson the viewpoints,
+ i i=1 
+ backgrounds or quality of this dataset, and the dataset does not
+ A. Problem Statement needtobebalancedby task.Wearealsogivenalimited data set
+ In our problem setting, we consider a robot that aims to Dr = {D T r i }M i=1 of videos of robot doing M tasks {T i }M i=1
+ complete K tasks{T i }K i=1 ,eachofwhichhassomeunderlying where {T i }M i=1 ⊂ {T i }N i=1 , and so M ≤ N. Both datasets
+ task reward function R . As a result, for any given task i, are partitioned by task. Since human data is widely available,
+ i 
+ our robotic agent operates in a fixed horizon Markov decision we have many more human video demonstrations than robot
+ process (MDP) Mr, consisting of the tuple (S,Ar,pr,R ,T) video demonstrations per task and often many more tasks
+ i i 
+ where S isthestatespace(inourcase RGBimages),Ar isthe that have human videos but not robot videos, in which case
+ robot’sactionspace,pr(s |s ,ar)istherobotenvironment’s M << N. Importantly, the reward is inferred only through
+ t+1 t t 
+ stochastic dynamics, R indicates the reward for task T , and visual observations and does not assume any access to actions
+ i i 
+ T is the episode horizon. Additionally, for each task T , we or low dimensional states from either the human or robot data,
+ i 
+ consider a human operating in an MDP Mh, consisting of the and we do not make any assumptions on the visual similarity
+ i 
+ tuple(S,Ah,ph,R ,T)where Ah isthehuman’sactionspace between the human and robot data. As a result, there can be a
+ i 
+ and ph(s |s ,ah) is the human environment’s stochastic large domain shift between the two datasets.
+ t+1 t t 
+ dynamics. Note that the human and robot MDPs for task i During evaluation, the robot is tasked with inferring the
+ share a state space S, reward function R , and horizon T, but reward R based on a new demo d specifying a task T .
+ i θ i i 
+ may have different action spaces and transition dynamics. The goal is for this reward to be effective for solving a task
+ Weassume that the taskrewardfunctions R areunobserved, T . Fur the rmore, we aim to learn R in a way such that it
+ i i θ 
+ andneedtobeinferredthroughavideoof the task.Note that for can generalize to unseen tasks T (cid:54)∈ {T }N given a task
+ new i i=1 
+ many tasks these rewards will not be Markovian–for example demonstration d . 
+ new 
+
+ 
+ 
+ 
+ 
+ 
+ Video 1: Moving sthup Video 2: Moving sthup 
+ 20-40 x 120 x 120 20-40 x 120 x 120 
+ (D x W x H) (D x W x H) 
+ 
+ 
+ 
+ 
+ 3 D Conv 1 32 Pretrained 
+ 3 D Conv 2 Video Encoder 
+ 64 
+ 3 D Conv 3 3 x 
+ 128 3 x 3 D Conv 4 
+ 256 
+ 3 x 3 D Conv 4 
+ 256 
+ Average 
+ features 
+ Concatenate 
+ embeddings 
+ 
+ 6 CF 215 7 CF 652 8 CF 821 9 CF 46 01 CF 23 11 CF 2 xamtfo S ytiralimi S eroc S
+ Algorithm 1 DOMAIN-AGNOSTICVIDEODISCRIMINATOR(DVD)
+ 1: //Training DVD 
+ 2: Require:Dh hum and emonstration data for N tasks{Tn}
+ 3: Require:Dr robotdemonstration data for M tasks{Tm}⊆{Tn}
+ 4: Require:Pre-trainedvideoencoderfenc 
+ 5: Randomlyinitializeθ 
+ 6: whiletrainingdo 
+ 7: Sampleanchorvideodi∈Dh∪Dr 
+ 8: Samplepositivevideod(cid:48) 
+ i 
+ ∈{D 
+ T 
+ h 
+ i 
+ }∪{D 
+ T 
+ r 
+ i 
+ }\di 
+ 9: Samplenegativevideodj ∈{D 
+ T 
+ h 
+ j 
+ }∪{D 
+ T 
+ r 
+ j 
+ }∀j(cid:54)=i 
+ 3 D C 32 onv 1 1 1 1 0 : : //P U la p n d n a i t n e g R C θ on w di i t t i h on d e i d ,d o (cid:48) i n ,d V j id a e c o co D rd e i m ng o to Eq.1
+ 3 D Conv 2 12: Require:Trainedrewardfunction R θ &videopredictionmodelp φ
+ 64 13: Require:Humanvideodemodi fortask Ti 
+ 3 x 3 D Conv 3 14: fortrials 1,...,ndo 
+ 3 x 3 D 1 C 2 o 8 nv 4 1 1 6 5 : : S S t a e m p p a le ∗ 1: { H a 1 1 w : : G H hi } ch & m g a e x t im pr i e z d es ic R tio θ n ( s s˜ { g 1: s˜ H g 1: , H d } i) ∼{p φ (s 0,ag 1:H )}
+ 256 
+ 3 x 3 D Conv 4 
+ 256 
+ the robot videos and associate it with actions in human videos.
+ Average 
+ features 
+ C. DVD Implementation 
+ We implement our reward function R as 
+ θ 
+ R (d ,d )=f (f (d ),f (d );θ) (2) 
+ θ i j sim enc i enc j 
+ where h = f is a pretrained video encoder enc and f (h ,h ;θ) is a fully connected neural network
+ sim i j 
+ parametrized by θ trained to predict if video encodings h
+ i 
+ and h are completing the same task. Specifically, we encode
+ j 
+ Figure 3: DVD Architecture. We use the same video encoder 
+ each video using a neural network video encoder f into
+ architecture as [43]. For each 3 D convolution layer, the number of enc 
+ a latent space, and then train f as a binary classifier
+ filters is denoted, and all kernels are 3×3×3 except for the first, sim 
+ which is 3×5×5. All conv layers have stride 1 in the temporal trained according to Equation 1. See Figure 3 for the detailed
+ dimension, and conv layers 1, 3, 6, 9 and 11 have stride 2 in the architecture.f ispretrainedon the entire Sth Sth V 2 dataset
+ enc 
+ spatial dimensions, the others having stride 1. All conv layers are and fixed during training (as in [43]), while f is randomly
+ sim 
+ followed by a Batch Norm 3 D layer and all layers except the last FC 
+ initialized. While the training dataset contains many more
+ are followed by a Re LU activation. 
+ human videos than robotvideos, we sample the batches sothat
+ B. Domain-Agnostic Video Discriminators they are roughly balanced between robot and human videos;
+ specifically, each of (d ,d(cid:48),d ) are selected to be a robot
+ i i j 
+ How exactly do we go about learning R θ ? Our key idea demonstration with 0.5 probability.
+ is to learn R that captures functional similarity by training 
+ θ 
+ a classifier which takes as input two videos d from T and D. Using DVD for Task Execution
+ i i 
+ d j from T j and predicts if i=j. Both videos can come from Once we’ve trained the reward function R θ , how do we use
+ either Dh or Dr, and labels can be acquired since we know ittoselectactions that willsuccess full ycompletea task?While
+ which demos d i correspond to which tasks T i (See Figure 2). in principle, this reward function can be combined with either
+ To train R θ , we sample batches of videos (d i ,d(cid:48) i ,d j ) from model-free or model based rein for cement learning approaches,
+ Dh∪Dr, where d i and d(cid:48) i are both labelled as completing the we choose to use visual model predictive control (VMPC)
+ same task T i , and d j is completing a different task T j . The [49, 16, 13, 23], which uses a learned visual dynamics model
+ output of R θ represents a “similarity score” that indicates how to plan a sequence of actions. We condition R θ on a human
+ similar task-wise the two input videos are. More formally, R θ demonstration video d i of the desired task T i and then use the
+ is trained to minimize the following objective, which is the predicted similarity as a reward for optimizing actions with a
+ average cross-entropy loss over video pairs in the distribution learned visual dynamics model (See Figure 4).
+ of the training data: Concretely, we first train an action-conditioned video pre-
+ diction model p (s |s ,a ) using the SV 2 P model
+ J(θ)=E [log(R (d ,d(cid:48)))+log(1−R (d ,d ))]. (1) φ t+1:t+H t t:t+H 
+ Dh∪Dr θ i i θ i j [2]. We then uses the cross-entropy method (CEM) [37] with
+ Since in-the-wild human videos are so diverse and visually this dynamics model p to choose actions that maximize
+ φ 
+ different from the robot environment, a large challenge lies similarity with the given demonstration. More specifically, for
+ in bridging the domain gap between the range of human each iteration of CEM, for an input image s , we sample G
+ t 
+ video environments and the robot environment. In optimizing action trajectories of length H and roll out G corresponding
+ Equation 1, R must learn to identify functional behavior in predictedtrajectories{s }g usingp .Wethenfeedeach
+ θ t+1:t+H φ 
+
+ 
+ 
+ 
+ 
+ 
+ Human Demo: Close the drawer 
+ Final Task Execution 
+ 
+ 
+ 
+ 
+ 
+ DVD à0.5 DVD à0.1 DVD à0.9 
+ 
+ 
+ 
+ 
+ 
+ Sampled Future Trajectories 
+ 
+ Visual 
+ Dynamics 
+ Model 
+ Sampled Actions Current State 
+ Figure 4: Planning with DVD. To use DVD to select actions, we perform visual model predictive control (VMPC) with a learned visual
+ dynamics model. Specifically, we sample many action sequences from an action distribution and feed each through our visual dynamics
+ model to get many “imagined” future trajectories. For each trajectory, we feed the predicted visual sequence into DVD along with the human
+ provideddemonstrationvideo,whichspecifies the task.DVDscoreseachtrajectorybyitsfunctionalsimilarityto the hum and emovideo,and
+ steps the highest scored action sequence in the environment to complete the task.
+ predicted trajectory and demonstration d i into R θ , resulting SS S iimm im Suu uillmaa la ttui t ioo iloanntn i o EE Ennn n vv Ev ssnsvs WWWW iididdo iood wwwo XXXw 222 X 0002 0000 EEE 0 nnn v Evvssnsvs
+ in G similarity scores corresponding to the task-similarity 
+ between d and each predicted image trajectory. The action 
+ trajectoryc 
+ i 
+ orrespondingtotheimagesequence with the highest 
+ T 
+ T 
+ Tr 
+ r 
+ ar 
+ a 
+ ai i Tn 
+ n 
+ inr a E 
+ E 
+ Ein nnnv
+ v 
+ v Env 
+ predicted probability is then executed to complete the task. Train Env Train Env Rearranged
+ TTr Traarianini n EE Ennnvvv TTr Traariainnin EE Ennnvvv RR Reeeaaarrrrraraannngggeeeddd
+ The full algorithm with all stages is described in Algorithm 1. 
+ Te Tsets Et n Evnv
+ IV. EXPERIMENTS Tes Tt e Esntv Env
+ In our experiments, we aim to study how effectively our Test Env 1 Test Env 2 Test Env 3
+ method DVD can leverage diverse human data, and to what Te TTs eet s st Et E n En vn v 1 v 1 1 TTTeeesssttt E EEnnnvvv 222 TTTeeessstt t EE Ennnvvv 33 3
+ extent doing so enables generalization to unseen environments Figure 5: Environment Domains. We consider various simulated
+ tabletop environments that have a drawer, a faucet, a coffee cup, and
+ and tasks. Concretely, we study the following questions: 
+ a coffee machine, as well as a real robot environment with a tissue
+ 1) By leveraging human videos is DVD able to more box, stuffed animal, and either a file cabinet or a toy kitchen set. In
+ effectively generalize to new environments? the simulation experiments, half of the robot demonstrations that are
+ 2) By leveraging human videos is DVD able to more used for training come from the train env and the other half from the
+ rearranged train env. 
+ effectively generalize to new tasks? 
+ 3) Does DVD enable robots to generalize from a single environment generalization, each of which is progressively
+ hum and emonstrationmoreeffectivelythanpriorwork? more difficult, shown in Figure 5. These include an original
+ 4) Can DVD infer rewards from a human video on a real variant (Train Env), from which we have task demos, as well
+ robot? as a variant with changed colors (Test Env 1), changed colors
+ In the following sections, we first describe our experimental and viewpoint (Test Env 2), and changed colors, viewpoint,
+ setup and then investigate the above questions. For videos and object arrangement (Test Env 3).
+ please see https://sites.google.com/view/dvd-human-videos. b) Tasks: Weevaluate our methodonthreetarget task sin
+ simulation, specifically, (1) closing an open drawer, (2) turning
+ A. Simulated Experimental Set-Up 
+ thefaucetright,and(3)pushingthecupaway from the camera
+ a) Environments: For our first 3 experimental questions, to the coffee machine. Each task is specified by an unseen
+ we utilize a Mu Jo Co [48] simulated tabletop environment in-the-wild human video completing the task (See Figure 6).
+ adapted from Meta-World [55] that consists of a Sawyer robot c) Training Data: For human demonstration data, we
+ arminteracting with adrawer,afaucet,andacoffeecup/coffee use the Something-Something-V 2 dataset [21], which contains
+ machine. We use 4 variants of this environment to study 220,837 total videos and 174 total classes, each with humans
+
+ 
+ 
+ 
+ 
+ 
+ Move faucet to the right in Test Env 3 
+ 
+ High-ranked 
+ Human video 
+ Trajectories: 
+ Score = .88 
+ Low-ranked 
+ Trajectory: 
+ Score < 0.01 
+ Figure 6: Example Rankings During Planning. Examplesofpredicted trajectories that are rankedhigh and lowfor the taskofmoving the
+ faucet to the right in the test env 3 with the similarity scores that were outputted by DVD. DVD associates high functional similarity with
+ trajectories that complete the same task as specified in the human video and low scores to trajectories that do not, despite the large visual
+ domain shift between the given videos and the simulation environments. 
+ per for ming a different basic action with a wide variety of 
+ different objects in various environments. Depending on the 
+ experiment, we choose videos from up to 15 different human 
+ tasks for training DVD, where each task has from 853-3170 
+ videos (See Appendix for details). For our simulated robot 
+ demonstration data, we assume 120 video demonstrations of 
+ 3 tasks in the training environment only (See Figure 5). We 
+ ablate the number of robot demos needed in Section IV-F. 
+ B. Experiment 1: Environment Generalization 
+ In our first experiment, we aim to study how varying the 
+ amount of human data used for training impacts the reward 
+ function’s ability to generalize across environments. To do so, 
+ we train DVD on robot videos of the 3 target tasks from the 
+ training environment, as well as varying amounts of human 
+ data,andmeasure task per for manceacrossunseenenvironments. 
+ One of our core hypo the ses is that the use of diverse human 
+ data can improve the reward function’s ability to generalize 
+ to new environments. To test this hypo the sis, we comp are Figure 7: Effectof Human Dataon Environment Generalization.
+ training DVD on only the robot videos (Robot Only), to We comp are DVD’s per for mance on seen and unseen environments
+ when trained on only robot videos compared to varying number
+ training DVD on a mix of the robot videos and human videos 
+ of human videos. We see that training with human videos provides
+ from K tasks (Robot + K Human Tasks). Note that the 
+ signifi can tlyimprovedper for manceoveronlytrainingonrobotvideos,
+ first 3 human tasks included are for the same 3 target tasks and that DVD is generally robust to the number of different human
+ in the robot videos, and thus K > 3 implies using human video tasks used. Each bar shows the average success rate over all
+ videos for completely unrelated tasks to the target tasks. To 3 target tasks, computed over 3 seeds of 100 trials, with error bars
+ denoting standard error. 
+ evaluate the learned reward functions, we report the success 
+ rate from running visual MPC with respect to the inferred generally robust to the number of human tasks included, even
+ reward, where we train the visual dynamics model on data ifthesetasks are unrelated tothetargettasks.Evenwhenusing
+ that is autonomously collected in the test environment. (See 9 completely unrelated tasks, per for mance greatly exceeds not
+ Appendix A for details). All methods infer the reward from using any humanvideos. Qualitatively, in Figure 6, we observe
+ a single human video. However, to provide an even stronger that DVD gives high similarity scores to trajectories that are
+ comparison,wealsoevaluate the Robot Only DVDmodel with completing the task specified by the human video demo and
+ a robot demo at test time Robot Only (Robot Demo), since low scores to trajectories that have less relevant behavior.
+ this model has only been trained with robot data. 
+ C. Experiment 2: Task Generalization 
+ In Figure 7, we report the success rate using each reward 
+ function, computed over 3 randomized sets of 100 trials. In our second experiment, we study how including human
+ Our first key observation is that training with human videos data for training affects the reward function’s ability to
+ signifi can tly improves environment generalization per for mance generalize to new tasks. In this case, we do not train on any
+ over using only robot videos (20% on average), even when (human or robot) data from the target tasks, and instead train
+ the robot only comparison gets the privileged information of DVD on robot videos of the 3 different tasks from the training
+ a robot demonstration. Additionally, we observe that DVD is environment, namely (1) opening the drawer, (2) moving
+
+ 
+ 
+ 
+ 
+ something from right to left, (3) not moving any objects, as 
+ well as varying amounts of human data. To again test how 
+ human videos affect generalization, we comp are the same 
+ methods as in the previous experiment. Since we are testing 
+ taskgeneralization,allevaluationisin the trainingenvironment. 
+ In the bottom section of Table I, we report the success rate 
+ using DVD with varying amounts of human data, computed 
+ over 3 randomizedsetsof 100 trials.Similarto the conclusions 
+ of the environment generalization experiment, first we find 
+ that training with human videos signifi can tly improves task 
+ generalization per for mance over using only robot videos (by 
+ roughly 10%onaverage),even with the robotonlycomparison 
+ conditioned on a robot demonstration. Given a human video 
+ demonstration, Robot Only does well at closing the drawer, 
+ but is completely unable to move the faucet to the right, 
+ suggesting that it is by default moving to the same area of 
+ the environment and is unable to actually distinguish tasks. 
+ This is unsurprising considering the reward function is not Figure 8: Environment Generalization Prior Work Comparison.
+ trained on any human videos. Second, we observe that on Compared to Concept 2 Robot, the most relevant work leveraging “in-
+ average, including human videos for 6 unrelated human tasks the-wild” human videos, as well as a demo-conditioned behavioral
+ cloningpolicyandar and ompolicy,DVDper for mssignifi can tlybetter
+ can signifi can tly improve per for mance, leading to more than 
+ across all environments, and over 20% better on average. Each bar
+ a 20% gap over just training with robot videos, suggesting 
+ shows the average success rate over all 3 target tasks, computed over
+ that training with human videos from more unrelated tasks is 3 seeds of 100 trials, with error bars denoting standard error.
+ particularly helpful for task generalization. 
+ V 2 dataset,thereisnonaturalmethod for testinggeneralization
+ D. Experiment 3: Prior Work Comparison to an unseen task specified by a human video. We see that
+ DVD outperforms both other baselines by over 30%.
+ Inthisexperiment,westudyhoweffective DVDiscompared 
+ First, DVD’s significant improvement over Concept 2 Robot
+ too the rtechniques for learningfromin-the-wildhumanvideos. 
+ The most related work is Concept 2 Robot [43], which uses a suggests that in learning reward functions which address the
+ human-domain robot gap, using some robot data, even in small
+ pretrained 174-way video classifier on only the Sth Sth V 2 
+ quantities,isimportantforgoodper for mance.Second,methods
+ dataset (no robot videos) as a reward. Since this method is 
+ like demo-conditioned behavior cloning likely require many
+ not naturally conducive to one-shot imitation from a video 
+ morerobotdemonstrationstolearngoodpolicies,aspriorwork
+ demonstration, during planning we follow the method used in 
+ in demo-conditioned behavior cloning often use on the order
+ theoriginalpaper and taketheclassificationscore for the target 
+ of thousands of demonstrations [46]. DVD on the other hand,
+ task from the predicted robot video as the reward (instead of 
+ uses the demos only to learn a reward function and offloads
+ conditioningonahumanvideo).Unlike the open-looptrajectory 
+ the behavior learning to visual MPC. Lastly, when examining
+ generator used in the original paper, we use the same visual 
+ the per for mance of demo-conditioned behavioral cloning on
+ MPCapproachforselectingactions for afaircomparisonof the 
+ each individual task, we see the policy learns to ignore the
+ learned reward function; we expect the relative per for mance of 
+ conditioning demo and mimics one trajectory for one of the
+ the reward functions to be agnostic to this choice. In addition, 
+ we also comp are to a demo-conditioned behavioral cloning targettasks,doingwell for only that taskbutcompletelyfailing
+ at other tasks, suggesting that the policy struggles to infer the
+ method,similartowhathas been usedinpriorwork[54,3,46]. 
+ task from the visually diverse human videos.
+ Wetrain this approachusingbehaviorcloningon the 120 robot 
+ demonstrations and their actions for 3 tasks conditioned on a 
+ E. Experiment 4: Real Robot Efficacy 
+ video demo of the task from either a robot or a human. See 
+ Appendix A for more details on this comparison. We also To answer our last experimental question, we study how
+ include a comparison to a random policy. DVD with human data enables better environment and task
+ In Figure 8 we comp are DVD with 6 human videos to these generalization on a real Widow X 200 robot. We consider a
+ prior methods on the environment generalization experiment similar setup as described in Sections IV-B and IV-C, where
+ presented in Section IV-B. Across all environments, DVD DVDisnowtrainedon 80 robotdemos from eachof 2 training
+ performs signifi can tly better than all three comparisons on the tasksinatrainingenvironment and humanvideos.Thenduring
+ targettasks,and 20%betteronaveragethan the best-per for ming testing, DVD is used as reward for visual MPC in an unseen
+ othermethod.In Table I,wemake the samecomparison,nowon environment, per for ming both a seen and unseen task.
+ theexperimentof task generalizationpresentedin Section IV-C. Specifically,inourrealrobotsetup,thetrainingenvironment
+ Since Concept 2 Robot is not demo-conditioned and is already consists of a file cabinet, and in the testing environment, it is
+ trained on all 174 possible human video tasks in the Sth Sth replaced with a toy kitchen set (See Figure 5). The training
+
+ 
+ 
+ 
+ 
+ Method Close drawer Move faucet to right Push cup away from the camera Average
+ 
+ Random 20.00 (3.00) 9.00 (1.73) 32.33 (8.08) 20.44 (2.78) 
+ Behavioral Cloning Policy 0.00 (0.00) 45.33 (38.84) 1.00 (0.00) 15.44 (12.95)
+ Concept 2 Robot 174-way classifier n/a n/a n/a n/a 
+ DVD, Robot Only (Human Demo) 67.33 (4.51) 1.00 (1.00) 29.67 (0.58) 32.67 (1.53)
+ DVD, Robot Only (Robot Demo) 29.33 (14.99) 23.67 (1.53) 28.33 (0.58) 27.11 (5.23)
+ DVD, Robot + 3 Human Tasks 66.33 (6.03) 19.33 (0.58) 40.00 (6.93) 41.89 (3.10)
+ DVD, Robot + 6 Human Tasks 59.00 (5.29) 17.00 (7.94) 56.33 (11.06) 44.11 (1.39)
+ DVD, Robot + 9 Human Tasks 57.67 (0.58) 52.67 (1.15) 55.00 (5.57) 55.11 (2.04)
+ DVD, Robot + 12 Human Tasks 31.67 (9.02) 49.00 (6.24) 57.33 (2.08) 46.00 (2.60)
+ Table I: Task generalization results in the original environment. DVD trained with human videos performs signifi can tly better on average
+ than with only robot videos, a baseline behavioral cloning policy, and random. We report the average success rate for all 3 target tasks,
+ computed over 3 seeds of 100 trials, as well as the standard deviation in paren the ses.
+ Test Env + 
+ Method (Out of 20 Trials) Test Env Unseen Task 
+ 80 
+ Random 5 5 
+ Concept 2 Robot 174-way classifier 4 n/a 70 
+ DVD, Robot Only (Human Demo) 5 6 
+ 60 
+ DVD, Robot Only (Robot Demo) 5 8 
+ DVD, Robot + 2 Human Tasks 7 7 50 
+ DVD, Robot + 6 Human Tasks 13 14 
+ DVD, Robot + 9 Human Tasks 9 11 40 
+ DVD, Robot + 12 Human Tasks 10 9 
+ 30 
+ Table II: Env and task generalization results on a real robot. 
+ We report successes out of 20 trials on a Widow X 200 in an unseen 20 
+ environment on two different tasks, one on closing a toy kitchen 
+ door and another on moving a tissue box to the left. On both, DVD 10 
+ performs signifi can tly better when trained with human videos than 
+ 0 
+ with only robot demonstrations. Train env Test env 1 Test env 2 Test env 3 Average
+ Environment 
+ tasks are “Closing Something” and “Pushing something left to 
+ right” and the test tasks are “Closing Something” (seen) and 
+ “Pushing something right to left” (unseen). 
+ We comp are DVD with varying amounts of human data to 
+ only robot data and baselines in Table II, where we report 
+ the success rate out of 20 trials when used with visual MPC 
+ conditioned on a human demo of the task. DVD trained with 
+ humanvideoshasabouttwice the successratewhenleveraging 
+ the diverse human dataset than when relying only on robot 
+ videos.Inparticular,DVDtrained with 6 tasksworthofhuman 
+ videos succeeds over 65-70% of the time whereas robot only 
+ succeeds at most 40%. We also observe that in general using 
+ human videos from unrelated tasks improves over only using 
+ humanvideos for the trainingtasks.Finally,weseequalitatively 
+ in Figure 14 in Appendix C that DVD captures the functional 
+ task being specified, in this case closing the door. 
+ F. Ablation on Amount of Robot Data for Training 
+ In our previous simulation experiments, we use 120 robot 
+ demonstrations per task. While this is a manageable number 
+ of robot demonstrations, it would be better to rely on fewer 
+ demonstrations. Hence, we ablate on the number of robot 
+ demonstrations used during training and evaluate environment 
+ generalization. In Figure 9, we see that the per for mance of 
+ DVD decreases by only a small margin when using as few 
+ as 20 robot demonstrations per task. This suggests that by 
+ leveraging the diversity in the human data, DVD can perform 
+ well even with very little robot data. 
+ )001 
+ fo 
+ tuo( 
+ sesseccu S 
+ DVD With Varying Amounts of Robot Data
+ Robot (20) + 6 Human Tasks
+ Robot (40) + 6 Human Tasks
+ Robot (120) + 6 Human Tasks
+ Figure 9: Ablation on Amount of Robot Data Used for Training.
+ While using 120 robot demonstrations per task slightly benefits
+ per for manceoverusingonly 20 or 40,DVDstillper for mscomparably
+ with fewer robot demos. 
+ V. LIMITATIONS AND FUTUREWORK 
+ Wepresentedanapproach,domain-agnosticvideodiscrimina-
+ tor (DVD), that leverages the diversity of “in-the-wild” human
+ videos to learn generalizable robotic reward functions. Our
+ experiments find that training with a large, diverse dataset of
+ human videos can signifi can tly improve the reward function’s
+ ability to generalize to unseen tasks and environments, and
+ can be combined with visual MPC to solve tasks.
+ There are multiple limitations and directions for future work.
+ First, our method focuses only on learning reward functions
+ that generalize and does not learn a generalizable policy or
+ visual dynamics model directly. This is a necessary next step
+ to achieve agents that broadly generalize and is an exciting
+ direction for future work. Second, while limited in quantity,
+ our work assumes access to some robot demonstrations and
+ task labels for these demos and for all of the human videos.
+ Techniques that can sidestep the need for this supervision
+ would further enhance the scalability of DVD. Lastly, so far
+ we have only tested DVD on coarse tasks that don’t require
+ fine-grained manipulation. Designing more powerful visual
+ models and testing DVD with them on harder, more precise
+ tasks is another exciting direction for future work.
+
+ 
+ 
+ 
+ 
+ ACKNOWLEDGMENTS multi-robot learning. In Conference on Robot Learning,
+ 2019. 
+ The authors would like to thank Ashvin Nair as well as 
+ [11] J. Deng, W. Dong, R. Socher, L.-J. Li, K. Li, and
+ members of the IRIS lab for valuable discussions. This work 
+ L. Fei-Fei. Image Net: A Large-Scale Hierarchical Image
+ was supported in part by Schmidt Futures, by ONR grant 
+ Data base. In CVPR 09, 2009. 
+ N 00014-20-1-2675, and by an NSF GRFP. Chelsea Finn is a 
+ [12] Jacob Devlin,Ming-Wei Chang,Kenton Lee,and Kristina
+ CIFAR Fellow in the Learning in Machines & Brains program. 
+ Toutanova. BERT: Pre-training of deep bidirectional
+ REFERENCES trans for mers for language underst and ing. In Conference
+ [1] Pieter Abbeel and Andrew Y. Ng. In Proceedings of of the North Ameri can Chapter of the Association for
+ the Twenty-First International Conference on Machine Computational Linguistics: Human Language Technolo-
+ Learning, ICML ’04, page 1, 2004. gies (NAACL-HLT), Minneapolis, Minnesota, June 2019.
+ [2] Mohammad Babaeizadeh, Chelsea Finn, Dumitru Erhan, Association for Computational Linguistics.
+ Roy H. Campbell, and Sergey Levine. Stochastic varia- [13] Frederik Ebert, Chelsea Finn, Sudeep Dasari, Annie
+ tional video prediction. In International Conference on Xie, Alex Lee, and Sergey Levine. Visual foresight:
+ Learning Representations, 2018. Model-baseddeepreinforcementlearning for vision-based
+ [3] Alessandro Bonardi, Stephen James, and Andrew J robotic control. ar Xiv:1812.00568, 2018.
+ Davison. Learning one-shot imitation from humans [14] Ashley DEdwards and Charles LIsbell. Perceptualvalues
+ without humans. IEEE Robotics and Automation Letters, fromobservation. ar Xivpreprintar Xiv:1905.07861,2019.
+ 2020. [15] Bernard Ghanem Fabian Caba Heilbron, Victor Escorcia
+ [4] Tom B. Brown, Benjamin Mann, Nick Ryder, Melanie and Juan Carlos Niebles. Activitynet: A large-scale
+ Subbiah, Jared Kaplan, Prafulla Dhariwal, Arvind Nee- video benchmark for human activity underst and ing. In
+ lakantan, Pranav Shyam, Girish Sastry, Amanda Askell, Proceedings of the IEEE Conference on Computer Vision
+ Sandhini Agarwal, Ariel Herbert-Voss, Gretchen Krueger, and Pattern Recognition, pages 961–970, 2015.
+ Tom Henighan, Rewon Child, Aditya Ramesh, Daniel M. [16] Chelsea Finn and Sergey Levine. Deepvisual for esight for
+ Ziegler, Jeffrey Wu, Clemens Winter, Christopher Hesse, planning robot motion. In IEEE International Conference
+ Mark Chen, Eric Sigler, Mateusz Litwin, Scott Gray, on Robotics and Automation (ICRA), 2017.
+ Benjamin Chess, Jack Clark, Christopher Berner, Sam [17] Chelsea Finn, Sergey Levine, and Pieter Abbeel. Guided
+ Mc Candlish, Alec Radford, Ilya Sutskever, and Dario cost learning: Deep inverse optimal control via policy
+ Amodei. Language models are few-shot learners. optimization. In International conference on machine
+ ar Xiv:2005.14165, 2020. learning, pages 49–58. PMLR, 2016. 
+ [5] Serkan Cabi, Sergio Gómez Colmenarejo, Alexander [18] Justin Fu, Katie Luo, and Sergey Levine. Learning robust
+ Novikov, Ksenia Konyushkova, Scott Reed, Rae Jeong, rewards with adverserial inverse rein for cement learning.
+ Konrad Zolna, Yusuf Aytar, David Budden, Mel Vecerik, In International Conference on Learning Representations,
+ et al. Scaling data-driven robotics with reward sketching 2018. 
+ and batch rein for cement learning. ar Xiv:1909.12200, [19] Justin Fu, Avi Singh, Dibya Ghosh, Larry Yang, and
+ 2019. Sergey Levine. Variational inverse control with events:
+ [6] Matthew Chang, Arjun Gupta, and Saurabh Gupta. Se- A general framework for data-driven reward definition.
+ mantic visual navigation by watching youtube videos. In In Advances in Neural Information Processing Systems,
+ Neur IPS, 2020. 2018. 
+ [7] Annie S. Chen, Hyun Ji Nam, Suraj Nair, and Chelsea [20] W. Goo and S. Niekum. One-shot learning of multi-step
+ Finn.Batchexplorationwi the xamples for scalablerobotic tasks from observationviaactivitylocalizationinauxiliary
+ rein for cement learning. IEEE Robotics and Automation video. In 2019 International Conference on Robotics and
+ Letters, 2021. Automation (ICRA), 2019. 
+ [8] Neha Das, Sarah Bechtle, Todor Davchev, Dinesh Jayara- [21] Raghav Goyal, Samira Ebrahimi Kahou, Vincent Michal-
+ man, Akshara Rai, and Franziska Meier. Model-based ski, Joanna Materzynska, Susanne Westphal, Heuna Kim,
+ inverserein for cementlearning from visualdemonstrations, Valentin Haenel, Ingo Fruend, Peter Yianilos, Moritz
+ 2021. Mueller-Freitag, et al. The" something something" video
+ [9] Pradipto Das,Chenliang Xu,Richard FDoell,and Jason J data base for learning and evaluatingvisualcommonsense.
+ Corso. A thous and frames in just a few words: Lingual In Proceedings of the IEEE International Conference on
+ description of videos through latent topics and sparse Computer Vision, pages 5842–5850, 2017.
+ object stitching. In Proceedings of the IEEE conference [22] Abhinav Gupta,Adithyavairavan Murali,Dhiraj Prakashc-
+ on computer vision and pattern recognition, pages 2634– hand Gandhi, and Lerrel Pinto. Robot learning in homes:
+ 2641, 2013. Improving generalization and reducing dataset bias. In
+ [10] Sudeep Dasari, Frederik Ebert, Stephen Tian, Suraj Nair, Advances in Neural Information Processing Systems,
+ Bernadette Bucher, Karl Schmeckpeper, Siddharth Singh, 2018. 
+ Sergey Levine, and Chelsea Finn. Robonet: Large-scale [23] Danijar Hafner, Timothy Lillicrap, Ian Fischer, Ruben
+
+ 
+ 
+ 
+ 
+ Villegas, David Ha, Honglak Lee, and James Davidson. [35] Nathan D. Ratliff, J. Andrew Bagnell, and Martin A.
+ Learning latent dynamics for planning from pixels. In Zinkevich. Maximummarginplanning. In Proceedingsof
+ International Conference on Machine Learning, pages the 23 rd International Conference on Machine Learning,
+ 2555–2565. PMLR, 2019. ICML ’06, page 729–736, 2006. 
+ [24] Dmitry Kalashnikov,Alex Irpan,Peter Pastor,Julian Ibarz, [36] Jonas Rothfuss, Fabio Ferreira, Eren Erdal Aksoy, You
+ Alexander Herzog, Eric Jang, Deirdre Quillen, Ethan Zhou, and Tamim Asfour. Deep episodic memory:
+ Holly, Mrinal Kalakrishnan, Vincent Vanhoucke, et al. Encoding, recalling, and predicting episodic experiences
+ Scalable deep rein for cement learning for vision-based forrobotactionexecution. IEEERobotics and Automation
+ robotic manipulation. In Conference on Robot Learning, Letters, 3(4):4007–4014, 2018.
+ pages 651–673. PMLR, 2018. [37] Reuven Y Rubinstein and Dirk P Kroese. The cross-
+ [25] Jangwon Lee and Michael S Ryoo. Learning robot activ- entropy method: a unified approach to combinatorial op-
+ ities from first-person human videos using convolutional timization,Monte-Carlosimulation and machinelearning.
+ future regression. In Proceedings of the IEEE Conference Springer Science & Business Media, 2013.
+ on Computer Vision and Pattern Recognition Workshops, [38] Rosario Scalise, Jesse Thomason, Yonatan Bisk, and
+ pages 1–2, 2017. Siddhartha Srinivasa. Improving robot success detection
+ [26] Kyuhwa Lee, Yanyu Su, Tae-Kyun Kim, and Yiannis using static object data. In Proceedings of the 2019
+ Demiris. A syntactic approach to robot imitation learning IEEE/RSJ International Conference on Intelligent Robots
+ using probabilistic activity grammars. Robotics and and Systems, 2019. 
+ Autonomous Systems, 61(12):1323–1334, 2013. [39] Karl Schmeckpeper, Oleh Rybkin, Kostas Daniilidis,
+ [27] Yu Xuan Liu, Abhishek Gupta, Pieter Abbeel, and Sergey Sergey Levine, and Chelsea Finn. Rein for cement learn-
+ Levine. Imitation from observation: Learning to imitate ing with videos: Combining offline observations with
+ behaviors from raw video via context translation. In interaction. In Co RL, 2020.
+ 2018 IEEE International Conference on Robotics and [40] Karl Schmeckpeper, Annie Xie, Oleh Rybkin, Stephen
+ Automation (ICRA), pages 1118–1125. IEEE, 2018. Tian, Kostas Daniilidis, Sergey Levine, and Chelsea
+ [28] Ajay Mandlekar, Yuke Zhu, Animesh Garg, Jonathan Finn. Learning predictive models from observation and
+ Booher, Max Spero, Albert Tung, Julian Gao, John interaction. In ECCV, 2020.
+ Emmons, Anchit Gupta, Emre Orbay, Silvio Savarese, [41] Pierre Sermanet, Kelvin Xu, and Sergey Levine. Un-
+ and Li Fei-Fei. Roboturk: A crowds our cing platform for supervised perceptual rewards for imitation learning.
+ robotic skill learning through imitation. In Conference Proceedings of Robotics: Science and Systems (RSS),
+ on Robot Learning, 2018. 2017. 
+ [29] Ashvin V Nair, Vitchyr Pong, Murtaza Dalal, Shikhar [42] Pierre Sermanet,Corey Lynch,Yevgen Chebotar,Jasmine
+ Bahl,Steven Lin,and Sergey Levine.Visualrein for cement Hsu, Eric Jang, Stefan Schaal, and Sergey Levine. Time-
+ learning with imagined goals. In Advances in Neural contrastivenetworks:Self-supervisedlearning from video.
+ Information Processing Systems, 2018. Proceedings of International Conference in Robotics and
+ [30] Anh Nguyen, Dimitrios Kanoulas, Luca Muratore, Dar- Automation (ICRA), 2018.
+ win G Caldwell, and Nikos G Tsagarakis. Translating [43] Lin Shao,Toki Migimatsu,Qiang Zhang,Karen Yang,and
+ videos to commands for robotic manipulation with deep Jeannette Bohg. Concept 2 robot: Learning manipulation
+ recurrent neural networks. In 2018 IEEE International concepts from instructions and human demonstrations.
+ Conference on Robotics and Automation (ICRA), pages In Proceedings of Robotics: Science and Systems (RSS),
+ 3782–3788. IEEE, 2018. 2020. 
+ [31] Open AI, Marcin Andrychowicz, Bowen Baker, Maciek [44] P. Sharma, Deepak Pathak, and Abhinav Gupta. Third-
+ Chociej,Rafal Jozefowicz,Bob Mc Grew,Jakub Pachocki, personvisualimitationlearningviadecoupledhierarchical
+ Arthur Petron, Matthias Plappert, Glenn Powell, Alex controller. In Neur IPS, 2019.
+ Ray, Jonas Schneider, Szymon Sidor, Josh Tobin, Peter [45] Avi Singh, Larry Yang, Chelsea Finn, and Sergey Levine.
+ Welinder, Lilian Weng, and Wojciech Zaremba. Learning End-to-endroboticrein for cementlearning with outreward
+ dexterous in-hand manipulation, 2019. engineering. In Proceedings of Robotics: Science and
+ [32] Vladimír Petrík, Makar and Tapaswi, Ivan Laptev, and Systems, Freiburgim Breisgau, Germany, June 2019.
+ Josef Sivic. Learning object manipulation skills via [46] Avi Singh, Eric Jang, Alexander Irpan, Daniel Kappler,
+ approximate state estimation from real videos, 2020. Murtaza Dalal, Sergey Levinev, Mohi Khansari, and
+ [33] Lerrel Pinto and Abhinav Gupta. Supersizing self- Chelsea Finn. Scalable multi-task imitation learning with
+ supervision: Learning to grasp from 50 k tries and 700 autonomous improvement. In 2020 IEEE International
+ robothours. In IEEEinternationalconferenceonrobotics Conference on Robotics and Automation (ICRA), pages
+ and automation (ICRA), 2016. 2167–2173. IEEE, 2020. 
+ [34] Sören Pirk, Mohi Khansari, Yunfei Bai, Corey Lynch, [47] Laura Smith, Nikita Dhawan, Marvin Zhang, Pieter
+ and Pierre Sermanet. Online object representations with Abbeel, and Sergey Levine. AVID: Learning Multi-Stage
+ contrastive learning, 2019. Tasks via Pixel-Level Translation of Human Videos. In
+
+ 
+ 
+ 
+ 
+ Proceedings of Robotics: Science and Systems, Corvalis, 
+ Oregon, USA, July 2020. 
+ [48] E. Todorov, T. Erez, and Y. Tassa. Mujoco: A physics 
+ engine for model-based control. In 2012 IEEE/RSJ Inter- 
+ national Conference on Intelligent Robots and Systems, 
+ 2012. 
+ [49] Manuel Watter, Jost Tobias Springenberg, Joschka 
+ Boedecker, and Martin Riedmiller. Embed to control: 
+ a locally linear latent dynamics model for control from 
+ raw images. In Proceedings of the 28 th International 
+ Conference on Neural Information Processing Systems- 
+ Volume 2, pages 2746–2754, 2015. 
+ [50] Markus Wulfmeier, Peter Ondruska, and Ingmar Posner. 
+ Maximum entropy deep inverse rein for cement learning, 
+ 2016. 
+ [51] Haoyu Xiong, Quanzhou Li, Yun-Chun Chen, Homanga 
+ Bharadhwaj,Samarth Sinha,and Animesh Garg. Learning 
+ by watching: Physical imitation of manipulation skills 
+ from human videos, 2021. 
+ [52] Yezhou Yang, Yi Li, Cornelia Fermüller, and Yiannis 
+ Aloimonos. Robot learning manipulation action plans by 
+ "watching" unconstrained videos from the world wide 
+ web. In AAAI, pages 3686–3693, 2015. 
+ [53] Sarah Young, Dhiraj Gandhi, Shubham Tulsiani, Abhinav 
+ Gupta, Pieter Abbeel, and Lerrel Pinto. Visual imitation 
+ made easy. In Co RL, 2020. 
+ [54] Tianhe Yu,Chelsea Finn,Sudeep Dasari,Annie Xie,Tian- 
+ hao Zhang, Pieter Abbeel, and Sergey Levine. One-shot 
+ imitation from observing humans via domain-adaptive 
+ meta-learning. In Proceedings of Robotics: Science and 
+ Systems, Pittsburgh, Pennsylvania, June 2018. 
+ [55] Tianhe Yu, Deirdre Quillen, Zhanpeng He, Ryan Julian, 
+ Karol Hausman, Chelsea Finn, and Sergey Levine. Meta- 
+ world: A benchmark and evaluation for multi-task and 
+ meta rein for cement learning. In Conference on Robot 
+ Learning, 2020. 
+ [56] Andy Zeng, Shuran Song, Stefan Welker, Johnny Lee, 
+ Alberto Rodriguez, and Thomas Funkhouser. Learn- 
+ ing synergies between pushing and grasping with self- 
+ supervised deep rein for cement learning. Proceedings of 
+ the IEEE International Conference on Intelligent Robots 
+ and Systems (IROS), 2018. 
+ [57] Henry Zhu, Justin Yu, Abhishek Gupta, Dhruv Shah, 
+ Kristian Hartikainen, Avi Singh, Vikash Kumar, and 
+ Sergey Levine. The ingredients of real world robotic 
+ rein for cement learning. In International Conference on 
+ Learning Representations, 2020. 
+ [58] Brian D. Ziebart, Andrew Maas, J. Andrew Bagnell, and 
+ Anind K. Dey. Maximum entropy inverse rein for cement 
+ learning. In Proc. AAAI, pages 1433–1438, 2008. 
+ 
+ 
+ 
+ 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ APPENDIX 
+ 
+ A. Training Details 
+ a) dataset Details: Depending on the experiment, we 
+ choose videos from the following 15 different human tasks in 
+ the Something-Something-V 2 dataset for training DVD, where 
+ each task has from 853-3170 trainingvideos:1)Closingsth,2) 
+ Moving sth away from camera, 3) Moving sth towards camera, 
+ 4)Openingsth,5)Pushingsthlefttoright,6)Pushingsthright 
+ to left, 7) Poking sth so lightly it doesn’t move, 8) Moving 
+ sth down, 9) Moving sth up, 10) Pulling sth from left to right, Figure 10: SV 2 P Architecture. We use video prediction models
+ 11) Pulling sth from right to left, 12) Pushing sth with sth, trained via SV 2 P with the reward from DVD in order to complete
+ 13) Moving sth closer to sth, 14) Plugging sth into sth, and tasksspecifiedbyagivenhumanvideo.Figuretaken from the original
+ 15) Pushing sth so that it slightly moves. We used these tasks paper [2]. 
+ because they are appropriate for a single-arm setting and cover thetrainingclip.Additionally,duringtraining,eachinputvideo
+ a diverse range of various actions. The first seven of those is first randomly rotated between -15 and 15 degrees, scaled so
+ tasks were chosen as they are relevant to tasks possible in the that the heighthassize 120,and the nrandomlycroppedto have
+ simulation environments, but the other tasks were not chosen size 120×120×3. At planning time, the video demonstration
+ for any particular reason, i.e. could have been replaced by a is spliced so that it is between 30 and 40 frames, rescaled to
+ different set of 8 other appropriate tasks. For an experiment, have a height of 120 pixels, and then center-cropped to have
+ if human videos for a task are used, we use all of the human size 120×120×3. The demo-conditioned behavioral cloning
+ videos available in the Sth Sth V 2 training set for that task to baseline uses the same hyperparameters and training details
+ train DVD. except that it uses weight decay 0.0001. 
+ For the simulation experiments, DVD is also trained on c) SV 2 P Training: To evaluate DVD’s per for mance on
+ 120 robot video demonstrations of 3 tasks, half of which are potentially unseen tasks with a given human video, we
+ collected in the original training environment and the other employ visual model predictive control with SV 2 P visual
+ half in the rearranged training environment. These videos are prediction models trained on datasets autonomously collected
+ collected via model predictive control with random shooting, a in each environment. SV 2 P learns an action-conditioned video
+ groundtruthvideo-prediction model,andaground-truthshaped prediction model bysamplingalatentvariable and subsequently
+ reward particular to each task. For the real robot experiments generating an image prediction with that sample. We use the
+ on the Widow X 200, in addition to varying amounts of human same architecture, which is shown in Figure 10, and default
+ videos, DVD is trained on 80 robot video demonstrations of 2 hyperparameters as the original paper [2].
+ tasks, which are collected in the original training environment. For each of the four simulation environments in which we
+ Thesedemonstrations are collectedviaahard-codedscript with evaluate DVD, we collect 10,000 random episodes, each with
+ uniform noise between -0.02 and 0.02 added to each action. 60 totalframes,oftheagentinteractingin that environment and
+ To evaluate DVD’s training progress, we use a validation set train SV 2 P for 200,000 epochs on all of the data. The models
+ consisting of all of the human videos available in the Sth Sth are trained to predict the next fifteen frames given an input of
+ V 2 validationset for the chosen task saswellas 48 robotvideo five frames. To evaluate DVD in the robot test environment,
+ demonstrations for the same 3 tasks with robot demos in the we train SV 2 P for 160,000 epochs on 58,500 frames worth of
+ training set,withhalfofthesecoming from the originaltraining autonomously collected robot interaction in the original train
+ environment and the other half from the rearranged. For the environment,andthenwefinetune the model for another 60,000
+ Widow X 200 experiments,weadd 8 robotvideodemonstrations epochson 21,000 framesworthofautonomouslycollected data
+ for each of the 2 tasks into the validation set. inthetestenvironment that has the toykitchendoor.Collecting
+ b) Hyperparameters: For DVD, the similarity discrimi- this data on the Widow X 200 took a total of roughly 75 hours
+ nator is trained with a learning rate of 0.01 using stochastic but was entirely autonomous.
+ gradient descent (SGD) with momentum 0.9 and weight decay d) Additional DVD Details: Here we expand on some of
+ 0.00001. We use a batch size of 24, where each element of the DVDimplementationdetailstoucheduponin Section III-C,
+ the batch consists of a triplet with two videos having the same particularly the way that batches are sampled during training.
+ task label and the third having a different label. Each version Each batch consists of triplets (d ,d(cid:48),d ), where d is labeled
+ i i j j 
+ of DVD in the experiments is trained for 120 epochs, where as a different task as d and d(cid:48), which are labeled as the same
+ i i 
+ one epoch consists of 200 optimizer steps. For each epoch, task.Ineachtriplet,d isr and omlysampled with 0.5 probability
+ i 
+ the video clips fed into DVD for training are sequences of of being a robot demonstration. Then, if d is from a task with
+ i 
+ consecutive frames with random length between 20 and 40 only human data, d(cid:48) will be chosen from the remaining human
+ i 
+ frames taken from the original video. If the original video has data for that task; otherwise it is chosen to be a robot video
+ fewer than the randomly selected amount of frames, the last from that task with 0.5 probability. Finally, d is randomly
+ j 
+ frame is repeated to achieve the desired number of frames for sampled repeatedly (usually just once) with 0.5 probability of
+
+ 
+ 
+ 
+ 
+ being a robot demonstration until a video with a different task tasks: 1) Closing the drawer, which is defined as the last frame
+ label from d and d(cid:48) is sampled. in the 60-frame trajectory having the drawer pushed in to be
+ i i 
+ e) Comparisons: For the Concept 2 Robot comparison, less than 0.05, where it starts open at 0.07, 2) Turning the
+ we use the same 174-way classifier that the paper used and faucet to the right more than 0.01 distance, where it starts at 0,
+ do not alter it. For the demo-conditioned behavioral cloning and 3) Moves cup to be less than 0.07 distance to the coffee
+ comparison,we useamethodsimilarto[3],[46],and[54].We machine, where the cup starts out at least 0.1 away. We run
+ train a model that takes in as input the concatenated encodings 100 trials for 3 different seeds for each task for every method
+ of a conditioning video and the image state from one of the in all experiments.
+ robot demonstrations in the training set and outputs an action c) Real Robot Experiments: On the Widow X 200, for all
+ that aims to lead the agent from the given image state to experiments,ineachtrialweplan 1 trajectoryoflength 10.For
+ completing the same task as shown in the conditioning demo. this trajectory, we run 2 iterations of the cross-entropy method
+ Duringtraining,the model istrainedonbatchesof(conditioning (CEM), sampling 100 action sequences and refitting to the
+ video,robotdemonstration)pairs,where the conditioningvideo top 20 repeatedly. We then choose one of the top 5 predicted
+ is randomly taken from the combined human and robot dataset trajectories with the highest functional similarity score given
+ andarobotdemonstration with the same task labelisr and omly by DVD to execute in the environment. We evaluate on the
+ chosen.Because the rearemanymorehumanvideosthanrobot following two target tasks: 1) Closing the toy kitchen door,
+ demonstrations, the conditioning video is chosen to be a robot where a success is recorded for any trial where the robot arm
+ demonstration with 50% probability, which is analogous to completely closes the door, and 2) Pushing the tissue box to
+ the balancing of batches used in DVD. Note that this method the left, where the robot arm must clearly push the tissue box
+ cannot naturally use human videos from tasks for which there left of its original starting position. We run 20 trials for each
+ are no robot demonstrations. task for each method. 
+ The behavior cloning model uses the same pretrained 
+ C. Additional Experimental Results 
+ video encoder as DVD to encode the conditioning demo 
+ as well as a pretrained Res Net 18 for the image state. The In our simulation environment generalization experiments,
+ resulting features are concatenated and passed into an MLP we evaluate on the three tasks of 1) Closing the drawer, 2)
+ that takes an input of size [1512] and has fully connected Turning the faucet to the right, and 3) Pushing the cup away
+ layers [512,256,128,64,32,a], where each layer except the from the camera. In Section IV, we reported the average
+ last is followed by a Re LU activation and a corresponds to the per for mance across all the three tasks. In Figure 11, we
+ numberofactiondimensions.The model istrainedtominimize present the individual task results for DVDtrained with varying
+ mean squared error between the output action and the true amounts of human data. The conclusions of these experiments
+ action. are the same as those in Section IV, in that leveraging diverse
+ human videos in DVD allows for more effective generalization
+ B. Experimental Details 
+ across new environments rather than relying only on robot
+ a) Domains: For the simulation domains, we use a videos. 
+ Mujoco simulation built off the Meta-World environments In Figure 12, we present results on the individual tasks
+ [55]. In simulation, the state space is the space of RGB image across all four environments for DVD trained with 6 tasks
+ observations with size [180, 120, 3]. We use a continuous worth of human videos compared with our three comparisons:
+ action space over the linear and angular velocity of the robot’s Concept 2 Robot [43], a demo-conditioned behavior cloning
+ gripper and a discrete action space over the gripper open/close policy, and a random policy. On average over all of the
+ action, for a total of five dimensions. For the robot domain, we environments, DVD performs over 40% better on the drawer
+ considerareal Widow X 200 robotinteracting with afilecabinet, task and 30% better on the faucet task than the next best
+ a tissue box, a stuffed animal, and a toy kitchen set. The state per for ming method. It also performs reasonably on the cup
+ space is the space of RGB image observations with size [120, task;Concept 2 Robotjustper for msparticularlywellon that task
+ 120, 3], and the action space consists of the continuous linear since it often chooses to push the cup away no matter which
+ velocity of the robot’s gripper in the x and z directions as well task is specified. The behavioral cloning policy has somewhat
+ as the gripper’s y-position, for a total of three dimensions. erratic behavior, mimicking the trajectory for one of the target
+ b) Simulation Experiments: For all environment and task tasks in each environment and doing well on that task but not
+ generalization experiments, in each trial we plan 3 trajectories ontheo the rtasks.Hence,wesee that both Concept 2 Robot and
+ of length 20. For each trajectory, we sample 100 action the behavioral cloning policy are not able to provide effective
+ sequencesuni for mlyrandomlyandr and omlychooseoneof the multi-task reward signals for each environment.
+ top 5 predictedtrajectories with the highestfunctionalsimilarity Additionally, in Figure 13, we show the accuracy curves
+ score given by DVD to execute in the environment. For on the training and validation sets while training DVD. We
+ Concept 2 Robot, we take one of the top 5 predicted trajectories see unsurprisingly that the model trained only on three
+ with the highest classification score for the specified task, and tasks of robot demonstrations (Robot Only) has the highest
+ for the behavioral cloning policy, we simply take the predicted validation accuracy at 99%. However, while adding human
+ action at each state. We evaluate on the following three target videos signifi can tly increases the difficulty of the optimization,
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Figure 12:Environment Generalization Prior Work Comparison.
+ Wecomp are DVD’sper for manceto Concept 2 Robot,themostrelevant
+ work, a demo-conditioned behavioral cloning policy, and a random
+ policy. On average across environments, DVD performs around or
+ over 30% better than the next-best per for ming method on two of the
+ three tasks. Each bar shows the average success rate over all 3 target
+ tasks, computed over 3 seeds of 100 trials, with error bars denoting
+ standard error. 
+ the model sremaingenerallyrobust,with DVDtrainedonrobot
+ Figure 11:Effectof Human Dataon Environment Generalization. 
+ We comp are DVD’s per for mance on seen and unseen environments data and 12 tasks worth of human videos still obtaining 89%
+ when trained on only robot videos compared to varying number of validation accuracy. We find in our experiments in Section IV
+ humanvideos.Acrossallthreetasks,wesee that training with human that this trade-offindiscriminatoraccuracy from addinghuman
+ videosprovidessignifi can tlyimprovedper for manceoveronlytraining 
+ videos to the training set results in much greater ability to
+ on robot videos, and that DVD is generally robust to the number of 
+ generalize to unseen environments and tasks.
+ differenthumanvideo task sused.Eachbarshows the averagesuccess 
+ rate over all 3 target tasks, computed over 3 seeds of 100 trials, with Finally, in Figure 14, we include examples on the real
+ error bars denoting standard error. Widowx 200 of predicted trajectories and their similarity scores
+ with a human video demonstration given by DVD. We see that
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Figure 13: Accuracy Curves During DVD Training. We plot both training and validation accuracies over the course of training DVD for
+ 150 epochs with varying amounts of human data. The accuracies gradually decrease as more human videos are added, but we find that this
+ trade-off is worthwhile for greater generalization capabilities. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ Closing the toy kitchen door in Test Env 1
+ 
+ High-ranked 
+ Human video 
+ Trajectories: 
+ Score = 0.79 
+ 
+ Low-ranked 
+ Trajectory: 
+ Score = 0.43 
+ 
+ Figure 14: Rankings on the real robot. Examples of predicted trajectories on the Widow X 200 that are ranked high and low for the task of
+ closing an unseen toy kitchen door. DVD gives the predicted trajectory where the door is closed a high similarity score and the predicted
+ trajectory where the door stays open a low similarity score. 
+ 
+ DVD highly ranks trajectories that are completing the same 
+ task as demonstrated in the given human video. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 

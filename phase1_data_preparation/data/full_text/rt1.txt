@@ -1,0 +1,1987 @@
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ RT-1: ROBOTICS TRANS FOR MER 
+ 
+ FOR REAL-WORLD CONTROL AT SCALE 
+ 1 Anthony Brohan∗,Noah Brown∗,Justice Carbajal∗,Yevgen Chebotar∗,Joseph Dabis∗,
+ Chelsea Finn∗,Keerthana Gopalakrishnan∗,Karol Hausman∗,Alex Herzog†,Jasmine Hsu∗,
+ Julian Ibarz∗,Brian Ichter∗,Alex Irpan∗,Tomas Jackson∗,Sally Jesmonth∗,Nikhil JJoshi∗,
+ Ryan Julian∗,Dmitry Kalashnikov∗,Yuheng Kuang∗,Isabel Leal∗,Kuang-Huei Lee‡,Sergey Levine∗,
+ Yao Lu∗,Utsav Malla∗,Deeksha Manjunath∗,Igor Mordatch‡,Ofir Nachum‡,Carolina Parada∗,
+ Jodilyn Peralta∗,Emily Perez∗,Karl Pertsch∗,Jornell Quiambao∗,Kanishka Rao∗,Michael Ryoo∗,
+ Grecia Salazar∗,Pannag Sanketi∗,Kevin Sayed∗,Jaspiar Singh∗,Sumedh Sontakke‡,Austin Stone∗,
+ Clayton Tan∗,Huong Tran∗,Vincent Vanhoucke∗,Steve Vega∗,Quan Vuong∗,Fei Xia∗,Ted Xiao∗,
+ Peng Xu∗,Sichun Xu∗,Tianhe Yu∗,Brianna Zitkovich∗ 
+ ∗Roboticsat Google,†Everyday Robots,‡Google Research,Brain Team 
+ ABSTRACT 
+ Bytransferringknowledge from large,diverse,task-agnostic data sets,modernma-
+ chinelearningmodels can solvespecificdownstream task sei the rzero-shotor with
+ small task-specific data setstoahighlevelofper for mance. While this capability
+ has been demonstrated in other fields such as computer vision, natural language
+ processing or speech recognition, it remains to be shown in robotics, where the
+ generalization capabilities of the models are particularly critical due to the dif-
+ ficulty of collecting real-world robotic data. We argue that one of the keys to
+ the success of such general robotic models lies with open-ended task-agnostic
+ training,combined with high-capacityarchitectures that can absorballofthedi-
+ verse, robotic data. In this paper, we present a model class, dubbed Robotics
+ Trans for mer, that exhibits promising scalable model properties. We verify our
+ conclusionsinastudyofdifferent model classes and the irabilitytogeneralizeas
+ a function of the data size, model size, and data diversity based on a large-scale
+ datacollectiononrealrobotsper for mingreal-worldtasks. Theproject’swebsite
+ andvideos can befoundatrobotics-trans for mer 1.github.io 
+ 1 INTRODUCTION 
+ End-to-end robotic learning, with either imitation or rein for cement, typically involves collecting
+ task-specific data in either single-task (Kalashnikov et al., 2018; Zhang et al., 2018) or multi-
+ task (Kalashnikov et al., 2021 b; Jang et al., 2021) settings that are narrowly tailored to the tasks
+ that the robotshouldperform. Thisworkflowmirrors the classicapproachtosupervisedlearningin
+ otherdomains,suchascomputervision and NLP,where task-specific data setswouldbecollected,
+ labeled, and deployed to solve individual tasks, with little interplay between the tasks themselves.
+ Recentyears have seenatrans for mationinvision,NLP,ando the rdomains,away from siloed,small-
+ scale datasets and models and towards large, general models pre-trained on broad, large datasets.
+ Thekeysto the successofsuch model slie with open-ended task-agnostictraining,combined with
+ high-capacityarchitectures that can absorballof the knowledgepresentinlarge-scale data sets. Ifa
+ model can “sponge up” experience to learn general patterns in language or perception, then it can
+ bring them to bear on individual tasks more efficiently. While removing the need for large task-
+ specific datasets is appealing generally in supervised learning, it is even more critical in robotics,
+ where data setsmightrequireengineering-heavyautonomousoperationorexpensivehum and emon-
+ strations. Wethere for eask: canwetrainasingle,capable,largemulti-taskbackbonemodelon data
+ consistingofawidevarietyofrobotictasks? Anddoessucha model enjoy the benefitsobservedin
+ otherdomains,exhibitingzero-shotgeneralizationto new tasks,environments,andobjects?
+ Buildingsuch model sinroboticsisnoteasy. Althoughrecentyears have seenseverallargemulti-
+ taskrobotpoliciesproposedin the literature(Reedetal.,2022;Jangetal.,2021),such model soften
+ havelimitedbreadthofreal-worldtasks,aswith Gato(Reedetal.,2022),orfocusontrainingtasks
+ ratherthangeneralizationto new tasks,aswithrecentinstructionfollowingmethods(Shridh are tal.,
+ 2021;2022),orattaincomparativelylowerper for manceon new tasks(Jangetal.,2021).
+ 1 Authorslistedinalphabeticalorder.Contributionsin Appendix A. 
+ Correspondingemails:{keerthanapg,kanishkarao,karolhausman}@google.com.
+ 1 
+ 3202 
+ gu A 
+ 11 
+ ]OR.sc[ 
+ 2 v 71860.2122:vi Xra 
+
+ Instruction 
+ Pick apple from top drawer and place on counter Mode Arm Base 
+ Images 
+ Fi LM 
+ Efficient Net Token Learner Trans for mer 
+ Preprint 
+ … 
+ RT-1 
+ 3 Hz 
+ β 
+ )γ+1( 
+ Action 
+ · 
+ + 
+ Instruction 
+ Pick apple from top drawer and place on counter Mode Arm Base 
+ Images 
+ Fi LM 
+ Efficient Net Token Learner Trans for mer 
+ … 
+ RT-1 
+ 3 Hz 
+ β 
+ )γ+1( 
+ Action 
+ · 
+ + 
+ (a)RT-1 takesimagesandnaturallanguageinstructionsandoutputsdiscretized base and armactions. Despite
+ itssize(35 Mparameters),itdoesthisat 3 Hz,duetoitsefficientyethigh-capacityarchitecture:a Fi LM(Perez
+ et al., 2018) conditioned Efficient Net (Tan & Le, 2019), a Token Learner (Ryoo et al., 2021), and a Trans-
+ former(Vaswanietal.,2017). 
+ (b)RT-1’slarge-scale,real-worldtraining(130 kdemonstrations)andevaluation(3000 real-worldtrials)show
+ impressivegeneralization,robustness,andabilitytolearn from diverse data.
+ Figure 1: Ahigh-leveloverviewof RT-1’sarchitecture,dataset,andevaluation.
+ Thetwomainchallengesliein assemblingtheright data set and designing the right model. While
+ data collection and curation is often the “unsung hero” of many large-scale machine learning
+ projects(Rad for detal.,2021;Rameshetal.,2021),thisisespeciallytrueinrobotics,where data sets
+ areoftenrobot-specifi can dga the redmanually(Dasarietal.,2019;Ebertetal.,2021). Aswe will
+ showin our evaluations,goodgeneralizationrequires data sets that combineboth scale and breadth,
+ coveringavarietyoftasks and settings. Atthesametime, the task sin the datasetshould besuffi-
+ ciently well-connected to enable generalization, such that the model can discover the patterns be-
+ tweenstructuralsimilartasks and per for mnewtasks that combinethosepatternsinnovelways. We
+ utilizea data set that wegatheredover the courseof 17 months with afleetof 13 robots,containing
+ ∼130 kepisodes and over 700 tasks,andweablatevariousaspectsof this datasetin our evaluation.
+ The second challenge lies in the design of the model itself. Effective robotic multi-task learning
+ requiresahighcapacity model,and Trans for mer(Vaswanietal.,2017)modelsexcelin this regard,
+ particularlywhenitisnecessarytolearnmany task sconditioned,asin our case,onlanguageinstruc-
+ tions. However,roboticcontrollersmustalsobeefficientenoughtoruninrealtime,whichpresents
+ amajorchallenge for Trans for mersinparticular. Weproposeanovelarchitecture that wecall RT-1
+ (Robotics Trans for mer 1),whichbyencodinghigh-dimensionalinputs and outputs,includingcam-
+ eraimages,instructionsandmotorcomm and sintocompacttokenrepresentationstobeusedby the
+ Trans for mer,allows for efficientinferenceatruntimetomakereal-timecontrolfeasible.
+ Ourcontributionis the RT-1 modelandexperiments with this model onalarge and broad data setof
+ real-worldrobotictasks. Ourexperimentsnotonlydemonstrate that RT-1 canexhibitsignifi can tly
+ improvedgeneralization and robustnesscomp are dtopriortechniques,butalsoevaluate and ablate
+ manydesignchoicesinboththe model and inthecompositionof the trainingset. Ourresultsshow
+ that RT-1 canper for mover 700 traininginstructionsat 97%successrate,and can generalizeto new
+ tasks, distractors, and backgrounds 25%, 36% and 18% better than the next best baseline, respec-
+ tively. Thislevelofper for manceallowsustoexecuteverylong-horizon task sin the Say Can(Ahn
+ etal.,2022)framework,withasmanyas 50 stages. Wefur the rshow that RT-1 canincorporate data
+ fromsimulationoreveno the rrobottypes,retainingper for manceon the originaltasks and improving
+ generalizationto new scenarios. Ashortoverviewof RT-1 capabilitiesispresentedin Fig.1 b 2.
+ 2 Helperrobotsshownin Fig.1-5 arefrom Everyday Robots 
+ 2 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ 2 RELATED WORK 
+ 
+ 
+ A number of recent works have proposed Trans for mer-based policies for robotic control. As in
+ RT-1, several works use language commands processed with Trans for mers as a robust framework
+ for specifying and generalizing to new tasks (Zhang & Chai, 2021; Pashevich et al., 2021; Silva
+ et al., 2021; Jang et al., 2021; Ahn et al., 2022; Nair et al., 2022). Our work takes the application
+ of Trans for mersastepfurther and treats the mappingoflanguage and visionobservationstorobot
+ actions as a sequence modelling problem, using a Trans for mer to learn this mapping. This idea
+ is directly inspired by successes in game-playing (Chen et al., 2021; Lee et al., 2022 a) as well
+ as simulated robot navigation (Fang et al., 2019), locomotion (Janner et al., 2021; Gupta et al.,
+ 2022),andmanipulation(Jiangetal.,2022)environments. Wenote that severalof the seworksgo
+ beyond only text conditioning and use Trans for mers to also generalize across robot morphologies
+ (e.g.,Guptaetal.(2022))ando the rmodalities for taskspecifications(e.g.,Jangetal.(2021);Jiang
+ etal.(2022)). Theseextensions are promisingfuturedirections for RT-1. 
+ Beyond Trans for mer-basedpolicies,thefocusof our workisongeneralizable and robustreal-world
+ roboticmanipulationat scale.Existingworksonreal-world Trans for mer-basedroboticmanipulation
+ focus on efficiently learning tasks from a set of demonstrations per task (Shridhar et al., 2022).
+ Behavior Trans for mer (Shafiullah et al., 2022) and Gato (Reed et al., 2022) advocate for training
+ a single model on large-scale robotic and non-robotic datasets. However, these works are limited
+ intheirreal-worldrobotictasks;e.g.,Gatolearnseffectivelyasingle task(coloredblockstacking)
+ withoutevaluatinggeneralizationto new task soravarietyofreal-worldsettings. Onthetechnical
+ side,ourworkexamineshow Trans for mer-basedpolicies can bebuiltsoastocombinehighcapacity
+ andgeneralization with the computationalefficiencynecessary for real-timecontrol.
+ While the useofhigh-capacity Trans for mer model stolearnroboticcontrolpoliciesisafairlyrecent
+ innovation, robotics has a long history of multi-task and language-conditioned learning, and RT-1
+ buildson the sefoundations. Asignifi can tbodyofworkdeals with learningpolicies and predictive
+ models for robotic grasping (Saxena et al., 2006; Lenz et al., 2015; Pinto & Gupta, 2016; Gupta
+ et al., 2018; Viereck et al., 2017), with the aim of generalizing to new objects. Prior works have
+ sought to address robotic language underst and ing through pipelined approaches that combine lan-
+ guageparsing,vision,androboticcontrol(Mac Mahonetal.,2006;Koll are tal.,2010;Tellexetal.,
+ 2011)and with end-to-endapproaches(Meietal.,2016;Stepputtisetal.,2020;Lynch&Sermanet,
+ 2020;Ahnetal.,2022). Multi-taskroboticlearninghasalso been approached from the perspective
+ of learning to reach goals (Chung et al., 2015; Raffin et al., 2019; Jurgenson et al., 2020; Huang
+ etal.,2020), aswellaslearningpolicies that can per for mtasksinadiscretesetorsomeo the rpa-
+ rameterizedform(Deisenro the tal.,2014;Devinetal.,2017;Foxetal.,2019;Kalashnikovetal.,
+ 2021 a). A number of prior works in robotics have also focused on collecting datasets containing
+ demonstrationsortrials that illustrateavarietyofdifferenttasks(Sharmaetal.,2018;Dasarietal.,
+ 2019; Yu et al., 2020; Singh et al., 2020; James et al., 2020). Our work adds further evidence in
+ supportof the powerofmulti-task,language-conditionedroboticlearning,presentingexperimental
+ results at a larger scale and with a greater variety of behaviors, objects, and scenes and proposing
+ newarchitectures and designchoices that enableroboticlearningatasignifi can tlylarger scale.
+ 3 PRELIMINARIES 
+ Robotlearning. Weaimtolearnrobotpoliciestosolvelanguage-conditionedtasks from vision.
+ Formally,weconsiderasequentialdecision-makingenvironment. Attimestept = 0,thepolicyπ
+ ispresented with alanguageinstructioni and aninitialimageobservationx . Thepolicyproduces
+ 0 
+ an action distribution π(· | i,x ) from which an action a is sampled and applied to the robot.
+ 0 0 
+ Thisprocesscontinues,with the policyiterativelyproducingactionsa bysampling from alearned
+ t 
+ distributionπ(·|i,{x }t )andapplyingthoseactionsto the robot. Theinteractionendswhena
+ j j=0 
+ terminationconditionisachieved. The full interactioni,{(x ,a )}T from from the startingstep
+ j j j=0 
+ t = 0 to terminating step T is referred to as an episode. At the end of an episode, the agent will
+ begivenabinaryrewardr ∈ {0,1}indicatingwhethertherobotper for med the instructioni. The
+ goalistolearnapolicyπ thatmaximizes the averagereward,inexpectationoveradistributionof
+ instructions,startingstatesx ,andtransitiondynamics. 
+ 0 
+ 3 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ Trans for mers. RT-1 usesa Trans for mer(Vaswanietal.,2017)toparameterizethepolicyπ. Gener-
+ allyspeaking,a Trans for merisasequence model mappinganinputsequence{ξ }H toanoutput
+ h h=0 
+ sequence{y }K usingcombinationsofself-attentionlayers and fully-connectedneuralnetworks.
+ k k=0 
+ While Transformers were originallydesigned for textsequences,whereeachinputξ andoutputy
+ j k 
+ represents a text token, they have been extended to images (Parmar et al., 2018) as well as other
+ modalities (Lee et al., 2022 a; Reed et al., 2022). As detailed in the next section, we parameterize
+ π by first mapping inputs i,{x }t to a sequence {ξ }H and action outputs a to a sequence
+ j j=0 h h=0 t 
+ {y }K beforeusinga Trans for mertolearn the mapping{ξ }H →{y }K . 
+ k k=0 h h=0 k k=0 
+ Imitation learning. Imitation learning methods train the policy π on a dataset D of demonstra-
+ tions (Pomerleau, 1988; Zhang et al., 2018; Jang et al., 2021). Specifically, we assume access to
+ adataset D = {(i(n),{(x(n),a(n))}T(n))}N ofepisodes,allofwhich are successful(i.e.,havea
+ t t t=0 n=0 
+ finalrewardof 1). Welearnπ usingbehavioralcloning(Pomerleau,1988), whichoptimizesπ by
+ minimizing the negativelog-likelihoodofactionsa given the images and languageinstructions.
+ t 
+ 4 SYSTEM OVERVIEW 
+ The goal of this work is to build and demonstrate a general robot learning system that can ab-
+ sorblargeamountsof data and generalizeeffectively. we usemobilemanipulators from Everyday
+ Robots 3, which have a 7 degree-of-freedom arm, a two-fingered gripper, and a mobile base (see
+ Fig.2(d)). Tocollect data and evaluate our method,we usethreekitchen-basedenvironments: two
+ real office kitchens and a training environment modelled off these real kitchens. The training en-
+ vironment, shown in Fig. 2 (a), consists of partial counters and is constructed for large scale data
+ collection. Thetworealenvironments,shownin Fig.2(b,c),havesimilarcountertopsto the train-
+ ingenvironment,butvaryinlighting,background,and full kitchengeometry(e.g.,theremaybea
+ cabinetinsteadofadrawerorasinkmaybevisible). Weevaluate the per for manceof our policies
+ across the sedifferentenvironments,measuring the policy’sper for mance and abilitytogeneralize.
+ Ourtraining data consistsofhuman-provideddemonstrations,andweannotateeachepisodewitha
+ textualdescriptionoftheinstruction that the robotjustper for med. Theinstructionsusuallycontain
+ averb and oneormorenounsdescribing the targetobjects. Togroup the seinstructionstogether,we
+ split the mintoanumberofskills(e.g.,verbssuchas“pick”,“open”or“placeupright”)andobjects
+ (e.g., nounssuchas“coke can”, “apple”, or“drawer”). Wedescribe the detailsof our data collec-
+ tionstrategyat scalein Sec.5.2. Ourlargest data setcontainsover 130 kindividualdemonstrations
+ constitutingover 700 distinct task instructionsusingalargevarietyofobjects(see Fig.2(f)). We
+ describethedetailsof the datacollectedin Sec.5.2. 
+ One of the main contributions of our system is the network architecture, Robotics Trans for mer 1
+ (RT-1),anefficient model that can absorblargeamountsof data,effectivelygeneralize,andoutput
+ actions at real-time rates for practical robotic control. RT-1 takes a short sequence of images and
+ a natural language instruction as input and outputs an action for the robot at each time step. To
+ this end, the architecture (shown in Figure 1 a) leverages several elements: first the images and
+ text are processedviaan Image Netpretrainedconvolutionalnetwork(Tan&Le,2019)conditioned
+ on a pretrained embedding of the instruction via Fi LM (Perez et al., 2018), followed by a Token
+ Learner(Ryooetal.,2021)tocomputeacompactsetoftokens,andfinallya Trans for mer(Vaswani
+ etal.,2017)toattendover the setokens and producediscretizedactiontokens. Theactionsconsist
+ ofsevendimensions for the armmovement(x, y, z, roll, pitch, yaw, openingof the gripper), three
+ dimensions for basemovement(x,y,yaw)andadiscretedimensiontoswitchbetweenthreemodes:
+ controlling the arm, the base, or terminating the episode. RT-1 performs closed-loop control and
+ comm and sactionsat 3 Hzuntilitei the ryieldsa“terminate”actionorhitsapre-settimesteplimit.
+ 5 RT-1: ROBOTICS TRANS FOR MER 
+ Inthissection,wedescribehowwetokenize the images,text,andactions,and the ndiscuss the RT-1
+ modelarchitecture.Wethendescribehowweattain the runtimespeedrequired for real-timecontrol.
+ Lastly,wedescribethe data collectionprocedure and the skills and instructionsin our data set.
+ 3 everydayrobots.com 
+ 4 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Figure 2:(a)Robotclassroomwherewecollectdataat scale;(b)arealofficekitchen,oneof the two
+ realisticenvironmentsused for evaluation(named Kitchen 1 intherestof the paper);(c)adifferent
+ officekitchenused for evaluation(named Kitchen 2 intherestof the paper);(d)mobilemanipulator
+ usedthroughout the paper; (e)asetofobjectsused for mostof the skillstoexp and skilldiversity;
+ (f)amorediversesetofobjectsusedmostlytoexp and objectdiversityof the pickingskill.
+ 
+ 5.1 MODEL 
+ 
+ Our model isbuiltona Trans for merarchitecture(Vaswanietal.,2017)andtakesahistoryofimages
+ and task descriptionasinput and directlyoutputstokenizedactions,asshownin Fig.1 aandindetail
+ in Fig. 3. In the following we describe the components of the model, following the top-to-bottom
+ orderin Fig.3. Moredetailon model selectionat scale are providedin Appendix C.3.
+ Instruction and imagetokenization. The RT-1 architecturereliesona data-efficient and compact
+ tokenizationofimages and languageinstruction. RT-1 tokenizesahistoryof 6 imagesbypassing
+ images through an Image Net pretrained Efficient Net-B 3 (Tan & Le, 2019) model, which takes 6
+ imagesofresolution 300×300 asinput and outputsaspatialfeaturemapofshape 9×9×512 from
+ the final convolutional layer. Unlike Reed et al. (2022), we do not patchify the images into visual
+ tokenspriortofeeding the mtoour Trans for merbackbone.Weinsteadflatten the outputfeaturemap
+ from the Efficient Netinto 81 visualtokenswhich are passedontothelaterlayersof the network.
+ To include the language instruction, we condition the image tokenizer on the natural language in-
+ structionin the formofapretrainedlanguageembedding,allowingextractionof task-relevantimage
+ featuresearlyon and improvingper for manceof RT-1. Theinstructionisfirstembeddedvia Univer-
+ sal Sentence Encoder(Ceretal.,2018). Thisembeddingis the nusedasinputtoidentity-initialized
+ Fi LM layers (Perez et al., 2018) added to the pretrained Efficient Net to condition the image en-
+ coder. Normally,insertinga Fi LMlayerinto the interiorofapretrainednetworkwoulddisrupt the
+ intermediate activations and negate the benefit of using pretrained weights. To overcome this, we
+ initialize the weights of the dense layers (f and h ) which produce the Fi LM affine transforma-
+ c C 
+ tiontozero,allowing the Fi LMlayertoinitiallyactasanidentity and preserve the functionof the
+ pretrainedweights. Wefind that identity-initialized Fi LMalsoproducesbetterresultswhentraining
+ withan Efficient Netinitialized from scratch,without Image Netpretraining,butitdoesnotsurpass
+ theinitializationdescribedabove. Thearchitectureof the imagetokenizerispresentedin Fig.3.
+ RT-1’simage and instructiontokenizationvia Fi LMEfficient Net-B 3 isatotalof 16 Mparameters,
+ with 26 layersof MBConvblocks and Fi LMlayers,whichoutput 81 vision-languagetokens.
+ Token Learner. Tofurthercompress the numberoftokens that RT-1 needstoattendover and thus
+ speed up inference, RT-1 uses Token Learner (Ryoo et al., 2021). Token Learner is an element-
+ wise attention module that learns to map a large number of tokens into a much smaller number
+ of tokens. This allows us to soft-select image tokens based on their information, passing only the
+ importanttokencombinationsto the subsequent Trans for merlayers. Theinclusionof Token Learner
+ subsamples the 81 visualtokens that comeoutof the pre-trained Fi LM-Efficient Netlayerstojust 8
+ finaltokens that are the npassedonto our Trans for merlayers. 
+ 5 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 1 γ) β 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ · + … 
+ 1 γ) β 
+ 1 γ) β 
+ 1 γ) β 
+ Figure 3: Thearchitecturediagramof RT-1. Theinstructionistrans for medintoa USEembedding
+ and used to condition a pre-trained Efficient Net via Fi LM layers. The resulting vision-language
+ tokens are reduced by the Token Learner and fed into a decoder-only Trans for mer, which outputs
+ tokenizedactions. 
+ Trans for mer. These 8 tokensper-image are thenconcatenated with theotherimagesin the history,
+ forming 48 totaltokens(withaddedpositionencoding)tobefedinto the Trans for merbackboneof
+ RT-1. The Trans for merisadecoder-onlysequence model with 8 self-attentionlayers and 19 Mtotal
+ parameters that outputsactiontokens. 
+ Action tokenization. To tokenize actions, each action dimension in RT-1 is discretized into 𝜸𝜷
+ 256 bins. As mentioned previously, the action dimensions we consider include seven variables
+ for the arm movement (x, y, z, roll, pitch, yaw, opening of the gripper), three variables for base
+ movement(x,y,yaw)andadiscretevariabletoswitchbetweenthreemodes: controllingarm,base
+ orterminating the episode. Foreachvariable,wemap the targettooneof the 256 bins,where the
+ bins are uni for mlydistributedwithin the boundsofeachvariable. 
+ Loss. We use a standard categorical cross-entropy entropy objective and causal masking that was
+ utilizedinprior Trans for mer-basedcontrollers(Reedetal.,2022;Leeetal.,2022 a).
+ Inference speed. In contrast to many applications of large models, such as natural language or
+ imagegeneration,oneof the uniquerequirements for amodel that needstorunonrealrobotsinreal
+ time is fast and consistent inference speed. Given the human speeds of executing the instructions
+ 6 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ consideredin this work(whichwemeasuredtobein the 2−4 secsrange),wewant the modeltobe
+ notsignifi can tlyslowerthan that. Basedon our experiments this requirementcorrespondstoatleast
+ 3 Hzcontrolfrequency and theresultinginferencetimebudget for the model,giveno the rlatencies
+ inthesystem,tobelessthan 100 ms. 
+ This requirement limits the size of the model that we can use. We further explore the impact of
+ modelsizeoninferencespeedin the experiments. Weemploytwotechniquestospeedupinference:
+ (i) reduce the number of tokens generated by a pre-trained Efficient Net model by using Token-
+ Learner(Ryooetal.,2021), (ii)computethesetokensonlyonce and reusethem for the following
+ windows that overlap for the futureinferences. Bothoftheseallowustospeedup the modelinfer-
+ enceby 2.4 and 1.7 times,respectively. Additionaldetailson model inferencearein Appendix C.1.
+ 
+ 5.2 DATA 
+ 
+ Skill Count Description Example Instruction 
+ Pick Object 130 Lifttheobjectoff the surface pickicedtea can 
+ Move Object Near Object 337 Movethefirstobjectnear the second movepepsi can nearrxbarblueberry
+ Place Object Upright 8 Placeanelongatedobjectupright placewaterbottleupright
+ Knock Object Over 8 Knockanelongatedobjectover knockredbull can over 
+ Open Drawer 3 Openanyof the cabinetdrawers open the topdrawer 
+ Close Drawer 3 Closeanyof the cabinetdrawers close the middledrawer 
+ Place Objectinto Receptacle 84 Placeanobjectinto are ceptacle placebrownchipbagintowhitebowl
+ Pick Object from Receptacle 162 Pickanobjectup from alocation and then pickgreenjalapenochipbag from paper
+ and Placeon the Counter placeiton the counter bowl and placeoncounter 
+ Section 6.3 and 6.4 tasks 9 Skillstrained for realistic,longinstructions open the largeglassjarofpistachios
+ pullnapkinoutofdispenser 
+ grabscooper 
+ Total 744 
+ Table 1: The list of skills collected for RT-1 together with their descriptions and example instruc-
+ tions. 
+ Our goal is to build a system that exhibits high per for mance, generalization to new tasks, and ro-
+ bustnesstodistractors and backgrounds. Wethere for eaimtocollectalarge,diverse data setofrobot
+ trajectories that includesmultipletasks,objects and environments. Ourprimary data setconsistsof
+ ∼130 krobotdemonstrations,collected with afleetof 13 robotsover the courseof 17 months. We
+ conducted this large-scale data collectioninaseriesofofficekitchensegments,which were fertoas
+ robotclassrooms,shownin Fig.2. Moredetailson data collectionarein Appendix C.2.
+ Skills and instructions. While the definition of a task remains inconsistent in the literature, in
+ this work we count the number of language instructions that the system can perform, where an
+ instructioncorrespondstoaverbsurroundedbyoneormultiplenouns,suchas“placewaterbottle
+ upright”,“move the coke can tothegreenchipbag”or“open the drawer”. RT-1 isabletoperform
+ over 700 languageinstructionsinmultiplerealisticofficekitchenenvironments that weevaluate and
+ describeindetailin the experiments. Inordertogroup the evaluations and drawconclusionson the
+ per for manceof the system,wegrouptheinstructionsby the verbsusedinthem,which were ferto
+ asskills. Amoredetailedlistofinstructionsisshownin Table 1,withexamples and the numberof
+ instructionsperskill. 
+ Thecurrentsetofskillsincludespicking,placing,opening and closingdrawers,gettingitemsin and
+ outdrawers,placingelongateditemsup-right,knocking the mover,pullingnapkins and openingjars.
+ Theskills were chosentodemonstratemultiplebehaviors with manyobjects(seenin Fig.2(e))to
+ testaspectsof RT-1 suchasgeneralizationto new instructions and abilitytoper for mmanytasks.We
+ thengreatlyexpanded the objectdiversity for the“pick”skilltomakesure that the skillsgeneralize
+ to varied objects (see the expanded set of objects in Fig. 2(f)). The skills were further expanded
+ while we conducted the ablations to include instructions added in the last row of Table 1, which
+ were used for the experiments described in Sec. 6.4 and 6.3. These additional skills focused on
+ realistic,long-horizoninstructionsinanofficekitchen. Theentireprocessofaddingtasks and data
+ is described in the Appendix C.4. Since we do not make any assumptions about particular skills
+ when adding new instructions, the system is easily extendable, and we can continuously provide
+ morediverse data toimproveitscapabilities. 
+ 7 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ 6 EXPERIMENTS 
+ 
+ Ourexperimentsseektoanswer the followingquestions: 
+ 
+ 1. Can an RT-1 learn to perform a large number of instructions, as well as to generalize in
+ zeroshotto new tasks,objects and environments? (Section 6.2) 
+ 2. Canwepushtheresulting model evenfur the rbyincorporatingheterogeneous data sources,
+ suchassimulated data ordata from differentrobots? (Section 6.3) 
+ 3. Howdovariousmethodsgeneralizetolong-horizonroboticscenarios? (Section 6.4)
+ 4. How do generalization metrics change with varying amounts of data quantity and data
+ diversity? (Section 6.5) 
+ 5. What are theimportant and practicaldecisionsinthedesignof the model and howdothey
+ affectper for mance and generalization? (Appendix Section D.4) 
+ Throughout this sectionwe will comp are totwo base linestateof the artarchitectures, Gato(Reed
+ etal.,2022)and BC-Z(Jangetal.,2021).Importantlybothof the searetrainedon our data described
+ in detail in Sec. 5.2 (which is an important part of our system) since the original models in these
+ publicationswouldnotexhibitgeneralizationpropertiesrequired for ourevaluationtasks. Gatois,
+ similarly to RT-1, based on a Trans for mer architecture, but varies from RT-1 in multiple aspects.
+ First,itcomputesimagetokens with out the notionoflanguage and eachimagetokenembeddingis
+ computed separately for each image patch, as opposed to early language fusion and global image
+ embedding in our model. Second, it does not use a pre-trained text embedding to encode the lan-
+ guagestring. Italsodoesnotincludeinferencetimeconsiderations that are necessary for realrobots
+ asdiscussedin Sec.5.1 suchas Token Learner and the removalofauto-regressiveactions.Inorderto
+ run Gatoonrealrobotsatahighenoughfrequency,wealsolimitthesizeof the modelcomp are dto
+ theoriginalpublication,whichwas 1.2 Bparameters(resultinginonrobotinferencetimeof 1.9 s),
+ to be of similar size to RT-1 (37 M parameters for Gato vs. 35 M for RT-1). BC-Z is based on a
+ Res Netarchitecture,andwasusedin Say Can(Ahnetal.,2022). BC-Zdiffers from RT-1 inthatitis
+ afeed for ward model that doesnotuseprevioustimesteps,anditusescontinuousactionsra the rthan
+ discrete action tokens. In addition to the original BC-Z model size, we also comp are our method
+ toalargerversionof BC-Zthathasasimilarnumberofparametersto RT-1 andrefertoitas BC-Z
+ XL. We study and analyze how each of these design decisions changes per for mance in Appendix
+ Sections D.4 and D.5. 
+ Weevaluate the successrateinexperimentstomeasureper for manceontraininginstructions, gen-
+ eralization to unseen instructions, robustness to backgrounds and distractors, and per for mance in
+ long-horizon scenarios, as detailed below. Throughout this section, we evaluate our approach and
+ baselines with over 3000 real-world trials, making one of the largest scale evaluation of a robot
+ learningsystemto-date. 
+ 6.1 EXPERIMENTALSETUP 
+ As mentioned in Section 4, we evaluate RT-1 with a set of mobile manipulators from Everyday
+ Robotsinthreeenvironments:tworealofficekitchens and atrainingenvironment model ledoffthese
+ realkitchens. Thetrainingenvironment, shownin Fig.2(a), consistsofpartialcounterswhile the
+ tworealenvironments,shownin Fig.2(b,c),havesimilarcountertopsto the trainingenvironment,
+ butvaryinlighting,background,and full kitchengeometry(e.g.,theremaybeacabinetinsteadof
+ a drawer or a sink may be visible). The policies are evaluated for per for mance on training tasks
+ as well as generalization to new tasks, robustness to unseen environments, and per for mance when
+ chainedtoge the rforlong-horizontasks,asdetailedbelow. 
+ Seen task per for mance.Toevaluateper for manceonseeninstructions,weevaluateper for manceon
+ instructionssampled from the trainingset. Note,however,that this evaluationstillinvolvesvarying
+ theplacementofobjects and otherfactorsof the setup(e.g.,timeofday,robotposition),requiring
+ the skills to generalize to realistic variability in the environment. In all, we test over 200 tasks in
+ thisevaluation: 36 forpickingobjects,35 forknockingobjects,35 forplacingthingsupright,48 for
+ movingobjects,18 for open ing and closingvariousdrawers,and 36 forpickingoutof and placing
+ objectsintodrawers. 
+ Unseen task sgeneralization. Toevaluategeneralizationtounseentasks,wetest 21 novel,unseen
+ instructions. These instructions are distributed across skills and objects. This ensures that at least
+ 8 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ someinstancesofeachobject and skill were presentinthetrainingsetbut the ywill becombinedin
+ novelways. Forexample,if“pickup the apple”isheldout,thenthereareo the rtraininginstructions
+ thatinclude the apple. Thelistofallunseeninstructions can befoundin the Appendix D.1.
+ Robustness. Toevaluaterobustness, weperform 30 real-worldtasks for distractorrobustness and
+ 22 tasks for background robustness. The background robustness was tested by evaluating in new
+ kitchens(which have differentlighting and backgroundvisuals)and with differentcountersurfaces
+ (e.g., a patterned table cloth). Example configurations of the robustness evaluation scenarios are
+ depictedin Fig.4. 
+ Long-horizonscenarios. Wealsoevaluategeneralizationtomorerealisticlong-horizonscenarios,
+ whicheachrequireexecutingasequenceofskills.Thegoalof this evaluationistocombinemultiple
+ generalization axes such as new tasks, objects, environments and test the overall generalization
+ capabilitiesinrealisticsettings.Theseevaluationsconsistof 15 long-horizoninstructionsintworeal
+ kitchens, which require executing sequences of skills consisting of ∼ 10 distinct steps, with each
+ stepofroughlycomparablescopeas the traininginstructions.Thesesteps are obtainedautomatically
+ fromhigherlevelinstructions,suchas“howwouldyouthrowawayalltheitemson the table?” by
+ using the Say Cansystem(Ahnetal.,2022),asdescribedindetailin Section 6.4 and Appendix D.3.
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Figure 4: Evaluation scenarios for distractors (first row), from left to right: easy (0-5 distractors),
+ medium (9 distractors), hard (9 distractors and occluded object); background (second row), from
+ lefttoright: originalenvironment,patternedtablecloth,newkitchen;andrealisticscenariosin the
+ realkitchen(thirdrow),generalizationlevels from lefttoright: L 1,L 2 and L 3.
+ 6.2 CANRT-1 LEARNTOPER FOR MALARGENUMBEROFINSTRUCTIONS,ANDTO 
+ GENERALIZETO NEW TASKS,OBJECTS AND ENVIRONMENTS? 
+ 
+ To answer our first question, we analyze the overall per for mance, generalization, and robustness
+ capabilities of RT-1 compared to previously proposed models. Specifically, we comp are to the
+ model architectures used by Gato (Reed et al., 2022) and BC-Z (Jang et al., 2021), as well as a
+ largerversionof BC-Z,which were fertoas BC-ZXL.Note, however, thatallmodels are trained
+ on the same data as RT-1, and the evaluation only compares the model architectures, not the task
+ sets,datasets,oroverallroboticsystems. Thecapabilitiesof RT-1 aredeterminedtoalargeextent
+ by the dataset and task set, which we believe improves signifi can tly over prior works (e.g. BC-Z
+ uses 100 tasks and the original Gato model trainsastacking task with variousshapes),andthus this
+ comparison should be viewed as rather favorable to the prior models, which also benefit from the
+ largeanddiverse data set and taskset that wecollected. 
+ The results are shown in Table 2. Across each category, we find that RT-1 outperforms the prior
+ models signifi can tly. On seen tasks, RT-1 is able to perform 97% of the more than 200 instruc-
+ 9 
+ 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ 
+ 
+ Model Seen Tasks Unseen Tasks Distractors Backgrounds 
+ Gato(Reedetal.,2022) 65 52 43 35 
+ BC-Z(Jangetal.,2021) 72 19 47 41 
+ BC-ZXL 56 43 23 35 
+ RT-1(ours) 97 76 83 59 
+ 
+ 
+ Table 2: Overall per for mance of RT-1 and baselines across seen tasks, generalization to unseen
+ tasks,androbustnesstodistractors and backgrounds. 
+ 
+ tionssuccessfully,whichis 25%morethan BC-Zand 32%morethan Gato. Onunseentasks,RT-1
+ showsitiscapableofgeneralizingtonovelinstructions,per for ming 76%ofthenever-before-seen
+ instructions,24%morethan the nextbest base line. Whilesuchgeneralizationtonovelinstructions
+ ismadepossibleduetonaturallanguageconditioningof the policy, asthepolicyisabletounder-
+ stand new combinations of previously seen concepts, all of the baselines are also conditioned on
+ naturallanguage and inprincipleenjoy the samebenefits. Wefur the rablatedifferentcomponents
+ of RT-1 inthenextsectiontobetterunderst and whataspectsof our methodcontribute the mostto
+ thisdifference. Ondistractors and backgrounds,wefind that RT-1 isquiterobust,success full yexe-
+ cuting 83%ofthedistractorrobustnesstasks and 59%ofthebackgroundrobustnesstasks(36%and
+ 18%higherthan the nextbestalternative,respectively). Overall,wefind that RT-1 hashighgeneral
+ per for mance,whileexhibitingimpressivedegreesofgeneralization and robustness. Weshowexam-
+ pletrajectoriesof the RT-1 agentincludinginstructions that coverdifferentskills,environments and
+ objectsin Fig.5. Wealsopresentadditionaltrajectoryexamples for differentgeneralizationtestsin
+ the Appendix,whichincludebackgrounds(Fig.10),anddistractors(Fig.12). 
+ Generalization to realistic instructions. Next, we test whether our method generalizes enough
+ across all the different axes that we evaluated previously to be deployed in a real kitchen, which
+ poses multiple distribution shifts all at once such as new tasks combinations, object distractors as
+ wellasanovelenvironment. 
+ To evaluate our algorithm in realistic scenarios in a real kitchen, we construct task sequences to
+ accomplish a number of realistic goals. The robot restocks several snacks in drawers, tidies up
+ knocked over condiment bottles and closes drawers left open by humans, prepares a snack with
+ an orange and a napkin and fetches lost sunglasses and an octopus toy from several places in the
+ kitchen. The detailed instructions used in these scenarios are listed in the Appendix D.1. The
+ officekitcheninvolvesadramaticshift from the trainingenvironment and wecategorize task sacross
+ thesescenarios with varyinglevelsofgeneralization: L 1 forgeneralizationto the newcounter-top
+ layout and lighting conditions, L 2 for additionally generalization to unseen distractor objects, L 3
+ foradditionalgeneralizationtodrastically new task settings, new task objectsorobjectsinunseen
+ locations such as near a sink. The three levels that correspond to the three tasks of restocking,
+ preparingasnack and fetchingalostobjectintherealkitchen are depictedin the lastrowof Fig.4.
+ Exampletrajectories for differentlevels are presentedin the Appendixin Fig.11.
+ Wereport the per-tasksuccessrateintheserealisticscenariosalong with the varyinggeneralization
+ levelsin Table 3 andfind RT-1 tobe the mostrobustonalllevels. Gatogeneralizesfairlywellat the
+ first level but it performs signifi can tly drops for the more difficult generalization scenarios. BC-Z
+ andits XLequivalentper for mfairlywellat L 2 level and betterthan Gatoat L 3 but the yarestillnot
+ atthegeneralizationlevelof RT-1. 
+ 6.3 CANWEPUSHTHERESULTING MODEL FUR THE RBYINCORPORATINGHETEROGENEOUS 
+ DATAS OUR CESSUCHASSIMULATIONOR DATA FROM DIFFERENTROBOTS? 
+ Next,weexplore the limitsof RT-1 forutilizinghighlyheterogeneous data.Wedemonstratehow RT-
+ 1 canincorporateandlearn from vastlydifferent data sources and improve from such data with out
+ sacrificingitsoriginal-tasksper for manceacross the varied task sinherentin this data.Tothisend,we
+ conducttwoexperiments: (1)RT-1 trainedandtestedonbothreal data and simulation data and(2)
+ 10 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ 
+ “pick water bottle 
+ from the bottom 
+ drawer and put it 
+ on the counter” 
+ 
+ “move sponge to 
+ green jalapeno 
+ chips” 
+ 
+ “place red bull 
+ can in middle 
+ drawer” 
+ 
+ “pull napkin out 
+ of dispenser” 
+ 
+ 
+ “place coke can 
+ upright” 
+ 
+ 
+ “open top 
+ drawer” 
+ 
+ 
+ “pick apple from 
+ bowl” 
+ 
+ Figure 5: Exampleevaluationtrajectories for RT-1 acrossvariousinstructions.
+ 
+ 
+ 
+ 
+ Generalization Scenario Levels 
+ Models All L 1 L 2 L 3 
+ Gato Reedetal.(2022) 30 63 25 0 
+ BC-ZJangetal.(2021) 45 38 50 50 
+ BC-ZXL 55 63 75 38 
+ RT-1(ours) 70 88 75 50 
+ 
+ Table 3: Realistic generalization scenarios: we comp are model success rate in a realistic Google kitchen
+ scenariosacrossthreelevelsofgeneralization:L 1 forgeneralizationto the newcounter-toplayout and lighting
+ conditions,L 2 foradditionallygeneralizationtounseendistractorobjects,L 3 foradditionallygeneralization
+ todrastically new task settings,new task objectsorinunseenlocationslikenearasink.
+ 
+ 
+ RT-1 trainedacrosslarge data setsofdifferenttasks, originallycollectedbydifferentrobots. More
+ informationoneachisprovidedin Appendix D.2. 
+ Absorbingsimulation data. Table 4 shows the abilityof RT-1, and base lines,toabsorbbothreal
+ andsimulation data. Totest this,wetakeallof the realdemonstration data butwealsoprovidead-
+ 
+ 11 
+ 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ 
+ 
+ 60% 
+ 50% 
+ Real Objects Sim Objects(notseeninreal) 
+ 40% 
+ Seen Skill Seen Skill Unseen Skill 
+ Models Training Data w/Objects w/Objects w/Objects 30% 
+ RT-1 Real Only 92 23 7 20% 
+ RT-1 Real+Sim 90(-2) 87(+64) 33(+26) 
+ 10% 
+ 0% 
+ Sim-seen Objects Sim-seen Objects Real Tasks
+ w/ Skills w/o Skills 
+ ot 
+ derapmo C 
+ eta R 
+ sseccu S 
+ ylno 
+ lae R 
+ Real +Sim Data 
+ +64% 
+ +26% 
+ -2% 
+ Table 4: Experimental results for incorporating simulation data in RT-1. Adding simulation data
+ doesnotimpact the per for manceonrealobjects,whilesignifi can tlyimprovingrealper for manceon
+ objects that wereonlyintroducedinsimulation(+64%). Italsoimprovesreal-worldgeneralization
+ onsimulatedobjectsused with skillsseenonlyin the realworld(+26%),e.g. “move Xto Y”where
+ Xonlyappe are dinsimulated“pick X”task. 
+ ditionalsimulation data thatincludesobjects that therobothasneverseenin the realworld. Specifi-
+ cally,wespecifydifferentgeneralizationscenarios: forseenskills with realobjects the training data
+ hasrealdataof that instruction(i.e.,per for manceonseentasks),forseenskills with simobjects the
+ training data hassimdataof that instruction(e.g. “pickupasimobject”,whichwaspresentinsim),
+ and for unseenskills with simobjectsthetraining data hassimdataof that objectbut the reareno
+ examplesoftheinstructiondescribingtheskill with thatobjectei the rinsimorinreal(e.g.,“move
+ asimobjecttoapple”,eventhough the robothasonlypracticedinpicking that simobject and not
+ movingitnearo the robjects). Allevaluations are doneintherealworldbuttolimit the numberof
+ instructionsevaluated,wefocusonpick and move-toskills. 
+ We find in Table 4 that for RT-1, we do not lose per for mance adding simulation data compared
+ to the Real Only dataset. We do however, see a significant increase in per for mance (from 23% to
+ 87%)onobjects and tasksseenonlyinsimulation, toapproximatelytheper for manceof the those
+ in real, demonstrating an impressive degree of domain transfer. We also see a significant increase
+ inper for manceonunseeninstructions from 7%to 33%;impressivegiven the objectinquestionhas
+ never been seen in real and the instruction never seen at all. Overall, we find that RT-1 is able to
+ efficientlyabsorb new data,even from averydifferentdomain. 
+ Absorbing data from different robots. To push the data absorption limits of RT-1, we conduct
+ an additional set of experiments where we combine two data sources that originate from different
+ robots: Kuka IIWA as well as the Everyday Robots mobile manipulators used in the experiments
+ sofar. The Kuka data containsall the successfulexamplescollectedin QT-Opt(Kalashnikovetal.,
+ 2018),whichcorrespondsto 209 kepisodes,where the robotwasindiscriminatelygraspingobjects
+ inabin(seeanexampleofa Kukaepisodein Table.5). Totestwhether RT-1 caneffectivelyabsorb
+ thesetwoverydifferent data sets,which were fertoas the standard“Classroomeval”,aswellas the
+ per for mance on the newly constructed tasks that reflect the bin-picking setup present in the Kuka
+ data,which were fertoas the“Bin-pickingeval”(see Fig.6). 
+ Wewouldliketoemphasizethedifficultyof this settingbynoting the majordifferencesbetween the
+ datasets. Notonly are therobots that collected the datadifferentinappearance and actionspace,but
+ alsotheenvironment the yweredeployedinhasdifferentappearance and dynamics. Inaddition the
+ QT-Opt data presentsacompletelydifferentactiondistribution–itwascollectedbyan RLagentas
+ opposedtohum and emonstrationspresentin our data set. 
+ The results are presented in Table 5. We observe that the model that mixes the RT-1 data and the
+ Kuka data hasonlyaminimaldecreasein the originaltasks’per for mance(i.e. Classroomeval),i.e.
+ 2%. Even more importantly, in the Bin-picking eval, we observe that the model trained on multi-
+ robot data per for msat 39%comp are dto the 22%ofthe model that wastrainedonlyon the RT-1 data.
+ Thisisa 17%per for mancedifference(almost 2 x). Additionally,RT-1 trainedon Kukabin-picking
+ data and evaluated on the bin-picking tasks with the Everyday Robots (EDR) robot achieves 0%
+ per for mance, confirming that it is difficult to transfer a behavior from another robot morphology.
+ However, mixing the data from both robots allows RT-1 to infer the correct actions of the EDR
+ 12 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Figure 6: In Table 5,RT-1 istrained with data from tworoboticsplatforms and learnstogeneralize
+ acrossthem. 
+ 
+ 17.5% 
+ 15.0% 
+ 12.5% Models Training Data Classroomeval Bin-pickingeval
+ 10.0% 
+ RT-1 Kukabin-picking data+EDRdata 90(-2) 39(+17) 
+ 7.5% 
+ RT-1 EDRonly data 92 22 
+ 5.0% RT-1 Kukabin-pickingonly data 0 0
+ 2.5% 
+ 0.0% 
+ 2.5% 
+ Bin-picking Eval Classroom Eval
+ yln O 
+ RDE 
+ ot 
+ derapmo C 
+ eta R 
+ sseccu S 
+ EDR +Kuka Data 
+ +17% 
+ -2% 
+ Table 5: Experimental results for mixing data from two different robots. Incorporating Kuka bin-
+ picking data from QT-Opt(Kalashnikovetal.,2018)in RT-1 minimallyimpacts the standardclass-
+ roomevaluationper for mance and resultsinalmosta 2 ximprovementingeneralizationto the Bin-
+ pickingevaluation(thatissimilarto the setupin the Kuka data)onthe Everyday Robotsmanipulator.
+ Thisdemonstratesaneffectivetransferacrosstwodifferentrobotmorphologies.
+ robot even when faced with the states observed by Kuka robots. This is achieved without explicit
+ demonstrationsofbin-pickingon EDRrobot and bytakingadvantageofpastexperiencescollected
+ by Kukarobots. Theseresultsindicate that RT-1’sabsorptionpropertiesalsoinclude the abilityto
+ acquire new skills through observing other robots’ experiences and present an exciting avenue of
+ futureworkwherewecombinemanymoremulti-robot data setstoenhance the robotcapabilities.
+ 6.4 HOWDOVARIOUSMETHODSGENERALIZELONG-HORIZONROBOTICSCENARIOS? 
+ In the next set of experiments we evaluate whether our method generalizes enough to be used in
+ long-horizonrealistickitchensettings. Toanswer this question,weexecute RT-1 andvarious base-
+ lineswithin the Say Can(Ahnetal.,2022)frameworkintwodifferentrealkitchens. Since Say Can
+ combines many low-level instructions to perform high-level instructions, the number of possible
+ high-level instructions increases combinatorially with skills, so the skill-breadth of RT-1 can be
+ fullyseen(formoredetailson the Say Canalgorithmpleasereferto Ahnetal.(2022)). Thesuccess
+ rateoflong-horizon task salsodecreasesexponentially with thelengthof the task,sohighsuccess
+ rates in manipulation skills are particularly important. Fur the rmore, as mobile manipulation tasks
+ requirebothnavigation and manipulation,thepoliciesabilitytoberobustto base positioniscrucial.
+ Moredetailisprovidedin Appendix D.3. 
+ Table 6 shows our results (on instructions in Appendix Table 12). Except for original Say Can, all
+ methodsget 87%asplanningsuccessrate,and RT-1 performs the best,with 67%executionsuccess
+ rate in Kitchen 1. Kitchen 2 constitutes a much more challenging generalization scene, since the
+ Robot Classroom training scenes are modeled after Kitchen 1 (see the pictures of the kitchens in
+ Fig.2). Dueto this generalizationdifficulty,Say Canwith Gatoisnotabletofinishanylonghorizon
+ task, and Say Canwith BC-Zisabletoachieve asuccessrateof 13%. Theoriginal Say Can paper
+ didnotevaluateper for manceina new kitchen. Surprisingly,themanipulationper for mancedoesnot
+ 13 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ seeavisibledrop from Kitchen 1 to Kitchen 2 for our method. Inthesupplementaryvideo,weshow
+ that this enablesustooperateunseendrawersin Kitchen 2,andthatwe canuse Say Can-RT 1 toplan
+ andexecuteultra-longhorizontasks,withasmanyas 50 steps. 
+ Say Can task sin Kitchen 1 Say Can task sin Kitchen 2 
+ Planning Execution Planning Execution 
+ Original Say Can(Ahnetal.,2022)∗ 73 47 - - 
+ Say Canw/Gato(Reedetal.,2022) 87 33 87 0 
+ Say Canw/BC-Z(Jangetal.,2021) 87 53 87 13 
+ Say Canw/RT-1(ours) 87 67 87 67 
+ Table 6: Say Canstylelonghorizon task sin Kitchen 1 and Kitchen 2. (*Original Say Canevalusesa
+ slightlydifferentpromptso the planningsuccessrateislower.) 
+ 
+ 
+ 6.5 HOWDOGENERALIZATIONMETRICSCHANGE WITH VARYINGAMOUNTSOF DATA 
+ QUANTITY AND DATADIVERSITY? 
+ While previous works have shown the scaling abilities of Trans for mer-based models (Lee et al.,
+ 2022 a;Reedetal.,2022;Jiangetal.,2022)with the numberof model parameters,inmanyrobotics
+ works the model size is often not the primary bottleneck, and the maximum size is limited by the
+ latency requirement for running such models on real robots. Instead, in this study we focus on
+ ablating the influenceof data setsize and diversity,astheyplayanimportantrolein the traditionally
+ data-limited robot learning field. Since data collection is particularly expensive for real robots, it
+ is important to quantify what kind of data our models need to achieve a certain per for mance and
+ generalization. Thus,ourlastquestionfocuseson the scalingpropertiesof RT-1 withdifferent data
+ properties. 
+ Generalization 
+ Models %Tasks %Data Seen Tasks All Unseen Tasks Distractors Backgrounds
+ Smaller Data 
+ RT-1(ours) 100 100 97 73 76 83 59 
+ RT-1 100 51 71 50 52 39 59 
+ RT-1 100 37 55 46 57 35 47 
+ RT-1 100 22 59 29 14 31 41 
+ Narrower Data 
+ RT-1(ours) 100 100 97 73 76 83 59 
+ RT-1 75 97 86 54 67 42 53 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Table 7: Various data ablations of RT-1 across seen tasks, generalization to unseen tasks, and ro-
+ bustnesstodistractors and backgrounds. Datadiversityhasahigherimpacton the per for mance and
+ generalizationth and ataquantity. 
+ 
+ In Table 7 we show the per for mance, generalization, and robustness of RT-1 as we decrease the
+ dataset size (% data) and the dataset diversity (% tasks). To separate the axes of dataset size and
+ diversity, we create smaller datasets with the same task diversity by removing data from the tasks
+ with the largest data,capping the numberofexamplespertaskat 200(resultingin 51%ofthe data),
+ 
+ 14 
+ 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ 100(37%ofthe data),and 50(22.5%ofthe data). Tocreateanarrow data set,weremove the tasks
+ with the least data,thuskeeping 97%oftheoverall data butonly 75%ofthetasks. Aswedecrease
+ dataset size, we see a general trend of decreasing per for mance and a steeper trend of decreasing
+ generalization. Aswemake the datasetmorenarrow,weseemuchsteeperper for mancereductions,
+ particularlyintermsofgeneralization. Infact,removing 25%ofthe task swhilekeeping 97%ofthe
+ dataachievesanequivalentgeneralizationper for mancetoreducing the datasetsizebyasmuchas
+ 49%. Ourkeytakeawayisthus that datadiversityismoreessentialth and ataquantity.
+ 
+ 7 CONCLUSIONS, LIMITATIONS AND FUTURE WORK 
+ 
+ We presented Robotics Trans for mer 1, RT-1, a robot learning method that can effectively absorb
+ largeamountsof data andscales with dataquantity and diversity. Wetrained RT-1 onalarge data set
+ of demonstrations containing over 130 k episodes collected over the course of 17 months with 13
+ robots. Inourbroadsetofexperiments,wedemonstrated that ourmethod that can per for mover 700
+ instructionsat 97%successrate and effectivelygeneralizeto new tasks, objects and environments
+ betterthanpreviouslypublished base lines. Wealsodemonstrated that RT-1 cansuccess full yabsorb
+ heterogeneous data from simulationando the rrobotmorphologies with outsacrificingoriginal-tasks
+ per for mance and whileimprovinggeneralizationto new scenarios.Lastly,weshowedhow this level
+ ofper for mance and generalizationallowedustoexecuteverylong-horizon task sin the Say Can(Ahn
+ etal.,2022)framework,withasmanyas 50 steps. 
+ While RT-1 presents a promising step towards large-scale robot learning with an data-absorbent
+ model, it comes with a number of limitations. First, it is an imitation learning method, which
+ inheritsthechallengesof that classofapproachessuchas the fact that itmaynotbeabletosurpass
+ theper for manceof the demonstrators. Second, thegeneralizationto new instructionsislimitedto
+ thecombinationsofpreviouslyseenconcepts and RT-1 isnotyetabletogeneralizetoacompletely
+ newmotion that hasnot been seenbefore. Lastly, ourmethodispresentedonalargebutnotvery
+ dexteroussetofmanipulationtasks. Weplantocontinueextending the setofinstructions that RT-1
+ enables and generalizestotoaddress this challenge. 
+ Asweexplorefuturedirections for thiswork,wehopeto scale the numberofrobotskillsfasterby
+ developingmethods that allownon-expertstotrain the robotviadirected data collection and model
+ prompting. While the current version of RT-1 is fairly robust especially to distractor objects, its
+ robustness to backgrounds and environments could be further improved by greatly increasing the
+ environmentdiversity. Wealsohopetoimprove the reactionspeeds and contextretentionof RT-1
+ throughscalableattention and memory. 
+ Toallow the researchcommunitytobuildontopof this work,wehave open-sourced the code for RT-
+ 14,whichwehope will provideresearchers with avaluableres our ceforfutureresearch for scaling
+ uprobotlearning. 
+ ACKNOWLEDGMENTS 
+ We would like to acknowledge Aleksandra Faust, Andy Christiansen, Chuyuan Fu, Daniel Kap-
+ pler,David Rendleman,Eric Jang,Jessica Gomez,Jessica Lin,Jie Tan,Josh Weaver,Justin Boyd,
+ Krzysztof Choromanski,Matthew Bennice,Mengyuan Yan,Mrinal Kalakrishnan,Nik Stewart,Paul
+ Wohlhart, Peter Pastor, Pierre Sermanet, Wenlong Lu, Zhen Yu Song, Zhuo Xu, and the greater
+ teamsat Roboticsat Google and Everyday Robots for the irfeedback and contributions.
+ REFERENCES 
+ Michael Ahn,Anthony Brohan,Noah Brown,Yevgen Chebotar,Omar Cortes,Byron David,Chelsea
+ Finn,Keerthana Gopalakrishnan,Karol Hausman,Alex Herzog,etal. Doas Ican,notas Isay:
+ Groundinglanguageinroboticaf for dances. ar Xivpreprintar Xiv:2204.01691,2022.
+ Daniel Cer,Yinfei Yang,Sheng-yi Kong,Nan Hua,Nicole Limtiaco,Rhomni St John,Noah Con-
+ stant,Mario Guajardo-Cespedes,Steve Yuan,Chris Tar,etal. Universalsentenceencoder. ar Xiv
+ preprintar Xiv:1803.11175,2018. 
+ 4 http://github.com/google-research/robotics_transformer 
+ 
+ 15 
+ 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ Lili Chen,Kevin Lu,Aravind Rajeswaran,Kimin Lee,Aditya Grover,Misha Laskin,Pieter Abbeel,
+ Aravind Srinivas,and Igor Mordatch.Decisiontrans for mer:Rein for cementlearningviasequence
+ modeling. Advancesinneuralin for mationprocessingsystems,34:15084–15097,2021.
+ 
+ Michael Jae-Yoon Chung,Abram LFriesen,Dieter Fox,Andrew NMeltzoff,and Rajesh PNRao.
+ Abayesi and evelopmentalapproachtoroboticgoal-basedimitationlearning. Plo Sone,10(11):
+ e 0141965,2015. 
+ Sudeep Dasari, Frederik Ebert, Stephen Tian, Suraj Nair, Bernadette Bucher, Karl Schmeckpeper,
+ Siddharth Singh, Sergey Levine, and Chelsea Finn. Robonet: Large-scale multi-robot learning.
+ In Conferenceon Robot Learning,2019. 
+ Marc Peter Deisenroth, Peter Englert, Jan Peters, and Dieter Fox. Multi-task policy search for
+ robotics. In 2014 IEEEinternationalconferenceonrobotics and automation(ICRA),pp.3876–
+ 3881.IEEE,2014. 
+ Coline Devin, Abhishek Gupta, Trevor Darrell, Pieter Abbeel, and Sergey Levine. Learningmod-
+ ularneuralnetworkpolicies for multi-task and multi-robottransfer. In 2017 IEEEinternational
+ conferenceonrobotics and automation(ICRA),pp.2169–2176.IEEE,2017. 
+ Miroslav Dud´ık,John Langford,and Lihong Li.Doublyrobustpolicyevaluation and learning.ar Xiv
+ preprintar Xiv:1103.4601,2011. 
+ Frederik Ebert, Yanlai Yang, Karl Schmeckpeper, Bernadette Bucher, Georgios Georgakis, Kostas
+ Daniilidis, Chelsea Finn, and Sergey Levine. Bridge data: Boosting generalization of robotic
+ skills with cross-domain data sets. ar Xivpreprintar Xiv:2109.13396,2021. 
+ Kuan Fang, Alexander Toshev, Li Fei-Fei, and Silvio Savarese. Scene memory trans for mer for
+ embodiedagentsinlong-horizontasks.In Proceedingsof the IEEE/CVFConferenceon Computer
+ Vision and Pattern Recognition,pp.538–547,2019. 
+ 
+ Roy Fox,Ron Berenstein,Ion Stoica,and Ken Goldberg. Multi-taskhierarchicalimitationlearning
+ forhomeautomation. In 2019 IEEE 15 th International Conferenceon Automation Science and
+ Engineering(CASE),pp.1–8.IEEE,2019. 
+ Abhinav Gupta, Adithyavairavan Murali, Dhiraj Prakashch and Gandhi, and Lerrel Pinto. Robot
+ learninginhomes:Improvinggeneralization and reducing data setbias. Advancesinneuralin for-
+ mationprocessingsystems,31,2018. 
+ Agrim Gupta,Linxi Fan,Surya Ganguli,and Li Fei-Fei.Metamorph:Learninguniversalcontrollers
+ withtrans for mers. ar Xivpreprintar Xiv:2203.11931,2022. 
+ Josiah PHanna,Peter Stone,and Scott Niekum. Bootstrapping with models: Confidenceintervals
+ foroff-policyevaluation. In Thirty-First AAAIConferenceon Artificial Intelligence,2017.
+ Daniel Ho, Kanishka Rao, Zhuo Xu, Eric Jang, Mohi Khansari, and Yunfei Bai. Retina GAN:
+ An object-aware approach to sim-to-real transfer, 2020. URL https://arxiv.org/abs/
+ 2011.03148. 
+ De-An Huang, Yu-Wei Chao, Chris Paxton, Xinke Deng, Li Fei-Fei, Juan Carlos Niebles, Ani-
+ mesh Garg, and Dieter Fox. Motionreasoning for goal-basedimitationlearning. In 2020 IEEE
+ International Conferenceon Robotics and Automation(ICRA),pp.4878–4884.IEEE,2020.
+ 
+ Alexander Irpan, Kanishka Rao, Konstantinos Bousmalis, Chris Harris, Julian Ibarz, and Sergey
+ Levine. Off-policyevaluationviaoff-policyclassification. Advancesin Neural Information Pro-
+ cessing Systems,32,2019. 
+ Stephen James, Zicong Ma, David Rovick Arrojo, and Andrew J Davison. RLBench: The robot
+ learningbenchmark&learningenvironment. IEEERobotics and Automation Letters,5(2):3019–
+ 3026,2020. 
+ Eric Jang,Alex Irpan,Mohi Khansari,Daniel Kappler,Frederik Ebert,Corey Lynch,Sergey Levine,
+ and Chelsea Finn. Bc-z: Zero-shot task generalization with roboticimitationlearning. In Confer-
+ enceon Robot Learning,pp.991–1002.PMLR,2021. 
+ 
+ 16 
+ 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ Michael Janner,Qiyang Li,and Sergey Levine. Rein for cementlearningasonebigsequencemod-
+ elingproblem. In ICML 2021 Workshopon Unsupervised Rein for cement Learning,2021.
+ 
+ Yunfan Jiang,Agrim Gupta,Zichen Zhang,Guanzhi Wang,Yongqiang Dou,Yanjun Chen,Li Fei-
+ Fei, Anima Anandkumar, Yuke Zhu, and Linxi Fan. Vima: General robot manipulation with
+ multimodalprompts. ar Xivpreprintar Xiv:2210.03094,2022. 
+ Tom Jurgenson,Or Avner,Edward Groshev,and Aviv Tamar. Sub-goaltreesaframework for goal-
+ basedrein for cementlearning.In International Conferenceon Machine Learning,pp.5020–5030.
+ PMLR,2020. 
+ Dmitry Kalashnikov, Alex Irpan, Peter Pastor, Julian Ibarz, Alexander Herzog, Eric Jang, Deirdre
+ Quillen, Ethan Holly, Mrinal Kalakrishnan, Vincent Vanhoucke, et al. Scalable deep reinforce-
+ mentlearning for vision-basedroboticmanipulation. In Conferenceon Robot Learning,pp.651–
+ 673.PMLR,2018. 
+ Dmitry Kalashnikov, Jacob Varley, Yevgen Chebotar, Benjamin Swanson, Rico Jonschkowski,
+ Chelsea Finn, Sergey Levine, and Karol Hausman. Mt-opt: Continuous multi-task robotic re-
+ inforcementlearningat scale. ar Xivpreprintar Xiv:2104.08212,2021 a. 
+ Dmitry Kalashnikov, Jake Varley, Yevgen Chebotar, Ben Swanson, Rico Jonschkowski, Chelsea
+ Finn,Sergey Levine,and Karol Hausman. MT-opt: Continuousmulti-taskroboticrein for cement
+ learningat scale. ar Xiv,2021 b. 
+ Thomas Kollar,Stefanie Tellex,Deb Roy,and Nicholas Roy.Towardunderst and ingnaturallanguage
+ directions. In 20105 th ACM/IEEEInternational Conferenceon Human-Robot Interaction(HRI),
+ pp.259–266.IEEE,2010. 
+ Kuang-Huei Lee, Ofir Nachum, Mengjiao Yang, Lisa Lee, Daniel Freeman, Winnie Xu, Sergio
+ Guadarrama,Ian Fischer,Eric Jang,Henryk Michalewski,etal. Multi-gamedecisiontransform-
+ ers. ar Xivpreprintar Xiv:2205.15241,2022 a. 
+ Kuang-Huei Lee, Ted Xiao, Adrian Li, Paul Wohlhart, Ian Fischer, and Yao Lu. PI-QT-Opt: Pre-
+ dictive information improves multi-task robotic rein for cement learning at scale. ar Xiv preprint
+ ar Xiv:2210.08217,2022 b. 
+ Ian Lenz, Honglak Lee, and Ashutosh Saxena. Deep learning for detecting robotic grasps. The
+ International Journalof Robotics Research,34(4-5):705–724,2015. 
+ Corey Lynch and Pierre Sermanet. Languageconditionedimitationlearningoverunstructured data.
+ ar Xivpreprintar Xiv:2005.07648,2020. 
+ 
+ Matt Mac Mahon,Brian Stankiewicz,and Benjamin Kuipers. Walk the talk: Connectinglanguage,
+ knowledge,andactioninrouteinstructions. Def,2(6):4,2006. 
+ Hongyuan Mei,Mohit Bansal,and Matthew RWalter. Listen,attend,andwalk: Neuralmappingof
+ navigationalinstructionstoactionsequences. In Thirtieth AAAIConferenceon Artificial Intelli-
+ gence,2016. 
+ Suraj Nair, Eric Mitchell, Kevin Chen, Silvio Savarese, Chelsea Finn, et al. Learning language-
+ conditioned robot behavior from offline data and crowd-sourced annotation. In Conference on
+ Robot Learning,pp.1303–1315.PMLR,2022. 
+ Niki Parmar,Ashish Vaswani,Jakob Uszkoreit,Lukasz Kaiser,Noam Shazeer,Alexander Ku,and
+ Dustin Tran. Image trans for mer. In International conference on machine learning, pp. 4055–
+ 4064.PMLR,2018. 
+ Alexander Pashevich, Cordelia Schmid, and Chen Sun. Episodic trans for mer for vision-and-
+ language navigation. In Proceedings of the IEEE/CVF International Conference on Computer
+ Vision,pp.15942–15952,2021. 
+ Ethan Perez,Florian Strub,Harmde Vries,Vincent Dumoulin,and Aaron Courville. Film: Visual
+ reasoning with a general conditioning layer. Proceedings of the AAAI Conference on Artificial
+ Intelligence, 32(1), Apr. 2018. doi: 10.1609/aaai.v 32 i 1.11671. URL https://ojs.aaai.
+ org/index.php/AAAI/article/view/11671. 
+ 
+ 17 
+ 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ Lerrel Pinto and Abhinav Gupta. Supersizingself-supervision:Learningtograsp from 50 ktries and
+ 700 robothours. In 2016 IEEEinternationalconferenceonrobotics and automation(ICRA),pp.
+ 3406–3413.IEEE,2016. 
+ 
+ Dean APomerleau. Alvinn: Anautonomousl and vehicleinaneuralnetwork. Advancesinneural
+ informationprocessingsystems,1,1988. 
+ Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal,
+ Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learning transferable visual
+ models from natural language supervision. In International Conference on Machine Learning,
+ pp.8748–8763.PMLR,2021. 
+ Antonin Raffin,Ashley Hill,Rene´Traore´,Timo the´e Lesort,Natalia D´ıaz-Rodr´ıguez,and David Fil-
+ liat. Decouplingfeatureextraction from policylearning:assessingbenefitsofstaterepresentation
+ learningingoal base drobotics. ar Xivpreprintar Xiv:1901.08651,2019. 
+ Aditya Ramesh,Mikhail Pavlov,Gabriel Goh,Scott Gray,Chelsea Voss,Alec Radford,Mark Chen,
+ and Ilya Sutskever. Zero-shottext-to-imagegeneration. In International Conferenceon Machine
+ Learning,pp.8821–8831.PMLR,2021. 
+ 
+ Scott Reed, Konrad Zolna, Emilio Parisotto, Sergio Gomez Colmenarejo, Alexander Novikov,
+ Gabriel Barth-Maron, Mai Gimenez, Yury Sulsky, Jackie Kay, Jost Tobias Springenberg, et al.
+ Ageneralistagent. ar Xivpreprintar Xiv:2205.06175,2022. 
+ Michael Ryoo, AJPiergiovanni, Anurag Arnab, Mostafa Dehghani, and Anelia Angelova. Token-
+ learner:Adaptivespace-timetokenization for videos.Advancesin Neural Information Processing
+ Systems,34:12786–12797,2021. 
+ Ashutosh Saxena, Justin Driemeyer, Justin Kearns, and Andrew Ng. Robotic grasping of novel
+ objects. Advancesinneuralin for mationprocessingsystems,19,2006. 
+ Nur Muhammad Mahi Shafiullah,Zichen Jeff Cui,Ariuntuya Altanzaya,and Lerrel Pinto.Behavior
+ trans for mers: Cloningkmodes with onestone. ar Xivpreprintar Xiv:2206.11251,2022.
+ 
+ Pratyusha Sharma, Lekha Mohan, Lerrel Pinto, and Abhinav Gupta. Multiple interactions made
+ easy(mime): Large scale demonstrations data for imitation. In Conferenceonrobotlearning,pp.
+ 906–915.PMLR,2018. 
+ Mohit Shridhar, Lucas Manuelli, and Dieter Fox. Cliport: What and where pathways for robotic
+ manipulation. In Proceedingsof the 5 th Conferenceon Robot Learning(Co RL),2021.
+ Mohit Shridhar, Lucas Manuelli, and Dieter Fox. Perceiver-actor: A multi-task trans for mer for
+ roboticmanipulation. ar Xivpreprintar Xiv:2209.05451,2022. 
+ 
+ Andrew Silva, Nina Moorman, William Silva, Zulfiqar Zaidi, Nakul Gopalan, and Matthew Gom-
+ bolay.Lancon-learn:Learning with languagetoenablegeneralizationinmulti-taskmanipulation.
+ IEEERobotics and Automation Letters,7(2):1635–1642,2021. 
+ Avi Singh, Eric Jang, Alexander Irpan, Daniel Kappler, Murtaza Dalal, Sergey Levinev, Mohi
+ Khansari, and Chelsea Finn. Scalable multi-task imitation learning with autonomous improve-
+ ment. In 2020 IEEE International Conference on Robotics and Automation (ICRA), pp. 2167–
+ 2173.IEEE,2020. 
+ Simon Stepputtis, Joseph Campbell, Mariano Phielipp, Stefan Lee, Chitta Baral, and Heni
+ Ben Amor. Language-conditioned imitation learning for robot manipulation tasks. Advances
+ in Neural Information Processing Systems,33:13139–13150,2020. 
+ Mingxing Tanand Quoc Le. Efficient Net: Rethinking model scaling for convolutionalneuralnet-
+ works. In Kamalika Chaudhuri and Ruslan Salakhutdinov (eds.), Proceedings of the 36 th In-
+ ternational Conference on Machine Learning, volume 97 of Proceedings of Machine Learning
+ Research, pp. 6105–6114. PMLR, 09–15 Jun 2019. URL https://proceedings.mlr.
+ press/v 97/tan 19 a.html. 
+ 
+ 18 
+ 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ Stefanie Tellex, Thomas Kollar, Steven Dickerson, Matthew Walter, Ashis Banerjee, Seth Teller,
+ and Nicholas Roy. Understandingnaturallanguagecommands for roboticnavigation and mobile
+ manipulation. In Proceedingsof the AAAIConferenceon Artificial Intelligence,volume 25,pp.
+ 1507–1514,2011. 
+ Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez,
+ Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. Advances in neural informa-
+ tionprocessingsystems,30,2017. 
+ 
+ Ulrich Viereck,Andreas Pas,Kate Saenko,and Robert Platt. Learningavisuomotorcontroller for
+ realworldroboticgraspingusingsimulateddepthimages. In Conferenceonrobotlearning,pp.
+ 291–300.PMLR,2017. 
+ Ted Xiao,Eric Jang,Dmitry Kalashnikov,Sergey Levine,Julian Ibarz,Karol Hausman,and Alexan-
+ der Herzog. Thinkingwhilemoving:Deeprein for cementlearning with concurrentcontrol. ar Xiv
+ preprintar Xiv:2004.06089,2020. 
+ Tianhe Yu,Deirdre Quillen,Zhanpeng He,Ryan Julian,Karol Hausman,Chelsea Finn,and Sergey
+ Levine.Meta-world:Abenchmark and evaluation for multi-task and metarein for cementlearning.
+ In Conferenceonrobotlearning,pp.1094–1100.PMLR,2020. 
+ Tianhao Zhang,Zoe Mc Carthy,Owen Jow,Dennis Lee,Xi Chen,Ken Goldberg,and Pieter Abbeel.
+ Deep imitation learning for complex manipulation tasks from virtual reality teleoperation. In
+ 2018 IEEEInternational Conferenceon Robotics and Automation(ICRA),pp.5628–5635.IEEE,
+ 2018. 
+ Yichi Zhang and Joyce Chai. Hierarchical task learning from language instructions with unified
+ trans for mers and self-monitoring. ar Xivpreprintar Xiv:2106.03427,2021. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 19 
+ 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ APPENDIX 
+ 
+ A AUTHOR CONTRIBUTIONS 
+ 
+ • Evaluations (ablations, designing procedures, implementations, and running abla-
+ tions): Yevgen Chebotar,Keerthana Gopalakrishnan,Karol Hausman,Julian Ibarz,Brian
+ Ichter, Alex Irpan, Isabel Leal, Kuang-Huei Lee, Yao Lu, Ofir Nachum, Kanishka Rao,
+ Sumedh Sontakke,Austin Stone,Quan Vuong,Fei Xia,Ted Xiao,and Tianhe Yu.
+ • Network Architecture (tokenizer, training, inference): Yevgen Chebotar, Keerthana
+ Gopalakrishnan, Julian Ibarz, Alex Irpan, Kuang-Huei Lee, Yao Lu, Karl Pertsch, Kan-
+ ishka Rao,Michael Ryoo,Sumedh Sontakke,Austin Stone,and Quan Vuong. 
+ • Developed Infrastructure(data,training,collect,simulation,evaluations,storage,and
+ operations): Anthony Brohan,Keerthana Gopalakrishnan,Karol Hausman,Alex Herzog,
+ Jasmine Hsu,Alex Irpan,Nikhil Joshi,Ryan Julian,Dmitry Kalashnikov,Yuheng Kuang,
+ Isabel Leal,Yao Lu,Fei Xia,Ted Xiao,Peng Xu,Sichun Xu,and Tianhe Yu. 
+ • Leadership(managedoradvisedon the project): Chelsea Finn,Karol Hausman,Julian
+ Ibarz,Sally Jesmonth,Sergey Levine,Yao Lu,Igor Mordatch,Carolina Parada,Kanishka
+ Rao,Pannag Sanketi,Vincent Vanhoucke. 
+ • Paper (figures, vizualizations, writing): Keerthana Gopalakrishnan, Karol Hausman,
+ Brian Ichter,Sergey Levine,Ofir Nachum,Karl Pertsch,Kanishka Rao,Austin Stone,Fei
+ Xia,and Ted Xiao. 
+ • Data collection and evaluations: Noah Brown, Justice Carbajal, Joseph Dabis, Tomas
+ Jackson,Utsav Malla,Deeksha Manjunath,Jodily Peralta,Emily Perez,Jornell Quiambao,
+ Grecia Salazar, Kevin Sayed, Jaspiar Singh, Clayton Tan, Huong Tran, Steve Vega, and
+ Brianna Zitkovich. 
+ B MODEL CARD 
+ 
+ Wepresent the Model Card for RT-1 in Fig.7. 
+ 
+ C MODEL AND DATA 
+ 
+ C.1 MODELINFERENCE 
+ 
+ In addition to the inference speed requirement, we need to ensure that our system outputs actions
+ at a consistent frequency, avoiding jitter. To accomplish this, we introduce a fixed-time waiting
+ mechanism that waitsacertainamountoftime(280 ms,themaxobservedlatencyofallcomponents)
+ after the state,thatwasusedtocompute the nextaction,has been captured,butbe for eapplying the
+ action,similarlyto the proceduredescribedby Xiaoetal.(2020). 
+ C.2 DATACOLLECTIONat scale. 
+ 
+ Each of the robots autonomously approaches its station at the beginning of the episode and com-
+ municates to the operator the instruction that they should demonstrate to the robot. To ensure a
+ balanced dataset as well as randomization of the scene, we created a softw are module responsible
+ for sampling the instructions to be demonstrated as well as the randomization of the background
+ configuration. Each of the robots tells the demonstrator how to randomize the scene and which
+ instructiontodemonstrate. 
+ Demonstrations are collected with direct line-of-sight between operator and robot using 2 virtual
+ reality remotes. We map remote controls onto our policy action space to preserve consistency of
+ thetransition-dynamics. 3 Dposition and rotationaldisplacementsof the remote are mappedto 6 d
+ displacementsof the robottool. Thex,ypositionof the joystickismappedtoaturningangle and
+ drivingdistanceof the mobile base. Wecompute and tracktrajectoriesto the targetposesthatwe
+ obtain from the joystickcommands. 
+ 20 
+ 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ 
+ Model Card for RT-1(Robotics Trans for mer) 
+ Model Details 
+ • Developedbyresearchersat Roboticsat Google and Everyday Robots,2022,v 1.
+ • Trans for mer-based model,builtupona Fi LM-conditioned Efficient Net(Tan&Le,
+ 2019),a Token Learner(Ryooetal.,2021),anda Trans for mer(Vaswanietal.,2017).
+ • Trainedwithimitationlearning with inputsofnaturallanguagetasks and images and
+ outputrobotactions. 
+ Intended Use 
+ • Intendedtobeused for controllingan Everyday Robot for manipulationtasks.
+ • Unclearsuitabilityasalearnedrepresentation for differentroboticembodiments,
+ environments,orsignifi can tlyvarieddownstreamtasks. 
+ • Notsuitable for interaction with humans. 
+ Factors 
+ • Factorsincludevaryingbackgrounds,lighting,scenes,baseposition,andnovel
+ naturallanguagetasks. Hardw are factorsincludecamera and robotembodiment.
+ Metrics 
+ • Evaluationmetricsincludeseen task per for mance,unseen task per for mance,
+ robustnesstobackgrounds and distractors,andper for manceinlong-horizon
+ scenarios. Eachmeasuresthesuccessrateof the modelper for mingnaturallanguage
+ specifiedtasks with randomizedobjectsandobjectlocations and varyingscenes.
+ Training Data 
+ • Trainedon 130 ktele-operationdemonstrationsover 13 robots and 744 tasks.
+ Skill Count Description Example Instruction 
+ Pick Object 130 Lifttheobjectoff the surface pickicedtea can 
+ Move Object Near Object 337 Movethefirstobjectnear the second movepepsi can nearrxbarblueberry
+ Place Object Upright 8 Placeanelongatedobjectupright placewaterbottleupright
+ Knock Object Over 8 Knockanelongatedobjectover knockredbull can over 
+ Open/Close Drawer 6 Openorcloseanyof the cabinetdrawers open the topdrawer
+ Place Objectinto Receptacle 84 Placeanobjectinto are ceptacle placebrownchipbagintowhitebowl
+ Pick Object from Receptacle 162 Pickanobjectup from alocation and then pickgreenjalapenochipbag from paper
+ and Placeon the Counter placeiton the counter bowl and placeoncounter 
+ Additionaltasks 9 Skillstrained for realistic,longinstructions pullnapkinoutofdispenser
+ Total 744 
+ Evaluation Data 
+ • Evaluatedonreal-worldrandomizedscenes and over 3000 totalrolloutsin the
+ environmentitwastrainedonaswellastwo new officekitchenenvironments.
+ Quantitative Analyses 
+ • RT-1 showshigh-per for mance and robustness and can learn from heterogenous data.
+ 
+ 
+ 
+ 
+ Ethical Considerations 
+ • Earlyresearch,modelhasnotyet been evaluated for suitabilitytouseoutsideofits
+ currentresearchsetting. 
+ Caveats and Recommendations 
+ • While the current model coversonlyasmallportionofpossibleroboticmanipulation
+ tasks,itpresents are cipe for scalableroboticlearning and anarchitecture that shows
+ favorablegeneralization and dataabsorptionproperties. 
+ Figure 7: Model Card for RT-1. 
+ 
+ 21 
+ 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ C.3 MODELSELECTIONat scale 
+ 
+ 
+ Asrobotlearningsystemsbecomemorecapable and the numberofinstructionsthey can handlein-
+ creases,evaluationof the semodelsbecomesdifficult(Kalashnikovetal.,2021 a;Jangetal.,2021).
+ Thisisanimportantconsiderationnotonly for evaluatingdifferent model classes and datadistribu-
+ tionsduring the developmentprocess,butalso for selecting the mostper for mant model checkpoints
+ for a particular training run. While there have been a number of proposed solutions to this prob-
+ lem (Dud´ık et al., 2011; Irpan et al., 2019; Hanna et al., 2017), mostly known in the offline rein-
+ forcementlearningliteratureas“off-policyevaluation”,itstillremainsan open researchchallenge
+ toevaluatemulti-taskrobotlearningsystemsat scale. 
+ Inthiswork,weproposeleveragingsimulation for“realtosim”transferasascalabletool that pro-
+ videsanapproximateestimateof model per for manceduringtrainingacrossmanyrealtasks.Werun
+ policiestrained from real data inasimulatortotest the fullrolloutper for mance. Note that allof our
+ training data comes from the realworld(except the experimentin Section 6.3),and the simulatoris
+ usedonly for modelselection. Toaccomplish this,weexp and the simulationenvironmentproposed
+ by Leeetal.(2022 b)tosupport 551 ofthe task sdescribedin Section 5.2. Foreachof the setasks,
+ we define a set of scene setup randomizations, robot pose randomizations, and success detection
+ criteria. Tobridgethevisualdistributionshiftbetweentherealworld and the simulation, wetrain
+ a Retina GAN (Ho et al., 2020) model that transforms simulated images into realistic looking im-
+ ages. Then,wedeploypoliciestrainedonreal data directlyinto the sesimulationenvironmentsby
+ applying Retina GANvisualtrans for mationsateachtimestep and measuringrolloutsimulated task
+ successrates. 
+ While model strainedonlyonrealworld data per for mbetterintherealworldthan the ydoinsim-
+ ulation,wefind that the simulationsuccessratesofhigh-per for mingrealworldpolicies are higher
+ than the simulationsuccessratesoflow-per for mingrealworldpolicies.Ino the rwords,theordering
+ of simulation policy success rates are informative for predicting the ordering of real world policy
+ successrates. Wenote that inthisreal-to-simevaluationsetting, wehavealessstrictrequirement
+ for simulation accuracy compared to sim-to-real settings; as long as simulation success rates are
+ directionallycorrelated with realsuccessrates,we canacceptamoderateorevenhighgapbetween
+ real and simulationsuccessrates. 
+ Wepresentexamplecameraimages from simulationaswellastheir Retina GAN-basedtransforma-
+ tionsin Fig.8. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Figure 8:Examplecameraimagesshowcasingrawsimulation,simulation with Retina GANapplied,
+ and the realworld. 
+ 
+ 
+ 
+ 22 
+ 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ C.4 DATACOLLECTIONPROCESS 
+ 
+ Figure 9 shows the growthof data,numberoftasks,andthesuccessrateof the policyovertime.The
+ numberoftasks/instructions that oursystemiscapableofgrowsovertimeasmore data iscollected.
+ Thesameistrue with the per for manceofseentasks.Oneoftheimportantaspectsof the futurework
+ isdeveloptechniques that allowustogrowthe data aswellas the robotsper for mance and general
+ capabilitiesatafasterrate. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Figure 9: Thegrowthof data,numberoftasks,andseeninstructionper for manceovertime.
+ 
+ 
+ D EXPERIMENTS 
+ 
+ D.1 EVALUATIONDETAILS 
+ 
+ In Section 6.2, westudy the zero-shotgeneralizationcapabilitiesof RT-1 todifficultscenariosnot
+ present in the training dataset. To fairly evaluate different ablations of RT-1 as well as baseline
+ policies,wedesignst and ardizedevaluationprocedures that coverarangeofincrementaldifficulty
+ levels. 
+ Seen tasks. We evaluate on 744 tasks present in the training dataset. The breakdown between 12
+ skillsisshownin Table 1. Forall“Seen”evaluations, we use the sameclassroomsettingused for
+ datacollectionasdescribedin Section 5.2. Foreachpolicy,wereportasinglerepresentativemetric
+ thattakesaskill-weightedaverageacrossindividualskillevaluations. 
+ Unseentasks. Weevaluatepolicyper for manceon 53 tasks that are heldoutduringtraining. While
+ the unseen instructions’ specific combinations of skills and objects are not seen during training,
+ othercombinationsofthesameskills and objects are presentin the trainingset. Weevaluatethese
+ unseen task sinthesameenvironment and the samer and omizationprocedureas the Seentasks. A
+ fulllistof the seunseen task sisshownin Table 8. 
+ Distractorrobustness. Wetestthreetasks(“pickcoke can”,“placecoke can upright”,“movecoke
+ canneargreenricechipbag”)withincrementallymoredistractorobjectsaddedto the scene. The
+ easysettingincludes 0,2,or 5 distractorobjects. Themediumsettingincludes 9 distractorobjects,
+ but the coke can is never obscured. The hard setting includes 9 distractor objects, but the scene
+ is more crowded and the coke can is partially occluded. Both the medium are hard setting are
+ more difficult than scenarios in the training dataset, which contained between 0 and 4 distractors.
+ Examplesof the sedifficultysettings and policyevaluationrollouts are shownin Figure 12.
+ Background robustness. We test six tasks (“pick coke can”, “move blue chip bag near or-
+ ange”, “knock redbull can over”, “pick green jalapeno chip bag”, “move sponge near brown chip
+ bag”,“place redbull can upright”) with incrementally more challenging backgrounds and counter
+ textures. Intheeasysetting,weutilize the samebackgroundenvironments and countertexturesas
+ thetraining data set. Inthemediumsetting,weutilize the samebackgroundenvironmentbutadda
+ patternedtableclothtochange the countertexture.Inthehardsetting,weutilizeabr and newkitchen
+ environment with anewcountertop;thischanges the countertexture,drawermaterial and color,and
+ 23 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ backgroundvisuals. Examplesof the sedifficultysettings and policyevaluationrollouts are shown
+ in Figure 10. 
+ 
+ Realistic instructions. To study how RT-1 performs in more realistic scenarios, we propose an
+ evaluation setting in a real office kitchen that is a dramatic shift from the original training class-
+ room environment. We propose a variety of skills that combine aspects of the previous zero-shot
+ evaluations, including adding new distractors, including new backgrounds, and new combinations
+ ofobjects with skills. Wereferto the easiestscenarioas L 1 generalization,whichintroducesa new
+ countertopandlightingconditionbutkeepstheskills and objects the same. Next,L 2 generalization
+ additionallyaddsnoveldistractorobjectssuchaskitchenjarcontainers. Finally,L 3 generalization
+ addsnewobjectsor new locationssuchasnearasink. Whilesomeof the sedistributionshifts are
+ tested in Section 6.2, these realistic instructions aim to test multiple dimensions simultaneously.
+ Examplesof the seinstructions are presentedin Fig.11. 
+ Easy 
+ same background, 
+ same texture 
+ 
+ Medium 
+ same background, 
+ new texture 
+ Hard 
+ new background, 
+ new texture 
+ 
+ Figure 10: “Backgrounds” evaluations focus on testing the per for mance of RT-1 on settings with
+ differenttabletextures and differentbackgrounds,suchasthosefoundinkitchensnevertrainedon.
+ These visual differences are quite pronounced, which in the most challenging case entails a new
+ kitchen with differentcountertexture,differentlightingconditions,differentcountermaterial,anda
+ differentbackground. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Figure 11:“Realisticinstructions”evaluationsproposerealisticscenariosmultipledistributionshifts
+ thatincrementallyincreaseindifficulty. L 1 generalizationintroducesa new realofficekitchen with
+ newlightingconditions. L 2 generalizationadditionallyaddsunseendistractorobjects. Finally,L 3
+ generalizationincludesnewobjectsorobjectsin new locations,suchasnexttoasink.
+ 
+ D.2 HETEROGENEOUS DATA 
+ 
+ Wealsoexplore the limitsof RT-1 forutilizinghighlyheterogeneous data.Wedemonstratehow RT-
+ 1 canincorporateandlearn from vastlydifferent data sources and improve from such data with out
+ 
+ 24 
+ 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ 
+ 
+ 
+ Instruction 
+ pickcoke can fromtopdrawer and placeoncounter 
+ pickgreen can fromtopdrawer and placeoncounter 
+ pickgreenricechipbag from middledrawer and placeoncounter 
+ pickredbull can fromtopdrawer and placeoncounter 
+ place 7 upcanintobottomdrawer 
+ placebrownchipbagintotopdrawer 
+ placegreen can intomiddledrawer 
+ move 7 upcannearredbull can 
+ moveappleneargreenricechipbag 
+ moveapplenearpaperbowl 
+ moveapplenearredbull can 
+ movebluechipbagnearblueplasticbottle 
+ movebluechipbagnearpepsi can 
+ movebluechipbagnearsponge 
+ movebrownchipbagnearapple 
+ movebrownchipbagneargreenricechipbag 
+ movebrownchipbagnearredbull can 
+ movecoke can neargreenjalapenochipbag 
+ movecoke can nearwaterbottle 
+ movegreen can near 7 upcan 
+ movegreen can nearapple 
+ movegreen can nearcoke can 
+ movegreenjalapenochipbagnearbluechipbag 
+ movegreenricechipbagnearorange 
+ movegreenricechipbagnearorange can 
+ movegreenricechipbagnearpaperbowl 
+ moveorange can nearbrownchipbag 
+ movepepsi can nearorange can 
+ moveredbull can nearcoke can 
+ moverxbarblueberrynearblueplasticbottle 
+ moverxbarblueberrynearorange can 
+ moverxbarchocolatenearpaperbowl 
+ moverxbarchocolatenearrxbarblueberry 
+ movespongenearapple 
+ movewaterbottlenear 7 upcan 
+ movewaterbottlenearsponge 
+ movewhitebowlnearorange can 
+ pickblueplasticbottle 
+ pickgreenricechipbag 
+ pickorange 
+ pickrxbarchocolate 
+ picksponge 
+ placepepsi can upright 
+ knockorange can over 
+ pickblueplasticbottle from paperbowl and placeoncounter 
+ pickbrownchipbag from whitebowl and placeoncounter 
+ pickgreen can frompaperbowl and placeoncounter 
+ pickgreenjalapenochipbag from whitebowl and placeoncounter 
+ pickorange can fromwhitebowl and placeoncounter 
+ pickredbull can fromwhitebowl and placeoncounter 
+ placeblueplasticbottleintopaperbowl 
+ placecoke can intopaperbowl 
+ placeorange can intopaperbowl 
+ Table 8: Listof Unseen Instructionsin Sec.6.2. Forthe“Unseen Tasks”evaluation,weexcludea
+ totalof 53 tasksduringtraining. Whiletheseexactinstructions were notpresentin the trainingset,
+ theobjects and skillscontainedintheseinstructions were stillpresentin the trainingset.
+ 25 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ 
+ 
+ 
+ Easy 
+ 2 - 5 distractors, 
+ no occlusion 
+ 
+ 
+ Medium 
+ 9 distractors, 
+ no occlusion 
+ 
+ 
+ 
+ Hard 
+ 9 distractors, 
+ occlusion 
+ 
+ 
+ Figure 12: “Distractors”evaluationsfocusondiversifyinginitialsceneconfigurationswellbeyond
+ thedistributionscontainedin the training data set,whichcontainbetween 2 and 4 distractorobjects.
+ Inthemostchallengingscenarios, thesceneisextremelycluttered and containsocclusions for the
+ objectsofinterest. 
+ 
+ 
+ sacrificingitsoriginal-tasksper for manceacross the varied task sinherentin this data. Tothisend,
+ weconducttwoexperiments: (1)RT-1 trainedandtestedonbothreal data and simulation data and
+ (2)RT-1 trainedacrosslarge data setsofdifferenttasks,originallycollectedbydifferentrobots.
+ Absorbingsimulation data. Table 9 shows the abilityof RT-1, and base lines,toabsorbbothreal
+ and simulation data. To test this, we take all of the real demonstration data but we also provide
+ additionalsimulation data thatincludesobjects that therobothasneverseenin the realworld. We
+ addasetofsimobjects and onlyshow the monasubsetoftasks,specifically the pickingtasks,in
+ simulation. To accomplish this, we run our real 2 sim method described in Sec. C.3 to bootstrap a
+ simulation policy from the real world policy that is then trained with multi-task RL (Kalashnikov
+ etal.,2021 a)withadditionalobjectsinsimulation. From this process, weextract 518 ksuccessful
+ trajectories of picking new objects and mix them with the real data that was used in the previous
+ experiments. Thegoalof this experimentistodemonstrate that byexp and ing the datasetofsimu-
+ lationtrajectories,we can benefit RT-1’sgeneralizationcapabilities with outsacrificing the original
+ trainingper for mance–adesiredpropertyofanabsorbent model. 
+ Toevaluate the propertiesof this model,wespecifydifferentgeneralizationscenarios:forseenskills
+ withrealobjects the training data hasrealdataof that instruction(i.e.,per for manceonseentasks),
+ forseenskills with simobjects the training data hassimdataof that instruction(e.g. “pickupasim
+ object”,whichwaspresentinsim),and for unseenskills with simobjects the training data hassim
+ dataof that objectbutthere are noexamplesoftheinstructiondescribing the skill with thatobject
+ eitherinsimorinreal(e.g.,“moveasimobjecttoapple”,eventhough the robothasonlypracticed
+ inpicking that simobject and notmovingitnearo the robjects). Allevaluations are donein the real
+ worldbuttolimit the numberofinstructionsevaluated,wefocusonpick and move-toskills.
+ We find in Table 9 that for RT-1, we do not lose per for mance adding simulation data compared
+ to the Real Only dataset. We do however, see a significant increase in per for mance (from 23% to
+ 87%)onobjects and tasksseenonlyinsimulation, toapproximatelytheper for manceof the those
+ in real, demonstrating an impressive degree of domain transfer. We also see a significant increase
+ inper for manceonunseeninstructions from 7%to 33%;impressivegiven the objectinquestionhas
+ never been seen in real and the instruction never seen at all. Overall, we find that RT-1 is able to
+ efficiently“spongeup”newdata,even from averydifferentdomain. 
+ 26 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ 
+ 
+ 60% 
+ 50% 
+ Real Objects Sim Objects(notseeninreal) 
+ 40% 
+ Seen Skill Seen Skill Unseen Skill 
+ Models Training Data w/Objects w/Objects w/Objects 30% 
+ RT-1 Real Only 92 23 7 20% 
+ RT-1 Real+Sim 90 87 33 
+ 10% 
+ 0% 
+ Sim-seen Objects Sim-seen Objects Real Tasks
+ w/ Skills w/o Skills 
+ ot 
+ derapmo C 
+ eta R 
+ sseccu S 
+ ylno 
+ lae R 
+ Real +Sim Data 
+ +64% 
+ +26% 
+ -2% 
+ Table 9: Experimental results for incorporating simulation data in RT-1. Adding simulation data
+ doesnotimpact the per for manceonrealobjects,whilesignifi can tlyimprovingrealper for manceon
+ objects that wereonlyintroducedinsimulation. 
+ Absorbing data from different robots. To push the data absorption limits of RT-1, we conduct
+ an additional set of experiments where we combine two data sources that originate from different
+ robots: Kuka IIWA as well as the Everyday Robots mobile manipulators used in the experiments
+ sofar. The Kuka data containsall the successfulexamplescollectedin QT-Opt(Kalashnikovetal.,
+ 2018),whichcorrespondsto 209 kepisodes,where the robotwasindiscriminatelygraspingobjects
+ inabin(seeanexampleofa Kukaepisodein Table.10). Ourgoalin this experimentistoanalyze
+ whether the per for manceon the RT-1 tasksdropswhenadding the additional data and,moreimpor-
+ tantly,whe the rwe canobserveanytransfer from datacollectedbyadifferentrobotmorphology.
+ Wewouldliketoemphasizethedifficultyof this settingbynoting the majordifferencesbetween the
+ datasets. Notonly are therobots that collected the datadifferentinappearance and actionspace,but
+ alsotheenvironment the yweredeployedinhasdifferentappearance and dynamics. Inaddition the
+ QT-Opt data presentsacompletelydifferentactiondistribution–itwascollectedbyan RLagentas
+ opposedtohum and emonstrationspresentin our data set. 
+ Tomix the Kuka data toge the rwith the RT-1 data,wefirsttransform the original Kuka 4-DOFaction
+ spaceinto the sameactionspaceas RT-1,namelyweset the roll and pitchto 0,whilekeeping the yaw
+ values that werepresentin the original Kuka data.Inaddition,wetransform the binarygripper-close
+ comm and intoacontinuousgripper-closednesscomm and thatispresentin the RT-1 data. Wealso
+ needtextinstructionscorrespondingto the taskper for med and since the Kuka data doesnotcontain
+ thenameof the object that wasgrasped, werelabelall the datato the“pickanything”instruction.
+ With the semodifications,wemixboth data sets with the 2:1(RT-1 data: Kuka data)ratio and train
+ RT-1 toobtain the final model. 
+ Totestwhether RT-1 caneffectivelyabsorb the setwoverydifferent data sets, weevaluate the per-
+ formance on the original RT-1 tasks (in this case, we also focus on “pick” and “move to” skills),
+ which were fertoas the standard“Classroomeval”,aswellastheper for manceon the newlycon-
+ structed tasks that reflect the bin-picking setup present in the Kuka data, which we refer to as the
+ “Bin-pickingeval”. Forthe Bin-pickingevaltobecloseto the original data set,weputin the same
+ looking bin for the objects as well as modify the robot to be similar to the Kuka manipulators by
+ adding extra wires and coloring the gripper gray. For all of the evaluations we use the Everyday
+ Robotsrobot with the pickingcommands and evaluateit base don 72 graspingtrials.
+ Theresults are presentedin Table 10. Weobserve that the model that mixes the RT-1 data and the
+ Kuka data hasonlyaminimaldecreasein the originaltasks’per for mance(i.e. Classroomeval),i.e.
+ 2%. Even more importantly, in the Bin-picking eval, we observe that the model trained on multi-
+ robot data per for msat 39%comp are dto the 22%ofthe model that wastrainedonlyon the RT-1 data.
+ Thisisa 17%per for mancedifference(almost 2 x). Additionally,RT-1 trainedon Kukabin-picking
+ data and evaluated on the bin-picking tasks with the Everyday Robots (EDR) robot achieves 0%
+ per for mance, confirming that it is difficult to transfer a behavior from another robot morphology.
+ However, mixing the data from both robots allows RT-1 to infer the correct actions of the EDR
+ robot even when faced with the states observed by Kuka robots. This is achieved without explicit
+ demonstrationsofbin-pickingon EDRrobot and bytakingadvantageofpastexperiencescollected
+ by Kukarobots. Theseresultsindicate that RT-1’sabsorptionpropertiesalsoinclude the abilityto
+ 27 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ 
+ 17.5% 
+ 15.0% 
+ 12.5% Models Training Data Classroomeval Bin-pickingeval
+ 10.0% 
+ RT-1 Kukabin-picking data+EDRdata 90 39 
+ 7.5% 
+ RT-1 EDRonly data 92 22 
+ 5.0% RT-1 Kukabin-pickingonly data 0 0
+ 2.5% 
+ 0.0% 
+ 2.5% 
+ Bin-picking Eval Classroom Eval
+ yln O 
+ RDE 
+ ot 
+ derapmo C 
+ eta R 
+ sseccu S 
+ EDR +Kuka Data 
+ +17% 
+ -2% 
+ Table 10: Experimental results for mixing data from two different robots. Incorporating Kuka
+ bin-picking data from QT-Opt (Kalashnikov et al., 2018) in RT-1 minimally impacts the standard
+ classroomevaluationper for mance and resultsinalmosta 2 ximprovementingeneralizationto the
+ Bin-picking evaluation (that is similar to the setup in the Kuka data) on the Everyday Robots ma-
+ nipulator. Thisdemonstratesaneffectivetransferacrosstwodifferentrobotmorphologies.
+ acquire new skills through observing other robots’ experiences and present an exciting avenue of
+ futureworkwherewecombinemanymoremulti-robot data setstoenhance the robotcapabilities.
+ D.3 LONG-HORIZONEVALUATIONDETAILS 
+ Inadditiontoshort-horizonindividualskillevaluationsshowninprevioussections,wealsoevaluate
+ how RT-1 per for msinalong-horizonrealistickitchensetting that chainsmultiplemanipulation and
+ navigation skills to accomplish natural language instructions within the Say Can framework (Ahn
+ etal.,2022). Alistoflong-horizoninstructionsused for the seevaluationsislistedin Table 12.
+ Thesuccessrateoflong-horizon task sdecreasesexponentially with thelengthof the task,sohigh
+ successratesinmanipulationskills are particularlyimportant. Fur the rmore,asmobilemanipulation
+ tasks require both navigation and manipulation, the policies ability to be robust to base position
+ iscrucial. Since Say Cancombinesmanylow-levelinstructionstoper for mhigh-levelinstructions,
+ the number of possible high-level instructions increases combinatorially with instructions, so the
+ skill-breadthof RT-1 can befullyseen. 
+ Say Can works by grounding language models in robotic affordances and it leverages few-shot
+ prompting to break down a long horizon task expressed in natural language to a sequence of low
+ level skills. An example of long horizon task would be “Bring me two different sodas”, and one
+ feasibleplanwouldbe“1. findacoke,2. pickup the coke,3. bringittoyou,4. putdown the coke,
+ 5. findapepsi,6. pickup the pepsi,7. bringittoyou,8. putdown the pepsi,9. done.” Toobtain the
+ affordancefunctionwe usevaluefunctionstrained with MT-OPT(Kalashnikovetal.,2021 a). Fora
+ detaileddescriptionof Say Canalgorithmpleasereferto (Ahnetal.,2022). 
+ Since the focusof this paperisacquisitionofmanygeneralizableskills,wefocus our evaluationon
+ onesubsetof task spresentedin Ahnetal.(2022).Itis the long-horizonfamilyoftasks,involving 15
+ instructions,eachinstructionrequiresanaverageof 9.6 stepstocomplete,andinvolvesanaverage
+ of 2.4 manipulationskillsperinstruction. Afulllistof the instructions can befoundin Table 12.
+ Wecomp are against 3 baselines.1)Say Canwith BC-Z,whichuses Say Canplanningalgorithm with
+ BC-Z as manipulation policy, 2) Say Can with Gato, which uses Say Can planning algorithm with
+ Gato as manipulation policy, 3) Originally reported Say Can results, which use Say Can planning
+ algorithm with BC-Z,butsinceitusesaslightlydifferentprompt,theplanningsuccessrateislower.
+ Wereimplemented 3)in 1)forafaircomparison. 
+ Asshownin Table 11,except for original Say Can,allmethodsget 87%asplanningsuccessrate,and
+ RT-1 performs the best,with 67%executionsuccessratein Kitchen 1. Kitchen 2 constitutesamuch
+ morechallenginggeneralizationscene,since the Robot Classroomtrainingscenes are modeledafter
+ Kitchen 1 (see the pictures of the kitchens in Fig. 2). Due to this generalization difficulty, Say Can
+ with Gato is not able to finish any long horizon task, and Say Can with BC-Z is able to achieve a
+ success rate of 13%. The original Say Can paper did not evaluate per for mance in a new kitchen.
+ Surprisingly,themanipulationper for mancedoesnotseeavisibledrop from Kitchen 1 to Kitchen 2
+ 28 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ for our method. Inthesupplementaryvideo,weshow that thisenablesustooperateunseendrawers
+ in Kitchen 2,andthatwe canuse Say Can-RT 1 toplan and executeultra-longhorizontasks,withas
+ manyas 50 steps. 
+ Say Can task sin Kitchen 1 Say Can task sin Kitchen 2 
+ Planning Execution Planning Execution 
+ Original Say Can(Ahnetal.,2022)∗ 73 47 - - 
+ Say Canw/Gato(Reedetal.,2022) 87 33 87 0 
+ Say Canw/BC-Z(Jangetal.,2021) 87 53 87 13 
+ Say Canw/RT-1(ours) 87 67 87 67 
+ Table 11: Say Canstylelonghorizon task sin Kitchen 1 and Kitchen 2. (*Original Say Canevaluses
+ aslightlydifferentpromptso the planningsuccessrateislower.) 
+ 
+ 
+ D.4 MODELABLATIONS 
+ What are the important and practical decisions in the design of the model and how do they
+ affectper for mance and generalization? 
+ 
+ To answer this question, we perform a set of ablations over different design decisions in RT-1.
+ We aim to test a number of hypo the ses that will help us disambiguate where the benefits of our
+ methodcome from. Possiblehypothesesabout the sourceofimprovementinclude: (i)thecapacity
+ andexpressivenessof our model,whichweverifybyablating the modelsize,tryingo the rarchitec-
+ tures(e.g.,byremoving the Trans for mercomponent);(ii)theparticularactionrepresentation,which
+ makesiteasytorepresentcomplexmulti-modalactiondistributions,whichwetestbyswitchingto
+ continuous(normallydistributed)actions,aswellasbyablating the auto-regressiveactionrepresen-
+ tation;(iii)the Image Netpre-trainedinitializationof the components,whichwetestbyinitializing
+ themodel’sweightsr and omly;and(iv)accessto the shor this tory,whichwetestbyexcludingob-
+ servationhistory.Moreconcretely,weablate our modelby(1)decreasing the modelsize(from 35 M
+ to 21 Mparameters),(2)removing the Trans for merarchitecture(usingapre-trained Efficient Netin-
+ stead),(3)usingacontinuousinsteadofdiscreteactionspace(usingan MSEloss and multivariate
+ normaloutput), (4)auto-regressivelyconditioningonactions, (5)removing Image Netpre-training
+ of the Fi LM Efficient Net, and (6) removing history (reducing the sequence of six images as input
+ to a single image). For each ablation we comp are on the axes of per for mance on seen tasks, per-
+ formanceonunseentasks,aswellasinferencespeedandrobustnesstodistractors and backgrounds
+ (withamoredetaileddescriptionofeachcategoryin Section 6.1 and Appendix D.1).
+ Table 13 shows the results of each ablation and the delta per for mance compared to the full RT-1.
+ RT-1 achievesimpressiveper for manceontasks and newenvironments,andparticularlyoutperforms
+ baselines on the most challenging robustness problems. We also find that each design decision is
+ important,thoughatvaryinglevels. Wefirstevaluatea model that replaces the per-dimensiondis-
+ cretizedactionrepresentationin our model with amorest and ardcontinuous Gaussi and istribution.
+ We observe a significant decline in per for mance from this modification. The per-dimension dis-
+ cretization allows our model to represent complex multi-modal distributions, while the Gaussian
+ distributioncapturesonlyasinglemode. Theseresultssuggest that thisstandard and popularchoice
+ ishighlysuboptimal with the morecomplex and diversedemonstration data usedby our system.Im-
+ age Netpre-trainingisparticularlyimportant for modelgeneralization and robustness,decreasing the
+ unseen task per for mancerateby 33%, asaresultof the large and diversevisualsof the Image Net
+ dataset. Adding history has an impact primarily on generalization to distractors, while removing
+ the Transformercomponenthasauni for mbutsmallnegativeimpactacross the seentasks, unseen
+ tasks and distractors. Inordertokeep the Image Netpre-trainingwhilereducing the modelsize,we
+ reduce the number of parameters only by 40% (from 31 M to 25 M). Resulting per for mance drops
+ across training and generalization tasks but not as much as in other ablations. Finally, autoregres-
+ sivelyconditioningonactions, asusedin(Reedetal.,2022;Chenetal.,2021;Leeetal.,2022 a),
+ didnotbenefitper for mance and slowedinferencebymorethan 2 x. 
+ Asdescribedin Sec.5.1,inordertorunlarge Trans for mer model sonrealrobots,werequirea model
+ thatsupportsfastinference for real-timeoperation. Note that inordertoachieve our targetcontrol
+ rateof 3 Hz(describedin Sec.5.1),wealsoneedtoconsiderothers our cesoflatencyin the pipeline,
+ such as the camera latency and communication overhead. However, these factors will be constant
+ 29 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ Instruction 
+ Howwouldyouputanenergybar and waterbottleon the table 
+ Howwouldyoubringmealimesoda and abagofchips 
+ Canyouthrowaway the apple and bringmeacoke 
+ Howwouldyoubringmea 7 upcan and atea? 
+ Howwouldthrowawayalltheitemson the table? 
+ Howwouldyoumoveanmultigrainchipstothetable and anappleto the farcounter?
+ Howwouldyoumove the limesoda,thesponge,andthewaterbottleto the table?
+ Howwouldyoubringmetwosodas? 
+ Howwouldyoumovethreecokesto the trash can? 
+ Howwouldyouthrowawaytwocokes? 
+ Howwouldyoubringmetwodifferentsodas? 
+ Howwouldyoubringmeanapple,acoke,andwaterbottle? 
+ Ispilledmycokeon the table,howwouldyouthrowitaway and the nbringmesomething
+ tohelpclean? 
+ Ijustworkedout,canyoubringmeadrink and asnacktorecover? 
+ Howwouldyoubringmeafruit,asoda,andabagofchips for lunch 
+ Table 12: Listof Say Caninstructionsevaluatedin Sec.6.4 
+ Distractors Backgrounds 
+ Model Seen Tasks Unseen Tasks All Easy Medium Hard All Inference Time(ms)
+ Gato(Reedetal.,2022) 65(-32) 52(-24) 43(-40) 71 44 29 35(-24) 129 
+ BC-Z(Jangetal.,2021) 72(-25) 19(-57) 47(-36) 100 67 7 41(-18) 5.3 
+ BC-ZXL 56(-41) 43(-33) 23(-60) 57 33 0 35(-24) 5.9 
+ RT-1(ours) 97 76 83 100 100 64 59 15 
+ RT-1 w/obig model 89(-8) 62(-14) 77(-6) 100 100 50 53(-6) 13.5 
+ RT-1 w/opre-training 84(-13) 43(-33) 60(-23) 100 67 36 41(-18) 15 
+ RT-1 w/continuousactions 68(-29) 43(-33) 37(-46) 71 67 0 35(-24) 16 
+ RT-1 w/auto-regressiveactions 85(-12) 71(-5) 67(-16) 100 78 43 65(+6) 36
+ RT-1 w/ohistory 82(-15) 62(-14) 50(-33) 71 89 14 59(+0) 15 
+ RT-1 w/o Trans for mer 86(-13) 62(-14) 67(-16) 100 100 29 59(+0) 26 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Table 13: Various model ablations of RT-1 across seen tasks, generalization to unseen tasks, and
+ robustnesstodistractors and backgrounds. 
+ 
+ for all the models, and therefore we focus our evaluation on just the network inference time. The
+ last column of Table 13 shows the inference speed of all the models. RT-1 is almost an order of
+ magnitudefasterthan Gato with asimilarnumberofparameters,butitisalsoconsiderablyslower
+ than a Res Net-based BC-Z. In terms of the different ablations of our model, we observe that the
+ biggestslow-downiscausedbyincludingauto-regressiveactions(∼2 xslow-down),andsince this
+ doesnotsignifi can tlyinfluence the per for mance,thefinalversionof RT-1 doesnotgenerateactions
+ auto-regressively. 
+ 
+ 30 
+ 
+
+ 
+ 
+ Preprint 
+ 
+ 
+ 
+ D.5 SUMMARY AND ANALYSIS 
+ 
+ In this section, we summarize some of our findings and propose intuition for RT-1’s high perfor-
+ mance,generalization,androbustness. First,Image Netpretraining(along with Universal Sentence
+ Encoder language embedding) has a large impact particularly on unseen tasks. We observe that
+ RT-1 inherits some of the knowledge that results from the generality and diversity of the datasets
+ thesemodels were trainedon. Second,continuousactions have alargeimpactacrossallaspectsof
+ per for mance. This has been previously observed and may be due to the ability to represent more
+ complexactiondistributions–theper-dimensiondiscretizationallows our model torepresentcom-
+ plexmulti-modaldistributions,while the Gaussi and istributioncapturesonlyasinglemode. Third,
+ given such expressive multi task models, data diversity has a larger impact than data size. Indeed,
+ even datasets collected in simulated environments or from different robotic embodiments can be
+ leveragedby RT-1,openingavenues for newregimesof data collection. 
+ Finally,RT-1 fuseslanguageinto the imagepipelineearlyvia Fi LMconditioning,comp are dtoe.g.,
+ Gato’slatefusion. Thisenablesimagetokens that focusonlyonrelevantfeatures for the instruction
+ at hand, which may be the cause of poor distractor per for mance for Gato. Figure 13 visualizes
+ theattentionduringrolloutsof RT-1. Wesee that the attentionisfocusedonrelevantfeatures and
+ particularlyoninteractionbetweenthegripper and the objectofinterest.Thebottleneckofattention
+ layers such as these results in a compact representation which effectively ignores distractors and
+ varyingbackgrounds. 
+ “pick green 
+ jalapeno chip 
+ Layer 2, bag from middle 
+ Head 6 drawer and 
+ place on 
+ counter” 
+ “place rxbar 
+ Layer 2, 
+ blueberry in 
+ Head 6 
+ bottom drawer” 
+ 
+ Layer 4, 
+ “open middle 
+ Head 2 
+ drawer” 
+ 
+ Figure 13: Inthisfigureweshow the attentionmapof the RT-1 policy. Differentlayers and heads
+ generallyfocusondifferentpartof the image. Mostcommonly,theyfocusonthepartsof the scene
+ with the richest interaction affordances, such as graspable objets. For example, Layer 2 Head 6
+ focuses on the jalapeno chips and pepsi can in grasping tasks; and Layer 4 Head 2 focuses on the
+ drawerindrawer open ingtasks. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 31 
+ 

@@ -1,0 +1,780 @@
+ 
+ 
+ 
+ Teaser 
+ 
+ Real-to-Sim 
+ Trajectory 
+ Re Bot: Scaling Robot Learning with 
+ Replay 
+ Real-to Rea-l-Swoirldm-to-Real Robotic Video Syn the sis 
+ Background 
+ Inpainting 
+ Real-world Real-to-Sim Trajectory Replay
+ Yu Fang 1, Yue Yang 1, X Baicnkggrhouanod In Zpahinuti 2 ng, Kaiyuan Zheng 3, Gedas Bertasius 1, Daniel Szafir 1, Mingyu Ding 1
+ Sim-to-Real VLA
+ Abstract—Vision-language-action Rea ( l V -to L -S A im ) models present a Open VLA Video Models
+ Trajectory Replay Syn the sis
+ promising paradigm by training policies directly on real robot 
+ Octo w/o Re Bot 
+ datasets like Open X-Embodimen Rte.al H-woorwldever, the high cost w/ Re Bot 
+ of real-world data collection Bhacikngdroeurnsd Infpuarintthinegr data scaling, Bridge Data V 2 DROID Re Bot fine tuned
+ thereby restricting the generalizability of VLAs. In this paper, Real Robot Datasets VLA per for mance VLA Models
+ we introduce Re Bot, a novel real-to-sim-Rteoa-lr-teoa-Slimap proach for 
+ Trajectory Replay 
+ scaling real robot datasets and adapting VLA models to 
+ Episode: Move the yellow mug to New Episode:
+ target domains, which is the last-mile deployment challenge in the front right side of the table Put the spoon on the towel
+ robotmanipulation.Specifically,Re Botrep R l e a a y l s -w r o e r a ld l- worldrobot Put spatula on cutting board
+ Background Inpainting 
+ trajectoriesinsimulationtodiversifymanipulatedobjects(real- Real-to-Sim Trajectory Real-world Robot Trajectories
+ to-sim),andintegrates the simulatedmovements with inpainted Replay Sim-to-Real 
+ real-world background to syn the size p Shiyms-itcoa-Rlleyal realistic and Video
+ Video Syn the sis Syn the sis 
+ temporally consistent robot videos (sim-to-real). Our approach 
+ has several advantages: 1) it enjoys the benefit of real data Real Video Real-world Real-to-Sim-to-Real
+ Background 
+ to minimize the sim-to-real gap; 2) it leverages the scalability Syn the tic Video
+ Inpainting 
+ of simulation; and 3) it can generalize a pretrained VLA to a Take banana out of colander
+ target domain with fully automated data pipelines. Extensive Mug Spoon 
+ experiments in both simulation and real-world environments 
+ show that Re Bot signifi can tly enhances the per for mance and 
+ robustness of VLAs. For example, in Simpler Env with the Fig. 1. An overview of Re Bot. We propose Re Bot, a novel real-to-
+ Widow X robot, Re Bot improved the in-domain per for mance sim-to-real approach for scaling real robot datasets. Re Bot replays real-
+ of Octo by 7.2% and Open VLA by 21.8%, and out-of-domain worldrobottrajectoriesinasimulationenvironmenttodiversifymanipulated
+ generalizationby 19.9%and 9.4%,respectively.Forreal-world objects(real-to-sim),andintegrates the simulatedmovements with inpainted
+ evaluation with a Franka robot, Re Bot increased the success real-world background to produce realistic syn the tic videos (sim-to-real),
+ effectivelyadapting VLA model stotargetdomains.
+ ratesof Octoby 17%and Open VLAby 20%.Morein for mation 
+ can be found at our project page. 
+ generalizing to real-world applications [12, 13], limiting the
+ I. INTRODUCTION effectiveness of simulated data for advancing VLAs.
+ Large-scale real robot datasets have demonstrated their To tackle these challenges, a straight for ward strategy for
+ significant contribution to the rapid advances of robot learn- scaling robot learning is generating syn the tic robot videos
+ ing [1–3], enabling vision-language-action (VLA) models to from real robot datasets. With the rapid development of
+ learn across various tasks, environments, and embodiments. foundation models in computer vision and generative AI,
+ Despite these achievements, VLAs still face challenges researchers have introduced generative models for syn the tic
+ in effectively generalizing to new scenarios, spurring the robot video generation [14–16]. For example, methods [17–
+ need for scaling data to enhance their per for mance in new 19] have leveraged text-to-image inpainting to scale real
+ target domains. However, collecting large-scale real robot robotic images to diverse scenarios. However, they typically
+ datasets is very costly and often demands extensive effort face the issue of AI-generated artifacts such as visible
+ and res our ces, e.g., robots and human teleoperators, which imperfections or inconsistent textures, failing to produce
+ signifi can tly limits the availability and scalability [4, 5]. physically realistic and temporally consistent robot videos.
+ On the other hand, simulated datasets are more accessible Such distortions introduce new domain gaps, making it dif-
+ and cost-effective alternatives, as they can be generated ficult for VLAs to learn stable and continuous robot actions
+ in simulation environments without real-world setups [6– while raising reliability concerns. Additionally, generated
+ 11]. Unfortunately, the sim-to-real gap in both the action images may not adhere precisely to instruction conditions,
+ space and the observation space hinders robot policies from limiting the effectivenessofsuchmethodsinadapting VLAs
+ to specific target domains, leaving the last-mile deployment
+ 1 Yu Fang,Yue Yang,Gedas Bertasius,Daniel Szafir,and Mingyu Ding challenge in robot manipulation unresolved.
+ arewith Departmentof Computer Science,Universityof North Carolinaat To mitigate these issues, we propose Re Bot, a novel real-
+ Chapel Hill,201 SColumbia St,Chapel Hill,NC 27599,USA.{yufang, 
+ yygx, gedas, dszafir, md}@cs.unc.edu to-sim-to-real approach for scaling real robot datasets and
+ 2 Xinghao Zhu is with Robotics and AI Institute, 145 Broadway, adapting VLA models to target domains. Our key insight
+ Cambridge,MA 02142,USA.xizhu@rai-inst.com 
+ is to replay real-world robot trajectories in simulation to
+ 3 Kaiyuan Zhengis with Departmentof Electrical and Computer Engi- 
+ diversify manipulated objects (real-to-sim), and integrate
+ neering,Universityof Washington,1410 NECampus Parkway,Seattle,WA 
+ 98195,USA.kaiyuan 5@uw.edu the simulated movements with inpainted real-world back-
+ 5202 
+ ra M 
+ 51 
+ ]VC.sc[ 
+ 1 v 62541.3052:vi Xra 
+
+ 
+ 
+ 
+ 
+ ground (sim-to-real) to syn the size physically realistic and real robot datasets demands extensive res our ces, making it
+ temporallyconsistentrobotvideos.Notably,Re Botcombines highly challenging to scale across diverse environments and
+ the advantages of both sim and real, i.e., leveraging the tasks.Thislimitationhinders the generalizationper for mance
+ scalability of simulation, while minimizing the sim-to-real of VLA models. On the other hand, simulated datasets
+ gap by grounding both the action and observation spaces offer a more scalable alternative. Well-developed simulation
+ from real robot data. Particularly, in contrast to generation- platforms [31–34] facilitate rapid data collection in con-
+ based scaling approaches, Re Bot ensures physical realism trolled environments without the high cost of real-world
+ and temporal consistency, and enables effective adaptation experiments. Unfortunately, these datasets often introduce
+ of VLA models to target domains. significant sim-to-real gap [12], limiting their effectiveness
+ Specifically, as shown in Fig. 1, Re Bot includes three in real-world applications. Notably, recent works have ex-
+ key components: 1) Real-to-Sim Trajectory Replay. For ploredgenerative model sto scale realrobot data sets[17–19].
+ each real-world episode, we automatically set up digital Yet, these approaches often struggle to provide physically
+ twins in a simulation environment, and replay the real- realistic and temporal consistent robot videos, making them
+ world robot trajectory to obtain simulated movements for unreliable and ineffective for developing VLA models. In
+ manipulating new objects. We validate the scalability of this paper, we propose a real-to-sim-to-real approach for
+ our approach by demonstrating that real-world trajectories scalingrealrobot data sets,offeringanovelsolution for these
+ can be successfully reused to manipulate different shapes of longst and ing challenges.
+ objects in simulation. 2) Real-world Background Inpainting. Real-to-sim and Sim-to-real. Real-to-sim and sim-to-real
+ To obtain task-agnostic real-world background for video strategies have been explored in many applications in
+ syn the sis,weintroduceanautomatedinpaintingmodule with robotics [13, 35–38]. Notably, recent work has leveraged
+ Grounded SAM 2 [20] to segment and track the robot and real-to-sim-to-real strategy to develop simulated evaluation
+ object (i.e., task-specific elements) in original real-world platforms for robotics [39], demonstrating a strong cor-
+ videos, and remove them with Pro Painter [21]. 3) Sim-to- relation with real-world robot evaluations. These studies
+ Real Video Syn the sis. We eventually integrate simulated highlight the significant potential of real-to-sim-to-real ap-
+ movements with task-agnostic real-world background, pro- proaches in bridging the gap between simulation and real-
+ ducing syn the tic videos with realistic physics and excellent world environments. However, existing methods often face
+ temporal consistency. scalability challenges due to limited scene and object diver-
+ In summary, our key contributions are three-fold. sity, primarily due to the substantial manual effort for con-
+ • We introduce Re Bot, which, to our knowledge, is the first structing digital twins in simulation environments [37, 39].
+ real-to-sim-to-real approach for scaling real robot datasets In this paper, we explore a new application of this strategy,
+ and adapting VLA models to target domains, addressing i.e., for scaling real robot datasets, enabling realistic robotic
+ the last-mile deployment challenge in robot manipulation. video generation without manual intervention.
+ • Re Bot combines the advantages of both sim and real, i.e., 
+ leveraging the scalability of simulation, while minimizing III. METHOD 
+ the sim-to-real gap by grounding both the action and 
+ In this paper, we propose a novel real-to-sim-to-real ap-
+ observation spaces from real robot data. Notably, Re Bot 
+ proach for scaling real robot datasets. We define a real robot
+ is fully automated and requires no manual intervention. 
+ dataset as D = {τ }M , where M episodes are represented
+ • Extensive evaluations confirm Re Bot’s effectiveness in as τ = {o ,a ,L i } i T =1 . Here, t denotes the timestep, o
+ both simulation and real-world settings, e.g., it improves i t t t=1 t 
+ is the video frame, a is the action, L is the language
+ t 
+ Open VLA’s in-domain and generalization per for mance by 
+ instruction. Our goal is to produce new syn the tic episodes
+ 21.8% and 9.4% on Simpler Env and achieves a 20% gain 
+ τ′ ={o′,a ,L′}T basedonτ ,tobuildasyn the tic data set
+ inreal-worldtasks,signifi can tlyoutper for mingpriorstate- j t t t=1 i 
+ D′ = {τ′}N for adapting VLA models to target domains.
+ of-the-art ROSIE [18]. j j=1 
+ As illustrated in Fig. 2, Re Bot has three key steps: A) Real-
+ II. RELATEDWORK to-Sim Trajectory Replay to obtain simulated movements
+ {osim}T inasimulationenvironment(Sec.III-A);B)Real-
+ Scaling Robot Learning. Although many research insti- t t=1 
+ world Background Inpaintingonvideoframe{o }T toob-
+ tutes have collaborated to construct large-scale real robot t t=1 
+ tain task-agnosticreal-worldbackground{oreal}T (Sec.III-
+ datasets [4, 5], data scale remains a fundamental bottle- t t=1 
+ B);andeventually C)Sim-to-Real Video Syn the sistoobtain
+ neck for VLA models. To address this issue, recent works 
+ new frame {o′}T (Sec. III-C). 
+ have explored three primary strategies: 1) collecting data t t=1 
+ in real-world environments, 2) collecting data in simulation 
+ A. Real-to-Sim Trajectory Replay 
+ environments, and 3) scaling real robot datasets with gen- 
+ erative models. Real robot datasets can be acquired using The real-to-sim process involves: 1) Creating spatially
+ various methods, including kines the tic teaching [22, 23], aligned digital twins of the scene in the simulation environ-
+ teleoperation [5, 24–26], or mixed reality devices [27, 28], ment, 2) Replaying real-world robot trajectory to produce
+ and have signifi can tly contributed to the recent progress simulated robot movements {osim}T , 3) Validating each
+ t t=1 
+ in VLA models [29, 30]. However, collecting large-scale replayed trajectory to ensure successful object manipulation.
+
+ Framework 
+ Latest version 
+ 
+ 
+ Real-to-Sim Trajectory Replay (Sec. III-A) Real-world Background Inpainting (Sec. III-B) Sim-to-Real Video Syn the sis (Sec. III-C)
+ 
+ (1) Scene Parsing and Alignment (2) Trajectory Replay Object and Robot Segmentation
+ Real-world Episode Object Container "robot" Pr T o e m xt pt 
+ Time (e.g., spoon) (e.g., towel) 
+ Frames P P ro o m in p t t 
+ Grounded SAM 2 
+ Action 
+ Instruction : Move the yellow mug to Simulated Movements Syn the size 
+ the front right side of the table 
+ (3) Replay Validation 
+ Syn the tic Episode 
+ Robot Camera Semantic Masks Time 
+ Pro Painter New 
+ Table Height Frames 
+ Action 
+ Digital Twins 
+ (tableis invisible later) Task-agnostic Real-world Instruction : Put the spoon on the towel
+ Point Cloud Filtered Points Background 
+ Fig.2. An overview of our framework.Re Botincludesthreekeycomponents:A) Real-to-Sim Trajectory Replay:Foreachreal-worldepisode,we
+ automatically set up digital twins and replay the real-world trajectory to obtain simulated movements for manipulating new objects. Each trajectory can
+ bereused for differentobjects.B)Real-world Background Inpainting:Toobtain task-agnosticreal-worldbackground for videosyn the sis,weintroduce
+ an automated inpainting module to segment and remove the robot and object from the original real-world video. C) Sim-to-Real Video Syn the sis: We
+ eventuallyintegratesimulatedmovements with task-agnosticreal-worldbackgroundtoproducesyn the ticvideos.Re Botis full yautomated and requiresno
+ manualintervention. 
+ Scene Parsing and Alignment.Toensurefaithfultrajectory distance between the object and gripper from t to t .
+ TODO list: start end 
+ replay, we construct digital twins of the robot, cameras, and We present a representative example in Fig. 2, showing that
+ - Notation 
+ table, and align them to the initial video frame o . The despite the disparity of object shapes, real-world trajectories
+ - Integration in Sim-to-real 1 
+ prototypes o-f Cthhaengreo Ibmoatgeasnd cameras are prepared ahead, can be successfully reused to manipulate various objects,
+ only requiring pose adjustments to complete their setup. demonstrating the scalability of our approach.
+ To determine the table height, we acquire the metric depth 
+ B. Real-world Background Inpainting 
+ from the initial video frame o and create a point cloud 
+ 1 
+ of the scene. Using Grounding DINO [40], we automatically In this step, we prep are task-agnostic real-world back-
+ segment the table with the text prompt (“table”), and extract ground{or t eal}T t=1 forintegration with simulatedmovements,
+ the subset of the point cloud after removing outliers using by removing task-specific elements (i.e., the original real
+ the interquartile range. We eventually set the average height object and robot) in the original real robot video {o t }T t=1 .
+ of the filtered points as the table height. Object and Robot Segmentation. We automatically seg-
+ ment and track the original real object and robot by using
+ Trajectory Replay. We reuse the real-world trajectory to 
+ Grounded SAM 2[20],whichcombines Grounding DINO[40]
+ diversify manipulated objects. First, to ensure the robot can 
+ and SAM 2 [41]. More specifically, we first use Ground-
+ successfully reach the simulated object, we need to place it 
+ ing DINO to identify and segment the robot using the text
+ exactlywhere the originalrealobjectwasplaced.Weanalyze 
+ prompt (“robot”) on o , as we empirically observe the
+ the gripper action sequence to determine t (when the 
+ tstart 
+ start best per for mance when the robot is most visible. However,
+ gripperclosestograsp the object)andt (when the gripper 
+ end automaticallyidentifying the originalrealobjectisextremely
+ opens to place the object). To estimate the object position, 
+ challenging, as a detailed description of its appearance,
+ weacquire the gripperpositionatt byreplaying{a }tstart, 
+ start t t=1 which is essential for effective text prompts, is typically
+ and place the simulated object accordingly. Similarly, and 
+ unavailableinrealrobot data sets.Moreover,textprompts are
+ optionally, we place a container on the table at the gripper 
+ highly susceptible to distractors or similar instances, mak-
+ position at t . Finally, we replay the robot trajectory 
+ end ing them unreliable for accurately locating the manipulated
+ using the action sequence {a }T , and record simulated 
+ t t=1 object. Fortunately, the object position at t is already
+ movements{osim}T formanipulating the newobject.Note start 
+ t t=1 estimated during real-to-sim trajectory replay, now serving
+ that all digital twins are faithfully aligned to the real-world 
+ as a crucial cue for segmenting the real object on o .
+ scene, this ensure the recorded movements remain aligned 
+ tstart 
+ Using the camera pose, we project the 3 D object position
+ with the real-world background. 
+ onto o , providing a 2 D point prompt for real object
+ tstart 
+ Replay Validation. Notably, trajectory replay may succeed segmentation with SAM 2.Afterobtaining the semanticmask
+ orfailinmanipulatinga new object,dependingon the affor- m (i.e.,therobot and objectmasksatt ),wepropagate
+ tstart start 
+ dance compatibility between the new object and the original it to all video frames {o }T using SAM 2, generating the
+ t t=1 
+ real-world object. We automatically validate whether the corresponding semantic masks {m }T .
+ t t=1 
+ objectissuccess full ymanipulatedineachsyn the ticepisode, Object and Robot Removal.Given{o ,m }T ,weeventu-
+ t t t=1 
+ and discard failed episodes by monitoring the Cartesian allyapply Pro Painter[21],astate-of-the-artvideoinpainting
+
+ 
+ Results 
+ 
+ 
+ Original Video ROSIE Re Bot (Ours) Original Video ROSIE Re Bot (Ours) Original Video ROSIE Re Bot (Ours)
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ em 
+ i T 
+ Move red bull can to the left → Move coke can to the left Put spatula on cutting board →Put spoon on cutting board Put grape in pink bowl →Put carrot in pink bowl
+ Fig. 3. Comparison of syn the tic videos. We show examples from three datasets: DROID (left), Bridge Data V 2 (mid), and our dataset (right). Re Bot
+ generatesrealisticvideos with physicallyplausiblemovements and excellenttemporalconsistency,signifi can tlyoutper for ming ROSIE.
+ 
+ model, to remove the original real object and robot from Implementation Details. We use Isaac Sim 4.1 as our sim-
+ the original video, obtaining the task-agnostic background ulation environment for its excellent rendering quality and
+ {oreal}T . Notice that we also remove the real robot in flexibility. We implement the real-to-sim trajectory replay
+ t t=1 
+ this step and later use the virtual robot in our syn the tic based on Isaac Lab [34]. We pre-build digital twins of the
+ videos{o′}T .Thisensurescorrectocclusions and realistic robotsin Isaac Sim,matching the samerobotplat for msasper
+ t t=1 
+ physical interactions during object manipulation. realrobot data sets,i.e.,using Widow X 2506 DOFrobotarm
+ for Bridge Data V 2 and Franka Panda 7 Do F robot arm with
+ C. Sim-to-Real Video Syn the sis 
+ Robotiq 2 F-85 gripper for DROID and our data set.Following
+ We eventually combine simulated movements {osim}T 
+ t t=1 the official guidelines of Octo and Open VLA, we use 100
+ with task-agnosticreal-worldbackground{oreal}T tobuild 
+ t t=1 syn the tic episodes per task as the optimal data volume for
+ new video frames {o′}T . Specifically, to obtain o′, we 
+ t t=1 t fine tuning. We use four NVIDIA A 6000 GPUs, using full
+ extract the robot and the manipulated object from osim, and 
+ t fine tuning with a batch size of 256 and a learning rate of
+ merge them onto or t eal. We then assign a new language 4×10−5 for Octo, and Lo RA fine tuning with a batch size
+ instruction L′ by replacing the object (e.g., “yellow mug” to of 32 and a learning rate of 5×10−4 for Open VLA.
+ “spoon”)andcontainer(e.g.,“table”to“towel”)intheorigi- 
+ Methods for Comparison. We comp are Re Bot with
+ nalinstruction Lto the oneswe usedduringtrajectoryreplay. 
+ ROSIE [18], a state-of-the-art generation-based method for
+ Eventually,weconstructanewepisodeτ′ ={o′,a ,L′}T . 
+ j t t t=1 scalingrealrobotvideos.ROSIEemploysimage-basedfoun-
+ Note that, since we faithfully replay real-world robot trajec- 
+ dation models, using Imagen [44] to inpaint manipulated
+ tories, the real-world actions remain unchanged in syn the tic 
+ objects directly on original real robot videos. In contrast,
+ episodes. In our experiments (see Sec. IV), we validate the 
+ Re Botintroducesanovelreal-to-sim-to-realscalingstrategy,
+ effectiveness of our method for adapting VLA models with 
+ producingphysicallyrealisti can dtemporallyconsistentsyn-
+ our syn the tic dataset D′ ={τ′}N . 
+ j j=1 thetic robot videos. Since ROSIE is not open-source, we use
+ IV. EXPERIMENTS ourimplementation base don the stablediffusion model[45].
+ Evaluation with VLA Models. We evaluate the effec-
+ In this section, we evaluate and demonstrate that Re- 
+ tiveness of syn the tic videos for adapting VLA models to
+ Bot effectively produces high-fidelity syn the tic robot videos 
+ target domains. We mainly discuss two state-of-the-art VLA
+ (Sec. IV-B), and comprehensively enhances the per for mance 
+ models, Octo [29] and Open VLA [30], both of which
+ of VLA model sinbothsimulation(Sec.IV-C)andreal-world 
+ are trained on large and diverse datasets involving various
+ environments (Sec. IV-D). 
+ robotic embodiments [4]. To comp are scaling methods, we
+ A. Experimental Setups evaluate three versions of each VLA model: 1) Octo and
+ Datasets. Forrealrobot data sets,weleveragetabletoppick- Open VLA (zero-shot evaluation, i.e., pre-trained models
+ and-place episodes in Bridge Data V 2 [42] and DROID [5]. without fine tuning), 2) Octo+ROSIE and Open VLA+ROSIE
+ For evaluation in real-world environments in Sec. IV-D, we (fine tuned with episodes from ROSIE), and 3) Octo+Re Bot
+ collect 220 real-world episodes to build our dataset. In the and Open VLA+Re Bot(finetunedwi the pisodes from Re Bot).
+ DROID dataset, we leverage two exterior videos captured 
+ B. Evaluation of Video Quality 
+ from opposite sides of the robot. For simulated objects used 
+ inreal-to-simtrajectoryreplay,wefollow[11,39]andcollect We comp are the generated video quality of ROSIE [18]
+ kitchen assets from Objaverse [43]. and Re Bot across three aspects: Temporal Quality, Imaging
+
+ Results 
+ 
+ 
+ 
+ 
+  / ŵ Ă Ő ŝ Ŷ Ő 
+  ϱ ϯ ͘ ϰ й 
+  ϲ ϲ ͘ ϰ й 
+  Z 
+  Z 
+  K 
+  Ğ  
+  ^ 
+  Ž 
+  /  
+  ƚ  ; K Ƶ ƌ Ɛ Ϳ 
+ o ed 
+ i V 
+  Y Ƶ Ă ů ŝ ƚ Ǉ  ϳ Ϭ ͘ ϭ й  K ƌ ŝ Ő ŝ Ŷ Ă ů  s ŝ Ě Ğ Ž lan 
+  ^ Ƶ ď ũ Ğ Đ ƚ  ϲ ϱ ͘ ϲ й  ϴ ϳ ͘ ϳ й 
+ ig 
+ ir O 
+   Ž Ŷ Ɛ ŝ Ɛ ƚ Ğ Ŷ Đ Ǉ  ϵ ϯ ͘ Ϯ й 
+  ϴ ϯ ͘ ϳ й 
+   Ă Đ Ŭ Ő ƌ Ž Ƶ Ŷ Ě  ϵ Ϯ ͘ Ϯ й 
+   Ž Ŷ Ɛ ŝ Ɛ ƚ Ğ Ŷ Đ Ǉ  ϵ ϲ ͘ Ϯ й E IS 
+ O 
+  ϴ ϱ ͘ Ϯ й R 
+  D Ž ƚ ŝ Ž Ŷ  ϵ ϵ ͘ Ϯ й 
+  ^ ŵ Ž Ž ƚ Ś Ŷ Ğ Ɛ Ɛ  ϵ ϵ ͘ Ϭ й 
+  Ϭ  Ϯ Ϭ  ϰ Ϭ  ϲ Ϭ  ϴ Ϭ  ϭ Ϭ Ϭ 
+  s  Ğ Ŷ Đ Ś  ^ Đ Ž ƌ Ğ  ; й Ϳ )sru 
+ O 
+ F 
+ re 
+ i 
+ p 
+ g 
+ o 
+ . 
+ rt 
+ 4. 
+ VBen 
+ Q 
+ c 
+ u 
+ h 
+ a 
+ s 
+ n 
+ c 
+ t 
+ o 
+ i 
+ r 
+ t 
+ e 
+ a 
+ s 
+ ti 
+ a 
+ v 
+ s 
+ e 
+ ev 
+ c 
+ a 
+ o 
+ l 
+ m 
+ ua 
+ p 
+ ti 
+ a 
+ o 
+ r 
+ n 
+ is 
+ m 
+ on 
+ etr 
+ o 
+ ic 
+ f 
+ s. 
+ g 
+ R 
+ e 
+ e 
+ n 
+ B 
+ er 
+ o 
+ a 
+ t 
+ t 
+ o 
+ e 
+ u 
+ d 
+ tp 
+ v 
+ er 
+ id 
+ fo 
+ e 
+ r 
+ o 
+ ms 
+ q 
+ R 
+ ua 
+ O 
+ l 
+ S 
+ it 
+ I 
+ y 
+ E 
+ . 
+ a 
+ W 
+ nd 
+ e 
+ to 
+ B 
+ ( 
+ achievesvideoqualitycomparabletooriginalreal-worldvideos. 
+ e R 
+ Fig.5. Comparisonsofmulti-viewconsistency.Wepresenttwoexamples
+ Quality, and Multi-view Consistency. We present a qualita- from the DROID dataset, each captured from two different camera views.
+ tive comparison in Fig. 3. Meanwhile, as shown in Fig. 4, While ROSIE lacks multi-view consistency, Re Bot naturally preserves
+ this capability inherited from 3 D simulation, ensuring the same object in
+ we use VBench [46], a comprehensive benchmark tool for 
+ differentcameraviews,asin the realworld. 
+ assessing video generation quality, to evaluate two key as- 
+ pectsacrossf our dimensions(pleasereferto[46]fordetailed 
+ Multi-view Consistency. Additionally, as shown in Fig. 5,
+ definitions): 1) Temporal Quality - including Subject Con- 
+ Re Bot inherently preserves multi-view consistency across
+ sistency, Background Consistency, and Motion Smoothness; 
+ multiple camera views, since the syn the tic videos are pro-
+ and 2) Frame-wise Quality, i.e., Imaging Quality. We also 
+ duced within a 3 D environment. Notably, this crucial at-
+ evaluate original real videos for reference. 
+ tribute is uniquely achievable through our real-to-sim-to-real
+ Temporal Quality. Although ROSIE offers a straight- 
+ scaling approach. 
+ forward solution, it fails to generate temporally consistent 
+ videos, which hinders VLA models from learning stable C. Evaluation in Simulation Environment
+ actions. As shown in the first example of Fig. 3, ROSIE We first evaluate VLA models and their two fine tuned
+ initiallygeneratesaplausiblecoke can inthefirsttwoframes, versions (“+ROSIE” and “+Re Bot”) in Simpler Env [39].
+ but then fails to maintain consistency, producing irrelevant For fair comparisons, we use ROSIE and Re Bot to scale
+ bottles in later frames. This limitation is further reflected in the same data volume exclusively for evaluation tasks (i.e.,
+ its low subject consistency score of only 65.6%, as reported 100 episodes per task), adapting VLA models to the same
+ in Fig. 4. Therefore, although observation history has been target domain. We demonstrate that Re Bot effectively im-
+ shown to enhance VLA models [1, 29], ROSIE remains un- proves VLA per for mance across three key aspects: 1) In-
+ suitable for improving the irabilitytolearn from consecutive domain Per for mance: Direct evaluation on the given tasks;
+ frames. In contrast, Re Bot inherently ensures excellent tem- 2) Generalization Per for mance (following [30, 47]): Eval-
+ poral consistency through the simulation process, achieving uating variations of in-domain tasks across unseen object
+ 99.2%inmotionsmoothness.Surprisingly,thisevenslightly sizes (physical), unseen instructions (semantics), and unseen
+ outper for msrealrobotvideosby 0.2%,possiblybecause the objects (subject); 3) Cross-embodiment Per for mance: Eval-
+ simulationprocessreducesartifactssuchasmotionblur(see uating on one embodiment while fine tuning on another.
+ thesecondframein the secondexamplein Fig.3).Moreover, In-domain Per for mance. In Table I, we report the grasp
+ real-world background inpainting faithfully uses temporal rates(percentageofsuccessfulobjectgraspsduring the task)
+ context to recover the occlusions, contributing to a 92.2% andsuccessrates(percentageofcompletedtasks)for the four
+ backgroundconsistency.Notably,ourtemporalqualityacross Simpler Env tasks on the Widow X robot. When used out-of-
+ all dimensions, with an average score of 93.0%, is highly the-box, both Octo and Open VLA struggle to report decent
+ comparable to real robot videos (96.1%), indicating that our per for mance on most tasks. Particularly, Open VLA entirely
+ syn the tic videos achieve lifelike temporal consistency. fails on challenging tasks, showing 0.0% success rates (e.g.,
+ Imaging Quality. In Fig. 3, ROSIE struggles to generate stack green cube on yellow cube). This demonstrates their
+ high-quality manipulated objects, especially in the last two poor per for mance in the target domain without data scaling,
+ examples. This issue becomes particularly evident when the despiteextensivetrainingon SOTA-scale data sets[3].Mean-
+ newobjectshapepotentiallydeviates from the originalobject while, ROSIE performs poorly across most tasks with 0.0%
+ shape. This is because generative models tend to rely more success rates, as it fails to generate realistic manipulated
+ on the inpainting mask, while paying less attention to the objects and, more importantly, lacks temporal consistency.
+ guidance of the text prompt. By comparison, Re Bot ensures This limitation is particularly problematic for Octo, which
+ physically plausible movements through simulation, while reliesonobservationhistory with twoconsecutiveframes.In
+ demonstratingexcellentimagingqualityin Fig.4,withonlya contrast, Re Bot achieves the best per for mance improving all
+ 3.7%decreasecomp are dtooriginalvideos,whilesurpassing models,increasing the averagesuccessrateby 7.2%for Octo
+ ROSIE by 13.0%. and 21.8%for Open VLA.Notably,Re Botboosts the average
+
+ 
+ 
+ 
+ 
+ TABLEI 
+ COMPARISONOFEVALUATIONRESULTSON THE WIDOWXROBOTINSIMPLERENV. 
+ Putspoon Putcarrot Stackgreencube Puteggplant 
+ Average 
+ ontowel onplate onyellowcube inbasket 
+ Model 
+ Grasp Success Grasp Success Grasp Success Grasp Success Grasp Success
+ Octo [29] 34.7% 12.5% 52.8% 8.3% 31.9% 0.0% 66.7% 43.1% 46.5% 16.0% 
+ Octo+ROSIE [18] 20.8% 2.8% 27.8% 0.0% 18.1% 0.0% 22.3% 0.0% 22.3% 0.7% 
+ Octo+Re Bot (Ours) 61.1% 54.2% 41.1% 22.0% 63.9% 4.2% 52.8% 12.5% 54.7% 23.2%
+ Open VLA [30] 4.2% 0.0% 33.3% 0.0% 12.5% 0.0% 8.3% 4.2% 14.6% 1.1% 
+ Open VLA+ROSIE [18] 12.5% 0.0% 41.7% 0.0% 50.0% 0.0% 20.8% 0.0% 31.3% 0.0% 
+ Open VLA+Re Bot (Ours) 58.3% 20.8% 45.8% 12.5% 66.7% 4.2% 66.7% 54.2% 59.4% 22.9%
+  ϳ Ϭ 
+  ϲ Ϭ 
+  ϱ Ϭ 
+  ϰ Ϭ 
+  ϯ Ϭ  Ϯ Ϭ 
+  ϭ Ϭ  Ϭ 
+  W Ś Ǉ Ɛ ŝ Đ Ă ů  ^ Ğ ŵ Ă Ŷ ƚ ŝ Đ Ɛ  ^ Ƶ ď ũ Ğ Đ ƚ   ǀ Ğ ƌ Ă Ő Ğ 
+  Ϳ й ;  Ğ ƚ Ă Z  Ɛ Ɛ Ğ Đ Đ Ƶ ^ ͬ Ɖ Ɛ Ă ƌ ' 
+  K Đ ƚ Ž 
+  ϱ ϭ ͘ ϳ й  ϱ ϯ ͘ ϱ й 
+  ϰ ϴ ͘ ϴ й 
+  ϰ Ϭ ͘ ϱ й  ϰ Ϭ ͘ ϯ й  ϰ ϭ ͘ ϯ й  ϰ ϭ ͘ Ϭ й  ϰ Ϭ ͘ ϲ й 
+  ϯ ϲ ͘ Ϭ й 
+  Ϯ Ϯ ͘ ϰ й  Ϯ ϲ ͘ ϳ й  Ϯ Ϭ ͘ ϭ й  Ϯ ϯ ͘ ϲ й Ϯ ϯ ͘ ϯ й  Ϯ ϰ ͘ ϯ й Ϯ ϲ ͘ ϰ й  ϭ Ϭ ͘ ϴ й
+  ϰ ͘ ϱ й  ϰ ͘ Ϯ й  ϲ ͘ ϱ й  Ϭ ͘ ϰ й  Ϭ ͘ Ϭ й  Ϭ ͘ Ϭ й  Ϭ ͘ ϭ й 
+  W Ś Ǉ Ɛ ŝ Đ Ă ů  ^ Ğ ŵ Ă Ŷ ƚ ŝ Đ Ɛ  ^ Ƶ ď ũ Ğ Đ ƚ   ǀ Ğ ƌ Ă Ő Ğ
+  Ϳ й ;  Ğ ƚ Ă Z  Ɛ Ɛ Ğ Đ Đ Ƶ ^ ͬ Ɖ Ɛ Ă ƌ '
+  K Ɖ Ğ Ŷ s >   ϳ ϭ ͘ ϵ й 
+  ϲ ϯ ͘ Ϭ й  ϲ ϱ ͘ ϲ й  ϲ ϲ ͘ ϴ й 
+  ϯ ϳ ͘ ϱ й 
+  ϯ Ϭ ͘ ϳ й  Ϯ ϴ ͘ ϭ й  ϯ Ϯ ͘ ϭ й  Ϯ ϰ ͘ Ϭ й  ϭ ϱ ͘ ϲ й  ϭ Ϯ ͘ ϱ й  ϭ ϯ ͘ ϱ й  ϭ ϱ ͘ ϲ й  ϭ ϭ ͘ ϭ й
+  ϳ ͘ ϯ й  ϳ ͘ ϯ й  ϭ ͘ ϭ й ϭ ͘ ϲ й  Ϭ ͘ Ϭ й Ϭ ͘ Ϭ й  ϭ ͘ ϭ й Ϯ ͘ ϭ й  Ϭ ͘ ϳ й ϭ ͘ Ϯ й
+  н  ͬ  ; ' ƌ Ă Ɛ Ɖ Ϳ  н  Z K ^ /   ; ' ƌ Ă Ɛ Ɖ Ϳ  н  Z Ğ  Ž ƚ  ; ' ƌ Ă Ɛ Ɖ Ϳ
+  н  ͬ  ; ^ Ƶ Đ Đ Ğ Ɛ Ɛ Ϳ  н  Z K ^ /   ; ^ Ƶ Đ Đ Ğ Ɛ Ɛ Ϳ  н  Z Ğ  Ž ƚ  ; ^ Ƶ Đ Đ Ğ Ɛ Ɛ Ϳ
+ Fig.6. Evaluationofgeneralizationper for mance.Re Botimproves the generalizationper for manceof Octo(left)and Open VLA(right)acrossallthree
+ generalizationtypes(physical,semantics,andsubject)on Widow XRobotin Simpler Env. 
+  Ϯ Ϭ 
+  ϭ Ϭ 
+  Ϭ 
+  W Ƶ ƚ  Ɛ Ɖ Ž Ž Ŷ  W Ƶ ƚ  Đ Ă ƌ ƌ Ž ƚ  ^ ƚ Ă Đ Ŭ  Ő ƌ Ğ Ğ Ŷ  Đ Ƶ ď Ğ  W Ƶ ƚ  Ğ Ő Ő Ɖ ů Ă Ŷ ƚ
+  Ž Ŷ  ƚ Ž ǁ Ğ ů  Ž Ŷ  Ɖ ů Ă ƚ Ğ  Ž Ŷ  Ǉ Ğ ů ů Ž ǁ  Đ Ƶ ď Ğ  ŝ Ŷ  ď Ă Ɛ Ŭ Ğ ƚ
+  Ϳ й ;  Ğ ƚ Ă Z  Ɛ Ɛ Ğ Đ Đ Ƶ ^  t ŝ Ě Ž ǁ y  K Ɖ Ğ Ŷ s >  
+  Ϯ Ϭ ͘ ϴ й  K Ɖ Ğ Ŷ s >   н  Z K ^ /  
+  K Ɖ Ğ Ŷ s >   н  Z Ğ  Ž ƚ 
+  ϭ Ϯ ͘ ϱ й 
+  ϴ ͘ ϯ й 
+  ϰ ͘ Ϯ й  ϰ ͘ Ϯ й ϰ ͘ Ϯ й 
+  Ϭ ͘ Ϭ й  Ϭ ͘ Ϭ й Ϭ ͘ Ϭ й Ϭ ͘ Ϭ й  Ϭ ͘ Ϭ й Ϭ ͘ Ϭ й 
+  ϱ Ϭ 
+  ϰ Ϭ 
+  ϯ Ϭ 
+  Ϯ Ϭ 
+  ϭ Ϭ 
+  Ϭ 
+  W ŝ Đ Ŭ  Đ Ž Ŭ Ğ  Đ Ă Ŷ  W ŝ Đ Ŭ  Đ Ž Ŭ Ğ  Đ Ă Ŷ  W ŝ Đ Ŭ  Đ Ž Ŭ Ğ  Đ Ă Ŷ
+  ; ^ ƚ Ă Ŷ Ě ŝ Ŷ Ő Ϳ  ; , Ž ƌ ŝ ǌ Ž Ŷ ƚ Ă ů Ϳ  ; s Ğ ƌ ƚ ŝ Đ Ă ů Ϳ 
+  Ϳ й ;  Ğ ƚ Ă Z  Ɛ Ɛ Ğ Đ Đ Ƶ ^ 
+ although Open VLA faces greater challenges in Simpler Env,
+ it benefits signifi can tly from Re Bot, with the average grasp
+ raterising from 15.6%to 66.8%,and the averagesuccessrate
+ increasing from 0.7%to 11.1%.Theseresultsfur the rconfirm
+ the effectiveness of Re Bot in improving the generalization
+ per for mance of VLA models. 
+ Cross-embodiment Per for mance. We also investigate
+  ' Ž Ž Ő ů Ğ  Z Ž ď Ž ƚ  K Ɖ Ğ Ŷ s >  whether Re Bot can enhance the cross-embodiment perfor-
+  ϰ ϵ ͘ Ϭ й  K Ɖ Ğ Ŷ s >   н  Z K ^ /  
+  ϰ ϭ ͘ Ϭ й  K Ɖ Ğ Ŷ s >   н  Z Ğ  Ž ƚ mance of VLA models. Specifically, we use ROSIE and
+ Re Bot to scale the DROID dataset for the Franka Panda
+  Ϯ ϰ ͘ Ϭ й  Ϯ ϱ ͘ Ϭ й robot, then fine tune Open VLA and evaluate its per for mance
+  ϭ ϴ ͘ Ϭ й  ϭ ϲ ͘ Ϭ й on the Widow X robot and Google Robot in Simpler Env.
+  ϵ ͘ Ϭ й We report the success rates in Fig. 7. On the Widow X
+  ϯ ͘ Ϭ й  ϰ ͘ Ϭ й 
+ robot,while ROSIEonlyprovidesamarginalincreasein the
+ average success rate from 1.4% to 3.1%, Re Bot achieves a
+ substantialboostto 12.5%.Forthe“pickcoke can”task with
+ Fig.7. Evaluationofcross-embodimentper for mance. Re Botenhances 
+ thecross-embodimentper for manceof Open VLAon the Widow Xrobot(top) varying object poses on Google Robot, Re Bot demonstrates
+ and Google Robot(bottom)in Simpler Env. consistent improvements across all poses, whereas ROSIE
+ fails to achieve such robustness. This highlights that Re Bot
+ grasp rate from 14.6% to 59.4% on Open VLA, further enables Open VLA to learn more precise and adaptable
+ demonstrating its effectiveness. These results highlight that manipulation strategies across diverse object poses. Notably,
+ both VLA models benefit greatly from Re Bot because of its Re Bot consistently improves the per for mance of Open VLA
+ temporal consistent and physically realistic syn the tic videos. despitescaling for adifferentembodiment,demonstratingits
+ Generalization Per for mance. While current VLA models ability to enhance cross-embodiment per for mance.
+ often face generalization challenges, we further validate 
+ D. Evaluation in Real-world Environment 
+ Re Bot as an effective scaling solution for enhancing their 
+ generalization per for mance. As shown in Fig. 6, ROSIE In real-world experiments, we demonstrate that Re Bot
+ remains ineffective on Octo, while Re Bot consistently im- consistently enhances the effectiveness of VLA models,
+ proves both Octo and Open VLA across all three generaliza- delivering superior per for mance over ROSIE. As shown in
+ tion types. Specifically, Re Bot increases the average success Tab. II, we leverage both ROSIE and Re Bot to scale our
+ rate from 6.5% to 26.4% on Octo. On the other hand, real robot dataset for four evaluation tasks (see examples
+
+ 
+ 
+ 
+ 
+ TABLEII 
+ COMPARISONOFEVALUATIONRESULTSONTHEFRANKAP AND AROBOTIN THE REALWORLDENVIRONMENT.
+ Results 
+ Put carrot Put grape Put fanta can Put black cube 
+ Average 
+ in blue plate in yellow plate in blue plate in yellow plate
+ Model 
+ Grasp Success Grasp Success Grasp Success Grasp Success Grasp Success
+ Octo [29] 0% 0% 30% 20% 10% 0% 20% 10% 15% 8% 
+ Octo+ROSIE [18] 30% 20% 0% 0% 20% 20% 10% 0% 15% 10% 
+ Octo+Re Bot (Ours) 40% 20% 40% 30% 30% 20% 30% 30% 35% 25% 
+ Open VLA [30] 30% 20% 30% 20% 60% 30% 40% 30% 40% 25% 
+ Open VLA+ROSIE [18] 10% 0% 10% 0% 30% 10% 20% 10% 18% 5% 
+ Open VLA+Re Bot (Ours) 40% 40% 50% 40% 50% 50% 60% 50% 50% 45% 
+ 
+ Put carrot in blue plate Put grape in yellow plate Put fanta can in blue plate Put black cube in yellow plate
+ 
+ at the bottom of Tab. II), and comp are the per for mance example, extending Re Bot to diverse data settings (e.g.,
+ of their fine tuned VLA models. To ensure better adaptation varying camera setups and robots) could potentially benefit
+ to our real-world scene, we also incorporate our real robot cross-embodiment learning. Additionally, exploring more
+ dataset (i.e., 220 real-world episodes) during the fine tuning challenging scenarios beyond tabletop manipulation is also
+ process for all models. We conduct 10 trials per task, and interesting with potentialbroaderreal-worldapplications.We
+ report both the grasp rate and success rate as evaluation take these directions for future work.
+ metrics. While ROSIE provides a marginal improvement, 
+ increasing the average success rate of Octo from 8% to 
+ REFERENCES 
+ 10%, it fails entirely on some tasks (e.g., put the grape in [1] A. Brohan, N. Brown, J. Carbajal, Y. Chebotar, J. Dabis, C. Finn,
+ K. Gopalakrishnan, K. Hausman, A. Herzog, J. Hsu, et al., “Rt-1:
+ yellow plate), and does not show meaningful enhancement 
+ Robotics trans for mer for real-world control at scale,” ar Xiv preprint
+ for Open VLA. In contrast, Re Bot consistently achieves sub- ar Xiv:2212.06817,2022.
+ stantial per for mance gains across diverse tasks, improving [2] A. Brohan, N. Brown, J. Carbajal, Y. Chebotar, X. Chen, K. Choro-
+ manski,T.Ding,D.Driess,A.Dubey,C.Finn,etal.,“Rt-2:Vision-
+ the average success rates of Octo by 17% and Open VLA 
+ language-action models transfer web knowledge to robotic control,”
+ by 20%. Notably, for challenging tasks where Octo initially ar Xivpreprintar Xiv:2307.15818,2023.
+ has a 0% grasp rate and success rate (e.g., put carrot in [3] A. Padalkar, A. Pooley, A. Jain, A. Bewley, A. Herzog, A. Ir-
+ pan, A. Khazatsky, A. Rai, A. Singh, A. Brohan, et al., “Open
+ blue plate), Re Bot boosts the grasping rate to 40% and the 
+ x-embodiment: Robotic learning datasets and rt-x models,” ar Xiv
+ success rate to 20%, highlighting its robust effectiveness in preprintar Xiv:2310.08864,2023.
+ real-world applications. [4] A. O’Neill, A. Rehman, A. Gupta, A. Maddukuri, A. Gupta,
+ A. Padalkar, A. Lee, A. Pooley, A. Gupta, A. Mandlekar, et al.,
+ V. CONCLUSION AND DISCUSSION “Open x-embodiment: Robotic learning datasets and rt-x models,”
+ ar Xivpreprintar Xiv:2310.08864,2023. 
+ We propose Re Bot, a novel real-to-sim-to-real approach [5] A.Khazatsky,K.Pertsch,S.Nair,A.Balakrishna,S.Dasari,S.Karam-
+ for scaling real robot datasets and adapting VLA models to cheti,S.Nasiriany,M.K.Srirama,L.Y.Chen,K.Ellis,etal.,“Droid:
+ A large-scale in-the-wild robot manipulation dataset,” ar Xiv preprint
+ target domains. Re Bot replays real-world robot trajectories 
+ ar Xiv:2403.12945,2024. 
+ in simulation to diversify manipulated objects, and inte- [6] E.Kolve,R.Mottaghi,W.Han,E.Vander Bilt,L.Weihs,A.Herrasti,
+ grates the simulated movements with inpainted real-world M.Deitke,K.Ehsani,D.Gordon,Y.Zhu,etal.,“Ai 2-thor:Aninter-
+ active 3 denvironment for visualai,”ar Xivpreprintar Xiv:1712.05474,
+ background to syn the size physically realistic and temporally 
+ 2017. 
+ consistentrobotvideos.Re Botachievesexcellentvideogen- [7] T.Mu,Z.Ling,F.Xiang,D.Yang,X.Li,S.Tao,Z.Huang,Z.Jia,and
+ eration quality, with a VBench temporal consistency score H. Su, “Maniskill: Generalizable manipulation skill benchmark with
+ large-scaledemonstrations,”ar Xivpreprintar Xiv:2107.14483,2021.
+ of 93.0% and imaging quality score of 66.4%, which are 
+ [8] J.Gu,F.Xiang,X.Li,Z.Ling,X.Liu,T.Mu,Y.Tang,S.Tao,X.Wei,
+ comparable to 96.1% and 70.1% for real robot videos. In Y. Yao, et al., “Maniskill 2: A unified benchmark for generalizable
+ Simpler Env with the Widow X robot, Re Bot improved the manipulationskills,”ar Xivpreprintar Xiv:2302.04659,2023.
+ [9] Y. Wang, Z. Xian, F. Chen, T.-H. Wang, Y. Wang, K. Fragkiadaki,
+ in-domain per for mance of Octo by 7.2% and Open VLA by 
+ Z. Erickson, D. Held, and C. Gan, “Robogen: Towards unleashing
+ 21.8%, and enhanced generalization per for mance by 19.9% infinite data for automatedrobotlearningvia generativesimulation,”
+ and 9.4%, respectively. In a real-world environment with a ar Xivpreprintar Xiv:2311.01455,2023.
+ [10] B.Liu,Y.Zhu,C.Gao,Y.Feng,Q.Liu,Y.Zhu,and P.Stone,“Libero:
+ physical Franka Panda, Re Bot increased the success rates of 
+ Benchmarkingknowledgetransfer for lifelongrobotlearning,”ar Xiv
+ Octo by 17% and Open VLA by 20%. preprintar Xiv:2306.03310,2023. 
+ Wehope Re Botcouldserveasavaluableasset and inspire [11] S. Nasiriany, A. Maddukuri, L. Zhang, A. Parikh, A. Lo, A. Joshi,
+ A.Mandlekar,and Y.Zhu,“Robocasa:Large-scalesimulationofev-
+ future research on real-to-sim-to-real for robot learning. It 
+ erydaytasks for generalistrobots,”ar Xivpreprintar Xiv:2406.02523,
+ opens several exciting avenues for future exploration. For 2024. 
+
+ 
+ 
+ 
+ 
+ [12] W. Zhao, J. P. Queralta, and T. Westerlund, “Sim-to-real transfer in ar Xiv:2406.09246,2024.
+ deep rein for cement learning for robotics: a survey,” in 2020 IEEE [31] M.Savva,A.Kadian,O.Maksymets,Y.Zhao,E.Wijmans,B.Jain,
+ symposiumseriesoncomputationalintelligence(SSCI). IEEE,2020, J.Straub,J.Liu,V.Koltun,J.Malik,etal.,“Habitat:Aplat for mfor
+ pp.737–744. embodiedairesearch,”in Proceedingsof the IEEE/CVFinternational
+ [13] F. Muratore, F. Ramos, G. Turk, W. Yu, M. Gienger, and J. Peters, conferenceoncomputervision,2019,pp.9339–9347.
+ “Robotlearningfromr and omizedsimulations:Areview,”Frontiersin [32] M.Shridhar,J.Thomason,D.Gordon,Y.Bisk,W.Han,R.Mottaghi,
+ Robotics and AI,vol.9,p.799893,2022. L. Zettlemoyer, and D. Fox, “Alfred: A benchmark for interpreting
+ [14] Z. Mandi, H. Bharadhwaj, V. Moens, S. Song, A. Rajeswaran, and grounded instructions for everyday tasks,” in Proceedings of the
+ V. Kumar, “Cacti: A framework for scalable multi-task multi-scene IEEE/CVF conference on computer vision and pattern recognition,
+ visualimitationlearning,”ar Xivpreprintar Xiv:2212.05711,2022. 2020,pp.10740–10749.
+ [15] S. Zhou, Y. Du, J. Chen, Y. Li, D.-Y. Yeung, and C. Gan, “Robo- [33] F. Xiang, Y. Qin, K. Mo, Y. Xia, H. Zhu, F. Liu, M. Liu, H. Jiang,
+ dreamer:Learningcompositionalworldmodels for robotimagination,” Y.Yuan,H.Wang,etal.,“Sapien:Asimulatedpart-basedinteractive
+ ar Xivpreprintar Xiv:2404.12377,2024. environment,” in Proceedings of the IEEE/CVF conference on com-
+ [16] Y.Du,S.Yang,B.Dai,H.Dai,O.Nachum,J.Tenenbaum,D.Schu- putervision and patternrecognition,2020,pp.11097–11107.
+ urmans, and P. Abbeel, “Learning universal policies via text-guided [34] M. Mittal, C. Yu, Q. Yu, J. Liu, N. Rudin, D. Hoeller, J. L. Yuan,
+ video generation,” Advances in Neural Information Processing Sys- R. Singh, Y. Guo, H. Mazhar, et al., “Orbit: A unified simulation
+ tems,vol.36,2024. framework for interactiverobotlearningenvironments,”IEEERobotics
+ [17] Z. Chen, S. Kiami, A. Gupta, and V. Kumar, “Genaug: Retargeting and Automation Letters,vol.8,no.6,pp.3740–3747,2023.
+ behaviors to unseen situations via generative augmentation,” ar Xiv [35] L. Wang, R. Guo, Q. Vuong, Y. Qin, H. Su, and H. Christensen,
+ preprintar Xiv:2302.06671,2023. “A real 2 sim 2 real method for robust object grasping with neural
+ [18] T.Yu,T.Xiao,A.Stone,J.Tompson,A.Brohan,S.Wang,J.Singh, surfacereconstruction,”in 2023 IEEE 19 th International Conference
+ C. Tan, J. Peralta, B. Ichter, et al., “Scaling robot learning with on Automation Science and Engineering (CASE). IEEE, 2023, pp.
+ semanticallyimaginedexperience,”ar Xivpreprintar Xiv:2302.11550, 1–8. 
+ 2023. [36] M. Torne, A. Simeonov, Z. Li, A. Chan, T. Chen, A. Gupta,
+ [19] L. Y. Chen, C. Xu, K. Dharmarajan, M. Z. Irshad, R. Cheng, and P. Agrawal, “Reconciling reality through simulation: A real-
+ K. Keutzer, M. Tomizuka, Q. Vuong, and K. Goldberg, “Rovi-aug: to-sim-to-real approach for robust manipulation,” ar Xiv preprint
+ Robot and viewpointaugmentation for cross-embodimentrobotlearn- ar Xiv:2403.03949,2024.
+ ing,” in Conference on Robot Learning (Co RL), Munich, Germany, [37] Y. Mu, T. Chen, S. Peng, Z. Chen, Z. Gao, Y. Zou, L. Lin, Z. Xie,
+ 2024. and P. Luo, “Robotwin: Dual-arm robot benchmark with generative
+ [20] T. Ren, S. Liu, A. Zeng, J. Lin, K. Li, H. Cao, J. Chen, X. Huang, digitaltwins(earlyversion),”ar Xivpreprintar Xiv:2409.02920,2024.
+ Y.Chen,F.Yan,Z.Zeng,H.Zhang,F.Li,J.Yang,H.Li,Q.Jiang, [38] X.Li,J.Li,Z.Zhang,R.Zhang,F.Jia,T.Wang,H.Fan,K.-K.Tseng,
+ and L. Zhang, “Grounded sam: Assembling open-world models for and R.Wang,“Robogsim:Areal 2 sim 2 realroboticgaussiansplatting
+ diversevisualtasks,”2024. simulator,”2024.[Online].Available:https://arxiv.org/abs/2411.11839
+ [21] S. Zhou, C. Li, K. C. Chan, and C. C. Loy, “Pro Painter: Improving [39] X. Li, K. Hsu, J. Gu, K. Pertsch, O. Mees, H. R. Walke, C. Fu,
+ propagation and transformer for videoinpainting,”in Proceedingsof I. Lunawat, I. Sieh, S. Kirmani, et al., “Evaluating real-world robot
+ IEEEInternational Conferenceon Computer Vision(ICCV),2023. manipulationpoliciesinsimulation,”ar Xivpreprintar Xiv:2405.05941,
+ [22] H.Ravichandar,A.S.Polydoros,S.Chernova,and A.Billard,“Recent 2024. 
+ advances in robot learning from demonstration,” Annual review of [40] S. Liu, Z. Zeng, T. Ren, F. Li, H. Zhang, J. Yang, C. Li,
+ control, robotics, and autonomous systems, vol. 3, no. 1, pp. 297– J. Yang, H. Su, J. Zhu, et al., “Grounding dino: Marrying dino with
+ 330,2020. grounded pre-training for open-set object detection,” ar Xiv preprint
+ [23] Y.Yang,L.Chen,Z.Zaidi,S.van Waveren,A.Krishna,and M.Gom- ar Xiv:2303.05499,2023.
+ bolay, “Enhancing safety in learning from demonstration algorithms [41] N. Ravi, V. Gabeur, Y.-T. Hu, R. Hu, C. Ryali, T. Ma, H. Khedr,
+ via control barrier function shielding,” in Proceedings of the 2024 R.Ra¨dle,C.Roll and,L.Gustafson,E.Mintun,J.Pan,K.V.Alwala,
+ ACM/IEEE International Conference on Human-Robot Interaction, N. Carion, C.-Y. Wu, R. Girshick, P. Dolla´r, and C. Feichtenhofer,
+ 2024,pp.820–829. “Sam 2: Segment anything in images and videos,” 2024. [Online].
+ [24] A. Mandlekar, J. Booher, M. Spero, A. Tung, A. Gupta, Y. Zhu, Available:https://arxiv.org/abs/2408.00714
+ A. Garg, S. Savarese, and L. Fei-Fei, “Scaling robot supervision to [42] H.Walke,K.Black,A.Lee,M.J.Kim,M.Du,C.Zheng,T.Zhao,
+ hundredsofhours with roboturk:Roboticmanipulation data setthrough P.Hansen-Estruch,Q.Vuong,A.He,V.Myers,K.Fang,C.Finn,and
+ human reasoning and dexterity,” in 2019 IEEE/RSJ International S. Levine, “Bridge data v 2: A dataset for robot learning at scale,” in
+ Conferenceon Intelligent Robots and Systems(IROS). IEEE,2019, Conferenceon Robot Learning(Co RL),2023.
+ pp.1048–1055. [43] M.Deitke,D.Schwenk,J.Salvador,L.Weihs,O.Michel,E.Vander-
+ [25] F. Ebert, Y. Yang, K. Schmeckpeper, B. Bucher, G. Georgakis, Bilt,L.Schmidt,K.Ehsani,A.Kembhavi,and A.Farhadi,“Objaverse:
+ K.Daniilidis,C.Finn,and S.Levine,“Bridge data:Boostinggener- Auniverseofannotated 3 dobjects,”ar Xivpreprintar Xiv:2212.08051,
+ alizationofroboticskills with cross-domain data sets,”ar Xivpreprint 2022. 
+ ar Xiv:2109.13396,2021. [44] C. Saharia, W. Chan, S. Saxena, L. Li, J. Whang, E. L. Denton,
+ [26] E. Jang, A. Irpan, M. Khansari, D. Kappler, F. Ebert, C. Lynch, K. Ghasemip our, R. Gontijo Lopes, B. Karagol Ayan, T. Salimans,
+ S. Levine, and C. Finn, “Bc-z: Zero-shot task generalization with et al., “Photorealistic text-to-image diffusion models with deep lan-
+ roboticimitationlearning,”in Conferenceon Robot Learning. PMLR, guage underst and ing,” Advances in neural information processing
+ 2022,pp.991–1002. systems,vol.35,pp.36479–36494,2022. 
+ [27] D. Whitney, E. Rosen, E. Phillips, G. Konidaris, and S. Tellex, [45] R. Rombach, A. Blattmann, D. Lorenz, P. Esser, and B. Ommer,
+ “Comparing robot grasping teleoperation across desktop and virtual “High-resolution image syn the sis with latent diffusion models,” in
+ reality with rosreality,”in Robotics Research:The 18 th International Proceedings of the IEEE/CVF conference on computer vision and
+ Symposium ISRR. Springer,2019,pp.335–350. patternrecognition,2022,pp.10684–10695.
+ [28] Y. Yang, B. Ikeda, G. Bertasius, and D. Szafir, “Arcade: Scalable [46] Z.Huang,Y.He,J.Yu,F.Zhang,C.Si,Y.Jiang,Y.Zhang,T.Wu,
+ demonstration collection and generation via augmented reality for Q.Jin,N.Chanpaisit,Y.Wang,X.Chen,L.Wang,D.Lin,Y.Qiao,and
+ imitation learning,” in 2024 IEEE/RSJ International Conference on Z.Liu,“VBench:Comprehensivebenchmarksuite for videogenerative
+ Intelligent Robots and Systems(IROS). IEEE,2024,pp.2855–2861. models,” in Proceedings of the IEEE/CVF Conference on Computer
+ [29] Octo Model Team, D. Ghosh, H. Walke, K. Pertsch, K. Black, Vision and Pattern Recognition,2024.
+ O.Mees,S.Dasari,J.Hejna,C.Xu,J.Luo,T.Kreiman,Y.Tan,L.Y. [47] Z. Zhang, K. Zheng, Z. Chen, J. Jang, Y. Li, C. Wang, M. Ding,
+ Chen,P.Sanketi,Q.Vuong,T.Xiao,D.Sadigh,C.Finn,and S.Levine, D.Fox,and H.Yao,“Grape:Generalizingrobotpolicyviapreference
+ “Octo: An open-source generalist robot policy,” in Proceedings of alignment,”ar Xivpreprintar Xiv:2411.19309,2024.
+ Robotics:Science and Systems,Delft,Netherlands,2024. 
+ [30] M. J. Kim, K. Pertsch, S. Karamcheti, T. Xiao, A. Balakrishna, 
+ S. Nair, R. Rafailov, E. Foster, G. Lam, P. Sanketi, et al., “Open- 
+ vla: An open-source vision-language-action model,” ar Xiv preprint 

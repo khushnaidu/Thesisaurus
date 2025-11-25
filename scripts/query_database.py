@@ -178,7 +178,7 @@ def get_paper_details(conn, paper_id):
     
     # Basic info
     cursor.execute("""
-        SELECT title, authors, year, venue, model_name, model_size,
+        SELECT title, year, venue, model_name, model_size,
                model_architecture, vision_encoder, base_model,
                optimizer, learning_rate, batch_size, epochs,
                training_data_size, success_rate
@@ -191,11 +191,10 @@ def get_paper_details(conn, paper_id):
         print(f"  Paper '{paper_id}' not found!")
         return
     
-    (title, authors, year, venue, model_name, model_size, arch, 
+    (title, year, venue, model_name, model_size, arch, 
      vision_enc, base_model, opt, lr, bs, epochs, data_size, success) = result
     
     print(f"Title: {title}")
-    print(f"Authors: {authors[:80]}...")
     if year:
         print(f"Year: {year}")
     if venue:

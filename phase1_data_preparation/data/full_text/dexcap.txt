@@ -1,0 +1,1362 @@
+ 
+ 
+ 
+ 
+ 
+ Dex Cap: Scalable and Portable Mocap Data 
+ 
+ Collection System for Dexterous Manipulation 
+ 
+ 
+ Chen Wang, Haochen Shi, Weizhuo Wang, Ruohan Zhang, Li Fei-Fei, C. Karen Liu
+ Stanford University 
+ https://dex-cap.github.io 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ (a)Dex Cap: Portable motion capturesystem (b)Mocap data and 3 Dscene (c)Dex IL: Dexterous imitation learning
+ Fig. 1: DEXCAP facilitates the in-the-wild collection of high-quality human hand motion capture data and 3 D observations.
+ Leveraging this data, DEXIL adapts it to the robot embodiment and trains control policy to perform the same task.
+ 
+ Abstract—Imitation learning from human hand motion data supervised training using human demonstration data. One
+ presentsapromisingavenue for imbuingrobots with human-like commonly used way to collect data is to teleoperate robot
+ dexterityinreal-worldmanipulationtasks.Despite this potential, 
+ hands to perform the tasks. However, due to the requirement
+ substantialchallengespersist,particularly with the portabilityof 
+ ofarealrobotsystem and slowrobotmotion,thisapproachis
+ existingh and motioncapture(mocap)systems and the complexity 
+ oftranslatingmocap data intoeffectiveroboticpolicies.Totackle expensive to scale up. An alternative way is to directly track
+ these issues, we introduce DEXCAP, a portable hand motion human hand motions during manipulation without controlling
+ capture system, alongside DEXIL, a novel imitation algorithm the robot. Current system is primarily vision-based with a
+ for training dexterous robot skills directly from human hand 
+ single-viewcamera.However,besides the questionofwhether
+ mocap data. DEXCAP offersprecise,occlusion-resistanttracking 
+ the tracking algorithm can provide accurate 3 D information
+ ofwrist and fingermotions base don SLAM and electromagnetic 
+ fieldtoge the rwith 3 Dobservationsof the environment.Utilizing which is critical for robot policy learning, these systems are
+ this rich dataset, DEXIL employs inverse kinematics and point vulnerable to visual occlusions that frequently occur during
+ cloud-based imitation learning to seamlessly replicate human hand-object interactions.
+ actions with robot hands. Beyond direct learning from human 
+ A better alternative to vision-based methods for gathering
+ motion, DEXCAP also offers an optional human-in-the-loop 
+ dexterous manipulation data is through motion capture (mo-
+ correctionmechanismduringpolicyrolloutstorefine and further 
+ improve task per for mance. Through extensive evaluation across cap). Mocap systems provides accurate 3 D information and
+ six challenging dexterous manipulation tasks, our approach not are robust to visual occlusions. Hence human operators can
+ only demonstrates superior per for mance but also showcases the directly interact with the environment with their hands, which
+ system’s capability to effectively learn from in-the-wild mocap 
+ is fast and easier to scale up since no robot hardw are is
+ data, paving the way for future data collection methods in the 
+ required.Toscaleuph and mocapsystemsto data collectionin
+ pursuit of human-level robot dexterity. 
+ everydaytasks and environments for robotlearning,asuitable
+ I. INTRODUCTION system should ideally be portable and robust for long capture
+ Buildingroboticsystemstoper for meverydaymanipulation sessions, provide accurate finger and wrist poses, as well as
+ tasks is a long-standing challenge. Our living environments 3 D environment information. Most hand mocap systems are
+ and daily objects are designed with human hand functionality not portable and rely on well-calibrated third-view cameras.
+ in mind, posing a substantial challenge for developing future Whileelectromagneticfield(EMF)glovesovercome this issue,
+ home robots. Recent breakthroughs in robotic dexterity, espe- they cannot track the 6-Do F wrist pose in the world frame,
+ ciallyin the controlofmulti-fingeredmechanicalh and switha which is important for end-effectors policy learning. Devices
+ high degree of freedom, have shown remarkable potential [1– like IMU-based whole-body suits can monitor wrist position
+ 3]. However, enabling robotic hands to emulate human-level but are prone to drift over time.
+ dexterity in manipulation tasks remains unsolved, due to both In addition to hardw are challenges, there are also algorith-
+ hardw are and algorithmic challenges. mic challenges to use motion capture data for robot imitation
+ Imitation Learning (IL) [4, 5] has recently made con- learning. While dexterous robot hands enable the possibility
+ siderable strides toward this goal [6, 7], especially through of learning directly from human hand data, the inherent dif-
+ 4202 
+ lu J 
+ 4 
+ ]OR.sc[ 
+ 2 v 88770.3042:vi Xra 
+
+ 
+ 
+ 
+ 
+ ferences in size, proportion, and kinematic structure between II. RELATEDWORKS
+ the robot hand and human hand call for innovative algorithms 
+ A. Dexterous manipulation 
+ to overcome these embodiment gaps. Towards solving these 
+ challenges,ourworksimultaneouslyintroducesa new portable Dexterous manipulation has been a long-standing research
+ hand mocap system, DEXCAP, and an imitation algorithm, area in robotics [15–19], posing significant challenges to
+ DEXIL, that allows the robot to learn dexterous manipulation planning and control due to the high degrees-of-freedom. The
+ policies directly from the human hand mocap data. traditional optimal control methods [17–19] often necessitate
+ simplification of the contacts, which is usually not tenable
+ DEXCAP (Fig. 1) is a portable hand mocap system that 
+ in more complex tasks. Recently, rein for cement learning has
+ tracks the 6-Do F poses of the wrist and the finger motions in 
+ been explored to learn dexterous policies in simulation with
+ real-time (60 Hz). The system includes a mocap glove to track 
+ minimalassumptionsaboutthetaskor the environment[2,20–
+ finger joints, a camera mounted on top of each glove to track 
+ 29]. The learned policies can solve complex tasks, including
+ the 6-Do F poses of the wrists with SLAM, and an RGB-D 
+ in-hand object re-orientatation [2, 20, 23–25, 28], bimanual
+ Li DAR camera on the chest to observe the 3 D environments. 
+ manipulation[26,30],andlong-horizonmanipulation[22,27].
+ Besides the hardw are challenges, research efforts on de- However, due to the sim-to-real gap, deploying the learned
+ veloping algorithms to utilize mocap data for robot learning policy on a real-world robot remains challenging. Imitation
+ have been missing due to the lack of such a data collection learning, on the other hand, focuses on learning directly
+ system and collected data. Prior algorithms that learn from fromreal-worlddemonstration data,whichisobtainedthrough
+ human motion focus on learning the rewards [8, 9], high- either teleportation [1, 6, 31, 32] or human videos [3, 33, 34].
+ levelplans[10,11],andvisualrepresentations[12,13],which DIME [31] uses VR to teleoperate a dexterous hand for data
+ oftenrequireadditionalrobot data and can notbedirectlyused collection; Qin et al. [35] uses an RGB camera to track hand
+ for low-level control. In this work, we argue that the main pose for teleoperation; Dex Transfer [36] uses human mocap
+ challenge of learning low-level control from human motion is data to guide dexterous grasping; Dex MV [33], Dex VIP [34]
+ that the data is missing precise 3 D information of the hand and Video Dex [3] leverages human video data for learning
+ motion (e.g., 6-Do F hand pose, 3 D finger positioning), which the motion priors but often require additional training in
+ are exactly what DEXCAP can provide. simulation or real robot teleoperation data. Our work focuses
+ To leverage data collected by DEXCAP for learning dex- on dexterous imitation learning, which relies on DEXCAP to
+ terous robot policies, we propose imitation learning from collect high-quality hand mocap data grounded in 3 D point
+ mocap data, DEXIL, which consists of two major steps — cloud observation, which can be directly used to train low-
+ dat are targeting and traininggenerative-basedbehaviorcloning level positional control on robots with single or dual hands.
+ policy with pointcloudinputs,withanoptionalhuman-in-the- 
+ B. Hand motion capture system 
+ loop motion correction step. For retargeting, we use inverse 
+ kinematics (IK) to retarget the robotic hand’s fingertips to the Human hand mocap is an important technique for appli-
+ same 3 D location as the human’s fingertips. The 6-Do F pose cations in computer vision and graphics. Most previous sys-
+ ofthewristisusedtoinitialize the IKtoensure the samewrist tems are camera-based, IMU-based, or electromagnet(EMF)-
+ motion between the human and the robots. Then we convert based. Camera-based systems utilize monocular camera [37–
+ RGB-Dobservationstopointcloud-basedrepresentations.We 39], RGB-D camera [40–42], VR headset [43], or multi-view
+ thenuseapointcloud-basedbehaviorcloningalgorithmbased camera with markers [44, 45]. However, the quality of hand
+ on Diffusion Policy [14]. In more challenging tasks when IK motion tracking quickly deteriorates in scenarios involving
+ is insufficient to fulfill the embodiment gap between human heavy occlusions, which happen frequently in hand-object
+ and robot hands, we propose a human-in-the-loop motion interactions. Some of these systems also require third-view
+ correction mechanism. During policy rollouts, humans can calibrated cameras which are not portable or scalable. More
+ wear the DEXCAP and interrupt the robot’s motion when recently, Inertia Measurement Unit (IMU) has been used for
+ unexpected behavior occurs, and such interruption data can in-the-wildhumanmocap[46–50].Never the less,mostofthem
+ be further used for policy fine tuning. focus on whole-body motion capture and miss fine-grained
+ In summary, the main contributions of this work include: finger motions. EMF-based mocap gloves are designed for
+ capturing finger motion, which is widely used for dexterous
+ • DEXCAP: a novel portable human hand mocap system, teleoperation [51–53]. However, the glove does not track the
+ enablingreal-timetrackingofwrist and fingermovements 6-Do F palm poses grounded in the environment and misses
+ for dexterous manipulation tasks. visual observations for training robot policies. DEXCAP is a
+ • DEXIL:animitationlearningframeworkleveragingh and mocapglovesystem that isdesignedtocollect data for training
+ mocap data for directly learning dexterous manipulation visuomotor manipulation policies. Through novel engineering
+ skills from human hand motions. designs, our system stays robust to occlusions, captures fine-
+ • Human-in-the-Loop Correction:ahuman-in-the-loopcor- grained finger motion, tracks palm poses using SLAM, and
+ rection mechanism with DEXCAP, signifi can tly enhanc- records RGB-D images to reconstruct the scene with a wear-
+ ing robot per for mance in complex tasks. able camera vest. 
+
+ 
+ 
+ 
+ 
+ 
+ Calibrationphase Datacollectionphase
+ 
+ 
+ 
+ 
+ 
+ 
+ Intel NUC 
+ 
+ Power bank 
+ 1 2 
+ (a)Dex Capfrontview (b)Dex Capbackview (c)Detailsof the camerasetup 
+ Fig. 2: Details of the human system. (a) Our setup includes a 3 D-printed rack on a chest harness, featuring a Realsense
+ L 515 Li DAR camera on top and three Realsense T 265 tracking cameras below. (b) An Intel NUC and power bank in a
+ backpack power the system for approximately 40 minutes of data collection. (c) The T 265 cameras, initially in a known pose
+ for calibration, are relocated to hand mounts during data collection to monitor palm positions, ensuring consistency through a
+ click-in design. Finger motions are captured by Rokoko gloves, accurately tracking the finger joint positions.
+ 
+ C. Robot learning with human demonstration designed and used for the parallel-gripper data collection
+ process, while in this work we aim to collect multi-finger
+ Imitation Learning (IL) has enabled robots to successfully 
+ handmotion data for dexterousmanipulationtasks(e.g.,using
+ perform various manipulation tasks [4, 54–60]. Traditional 
+ scissors and unscrewing bottle caps). 
+ IL algorithms such as DMP and Pr MP [61–64] enjoy high 
+ learning sample efficiency but are limited in their ability to 
+ III. HARDW ARE SYSTEM:DEXCAP 
+ handle high-dimensional observations. In contrast, recent IL 
+ methods built upon deep neural networks can learn policies Inthissection,weintroduce the systemdesignincluding(1)
+ with raw image observation inputs [65, 66], even for high- a portable human hand motion capture system DEXCAP that
+ degree robot systems with bimanual arms [67, 68]. Despite is used for data collection (Sec. III-A) and (2) a bimanual
+ their effectiveness, one key challenge for imitation learning robot system equipped with dexterous hands for testing the
+ is how to scale up the training data. Prior works focus on policies learned from the collected data (Sec. III-B).
+ teleoperation data [66, 69–77] which is expensive to collect 
+ A. Dex Cap 
+ due to the requirement of the robot hardw are. More recently, 
+ learning from human motion data has started to receive To capture the fine-grained hand motion data suitable to
+ more attention because it allows collecting data without robot train dexterous robot policies, DEXCAP is designed with four
+ hardw are [78]. By leveraging human videos [11, 79], hand key objectives in mind: (1) detailed finger motion tracking,
+ trajectories [10, 80–82], promising results have been shown (2) accurate 6-Do F wrist pose estimation, (3) aligned 3 D ob-
+ to train policies with less manual human effort. However, servations recording in a unified coordinate frame with hands,
+ these human motions are in 2 D image space [80, 83, 84], and (4) outst and ing portability for data collection in various
+ which fails to directly train 6-Do F manipulation policies in real-world environments. We achieved these objectives with
+ 3 Denvironments and usuallyrequiresadditionalteleoperation zero compromise on scalability—DEXCAP must be simple to
+ data to bridge the gap [10, 11, 79]. Recently, human-in- calibrate, inexpensive to build, and robust for data collection
+ the-loop correction algorithms have also shown promising of daily activities in the wild.
+ results in robot learning [85–87]. Our DEXCAP provides Tracking finger motions. Our system uses electromag-
+ tracking of 6-Do F hand poses together with finger motions netic field (EMF) gloves, offering a significant advantage
+ grounded in 3 D point cloud observations, which is portable over vision-based finger tracking systems, particularly in the
+ for data collection with outarobot.Basedon the datacollected robustness to visual occlusions that frequently occur in hand-
+ with DEXCAP, we introduce DEXIL which is a point cloud- object interactions. In our system, finger motions are tracked
+ based imitation learning algorithm for learning fine-grained using Rokokomotioncaptureglovesasillustratedin Figure 2.
+ dexterous manipulation policies, with an optional human-in- Each glove’s fingertip is embedded with a tiny magnetic
+ the-loop correction step for more challenging tasks. sensor, while a signal receiver hub is placed on the glove’s
+ dorsal side. The 3 D location of each fingertip is measured
+ D. Portable data collection systems for manipulation 
+ as the relative 3 D translation from the hub to the sensors.
+ Recentlyadvancementsinlow-costh and-heldgrippers have In appendix we included a qualitative comparison between
+ shown promising results in collecting robot manipulation data our EMF glove system and state-of-the-art vision-based hand-
+ without robot hardw are [88–94]. All of these systems are tracking methods across different manipulation scenarios.
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Front view Side view 
+ (a)Retargeting with fingertip IK (b)Bimanualdexterousrobotsetup (c)Human-in-the-loopcorrectionsetup
+ 
+ Fig. 3: Details of the robot system. Mirroring the human system, the robot system reuses the same chest cameras and mount.
+ (a) Once the motion is captured by Dex Cap, it’s retargeted to LEAP hand through discarding pinky finger and IK to match
+ fingertiplocation.(c)Anoptionalhuman-in-the-loopcorrectionstep can beper for medtofurtherrefine the motionstransferred.
+ Specifically, the human will provide the delta input in real time when the robot system is carrying out the task. Note the hand
+ T 265 is only used at correction time, as the robot arm already knows the exact location of fingers.
+ Tracking 6-Do F wrist pose. Beyond finger motion, know- a constant trans for mation between the camera frames. Then,
+ ing the precise positioning of a robot’s end-effector in a we take off the tracking cameras from the rack and insert
+ 3 D space is crucial for robot manipulation. This necessitates them into the camera slot attached to each glove. In this way,
+ DEXCAPtoestimate and record the 6-Do Fposetrajectoriesof we caneasilytransform the handposetrackingresultsinto the
+ human hands during data collection. While camera-based and observationframeofthechestcamera with the constantinitial
+ IMU-based methods are commonly used, each has its limita- trans for mation. The full calibration process is demonstrated
+ tions. Camera-based systems, often non-portable and limited in Appendix Figure 13 and supplementary videos, which
+ in their ability to estimate wrist orientation, are less suited takesaround 10 seconds.Tofur the rensurestableobservations
+ for data collection in manipulation tasks. IMU-based systems, amidst human movement, another fisheye tracking camera
+ although wearable, tend to suffer from position drifting when (markedredin Fig.2(c))ismountedunder the Li DARcamera,
+ used for long recording sessions. To address these challenges, which provides a more robust SLAM per for mance than the
+ we develop a 6-Do F wrist tracking system based on the Li DARcamera with itswidefieldofview.Wedefine the initial
+ SLAM algorithm, as shown in Figure 2(c). This system uses pose frame of this tracking camera as the world frame for all
+ an Intel Realsense T 265 camera, mounted on each glove’s stream data. Figure 6 is the visualization of the collected data
+ dorsal side. It combines images from two fisheye cameras by trans for ming the observations into colored point clouds in
+ and IMU sensor signals to construct an environment map the world frame alongside the captured hand motions.
+ using the SLAM algorithm, enabling consistent tracking of System Portability. Central to the portability of DEXCAP
+ the wrist’s 6-Do F pose. This design has three key advantages: is a compact mini-PC (Intel NUC 13 Pro), carried in a
+ it is portable, allowing for wrist pose tracking without the backpack, which serves as the primary computation unit for
+ need for hands to be visible in third-person camera frames; data recording. This PC is powered by a portable power bank
+ SLAM can autonomously correct position drift with the built with a 40000 m Ah battery, enabling approximately 40 minutes
+ map for long-time use; and the IMU sensor provides crucial of continuous data collection (Fig. 2(b)). The total weight of
+ wrist orientation information to train the robot policy in the the backpack is 3.96 pounds. The supplementary video shows
+ subsequent pipeline. that donning and calibrating DEXCAP is fast and simple,
+ takinglessthan 10 seconds.Additionally,DEXCAP’shardw are
+ Recording 3 D observations and calibration. Capturing designismodular and inexpensivetobuild—norestrictionto
+ the data necessary for training robot policies requires not brandsor model sofcameras,motioncapturegloves,andmini-
+ only the tracking of hand movement but also recording ob- PCs. We will open-source the code and instruction videos for
+ servations of the 3 D environment as the policy input. As builders, along with a range of hardw are options. The overall
+ depicted in Figure 2(a), we design a wearable camera vest cost of the DEXCAP is kept within a $4 k USD budget.
+ for this purpose. It incorporates an Intel Realsense L 515 
+ B. Bimanual dexterous robot 
+ RGB-D Li DAR camera, mounted on the top of the chest, to 
+ capture the observations during human data collection. The To validate the robot policy trained by the data from
+ nextcriticalquestion the nbecomeshowtoeffectivelyintegrate DEXCAP, we establish a bimanual dexterous robot setup.
+ the tracked hand motion data with the 3 D observations. To This setup comprises two Franka Emika robot arms, each
+ simplify the calibration process, we designed a 3 D-printed equippedwitha LEAPdexterousrobotich and(afour-fingered
+ camera rack underneath the chest camera mount as illustrated hand with 16 joints) [95], as depicted in Figure 3(b). For
+ in Figure 2(c). At the beginning of the data collection, all policy evaluation, the chest Li DAR camera used in human
+ tracking cameras are placed in the rack slots, which secures data collection is detached from the vest and mounted on
+
+ 
+ 
+ 
+ 
+ 
+ Timestep! Dat are targeting 
+ ! 
+ " 
+ 
+ Policyrollouts 
+ Trans for mto Remove 
+ RGB-Dimage Pointcloud 
+ robotspace redundantpoints 
+ (in-the-wild) 
+ !' 
+ # " " 
+ " " 
+ Residual 
+ Humancorrection action 
+ Handmocap 
+ Fingertip IK 
+ Futuresteps inrobotspace Policy 
+ [!+#:!+%+#] ! Correction 
+ dataset 
+ Policy 
+ ! 
+ ! Original 
+ [":"$%] 
+ … … MSELoss 46-dim action space dataset Merge&fine tuning 
+ (a)Dex ILoverview (b)Human-in-the-loopcorrection 
+ Fig. 4: Algorithm overview. (a) DEXIL first retargets the DEXCAP data to the robot embodiment by first constructing 3 D
+ point clouds from RGB-D observations and trans for ming it into robot operation space. Meanwhile, the hand motion capture
+ data is retargeted to the dexterous hand and robot arm with fingertip IK. Based on the data, a robot policy is learned to output
+ a sequence of future goal positions as the robot actions. (b). DEXCAP also offers an optional human-in-the-loop correction
+ mechanism,wherehumansapplydelt are sidualactionto the policy-generatedactionstocorrectrobotbehavior.Thecorrections
+ are stored in a new dataset and uni for mly sampled with the original dataset for fine-tuning the robot policy.
+ a stand positioned between the robot arms. To simplify the A. Data re-targeting
+ process of switching the camera system between the human Actionre-targeting.Asillustratedin Figure 3(a),anotable
+ and robot, a quick-release buckle has been integrated into the challengeemergesduetothesizedisparitybetween the human
+ back of the camera rack, allowing for swift camera swaps – hand and the LEAPh and,with the latterabout 50%larger[95].
+ in less than 5 seconds. In this way, the robot utilizes the same Thissizedifferencemakesithardtodirectlytransfer the finger
+ observation camera employed during human data collection. motionsto the robotichardw are.Thefirststepistoretarget the
+ Note that, for robot setups, only the Li DAR camera is used human hand motion capture data into the robot embodiment,
+ and wrist cameras are not needed. Both the robot arms and which requires mapping the finger position and 6-Do F palm
+ the LEAP hands operate at a control frequency of 20 Hz. We pose with inverse kinematics (IK).
+ useend-effectorpositioncontrol for bothrobotarms and joint One critical finding in prior research is that fingertips
+ position control for both LEAP hands. are the most frequently contacted areas on a hand when
+ interacting with objects (as evidenced in studies like HO-
+ IV. LEARNINGALGORITHM:DEXIL 
+ 3 D [41], GRAB [44], ARCTIC [45]). Motivated by this,
+ Our goal is to use the human hand motion capture data we re-target finger motion by matching fingertip positions
+ recorded by DEXCAP to train dexterous robot policies. There using inverse kinematics (IK). Specifically, we deploy an IK
+ are several research questions along the way - (1) How can algorithm that generatessmooth and accuratefingertipmotion
+ we re-target the human hand motion to the robotic hand? (2) in real time [96–98] to determine the 16-dimensional joint
+ What algorithm can learn dexterous policies, especially when positions for the robotic hand. This ensures the alignment
+ the action space is high-dimensional in the bimanual setup? between robot fingertips and the human fingertips in the
+ (3) In addition, we would like to investigate the failure cases DEXCAP data. Considering the design of the LEAP hand,
+ forlearningdirectly from humanmotioncapture data and their whichfeaturesf our fingers,weadapt our processbyexcluding
+ potential solutions. littlefingerin for mationduring IKcomputations.Additionally,
+ To tackle these challenges, we introduce DEXIL, a three- the 6-Do F wrist pose captured in the mocap data serves as an
+ step framework to train dexterous robots using human hand initial reference for wrist pose in the IK algorithm. Figure 6
+ motioncapture data.Thefirststepistore-target the DEXCAP demonstrates the final result of re-targeting. The 6-Do F pose
+ data into the action and observation spaces of the robot em- of the wrist p =[R |T ] and the finger joint positions J of
+ t t t t 
+ bodiment (Sec. IV-A). Second step trains a point-cloud-based the LEAP hands are then used as the robot’s proprioception
+ diffusion policy using the re-targeted data (Sec. IV-B). The state s = (p ,J ). We use position control in our setup
+ t t t 
+ final step involves an optional human-in-the-loop correction and the robot’s action labels are defined as next future states
+ mechanism, designed to address unexpected behaviors that a =s . 
+ t t+1 
+ emerge during the policy execution (Sec. IV-C). Observation post-processing. Observation and state rep-
+
+ 
+ 
+ 
+ 
+ resentation choice are critical for training robot policies. We where we empirically find it outperforms traditional MLP-
+ convert the RGB-D images captured by the Li DAR camera based architecture for learning dexterous robot policies.
+ in the DEXCAP data into point clouds using the camera 
+ parameters. This additional conversion offers two significant C. Human-in-the-loop correction
+ benefits compared to RGB-D input. First, because DEXCAP 
+ allows the human torso to move naturally during data acqui- 
+ With the design presented above, DEXIL can learn chal-
+ lengingdexterousmanipulationskills(e.g.,pick-and-place and
+ sition, directly using RGB-D input would need to account 
+ for the moving camera frame. By trans for ming point cloud 
+ bimanual coordination) directly from DEXCAP data without
+ the need for on-robot data. However, our simple retargeting
+ observations into a consistent world frame—defined as the 
+ method does not address all aspects of the human-robot
+ coordinate frame of the main SLAM camera at the start of 
+ embodiment gap. For example, when using a pair of scissors,
+ the mocap (the main camera is marked in red in Fig. 2(c))— 
+ astableholdofscissorsrequiresinserting the fingersdeepinto
+ we isolate and remove torso movements, resulting in a stable 
+ the handle. Due to the differences in finger length proportion,
+ robot observation. Second, point clouds provide flexibility 
+ directly matching the fingertips and the joint motion does not
+ in editing and alignment with the robot’s operational space. 
+ guarantee the same force exerted on the scissors.
+ Given that some motions captured in the wild may extend 
+ To address this issue, we offer a human-in-the-loop mo-
+ beyond the robot’s reachability, adjusting the placement of 
+ tion correction mechanism, which consists of two modes -
+ point cloud observations and motion trajectories ensures their 
+ residualcorrection and teleoperation.Duringpolicyexecution,
+ feasibilitywithin the robot’soperationalrange.Basedonthese 
+ we allow humans to provide corrective actions to robots
+ findings,all RGB-Dframes from the mocap data are processed 
+ into point clouds aligned with the robot’s space, and the 
+ in real-time by wearing DEXCAP. In residual mode, DEX-
+ task-irrelevant elements, such as the table surface points, are 
+ CAP measures the delta position changes of human hands
+ (∆p H,∆JH) relative to hands’ initial states (p H,JH) at
+ excluded. This refined point cloud data thus becomes the t t 0 0 
+ the beginning of the policy roll-out. The delta position is
+ observation inputs o fed into the robot policy π. 
+ t 
+ applied as a residual action ar = (∆p H,∆JH) to the
+ t t t 
+ robot policy action a = (p ,J ), scaled by α and
+ t t+1 t+1 
+ B. Point cloud-based diffusion policy 
+ β. The corrected robot action can then be formalized as
+ With the trans for med robot’s state s t , action a t and cor- a′ t = (p t+1 (cid:76) α·∆p H t ,J t+1 +β ·∆J t H). We empirically
+ responding 3 D point cloud observation o , we formalize the find that setting β with a small scale (< 0.1) offers the best
+ t 
+ robot policy learning process as a trajectory generation task. user experience, which avoids fingers moving too fast.
+ More specifically, a policy model π, processes the point In the case when a large position change is desired, a
+ cloud observations o and the robot’s current proprioception pressonthefootpedal will switch the systemtoteleoperation
+ t 
+ state s into an action trajectory (a ,a ,...,a ) (as in mode. DEXCAP now ignores the policy rollout and applies
+ t t t+1 t+d 
+ Fig. 4). Given point cloud observation with N points o human wrist delta directly to the robot wrist pose. The robot
+ t 
+ in RN×3, we uni for mly down-sample it into K points and fingertips are nowdirectlyfollowinghumanfingertips.Inother
+ concatenate the RGB pixel color corresponding to each point words, the robot fingertip will track the human fingertip in
+ into the final policy input in RK×6. To bridge the visual gap their respective wrist frame through IK. Users can also switch
+ between human hands and the robot’s hand, we use forward back to the residual mode after correcting the robot’s mistake
+ kinematics to transform the links of the robot model with by pressing the foot pedal again.
+ the proprioception state s and merge the point clouds of the Since the robot has already learned an initial policy, typi-
+ t 
+ trans for med links into the observation o . During training, we cally the correction happens in a small portion of the rollout,
+ t 
+ alsouse data augmentationover the inputsbyapplyingrandom greatly reducing the human effort. The corrected actions and
+ 2 D translations to the point clouds and motion trajectories observations are stored in a new dataset D′. Training data
+ within the robot’s operational space. is sampled with equal probability from D′ and the original
+ One challenge of learning dexterous robot policies, espe- dataset D tofine-tune the policy model,similarto IWR[101].
+ cially for bimanual dexterous robots, is handling the large 
+ dimensional action outputs. In our setup, the action output V. EXPERIMENTS 
+ includes two 7-Do F robot arms and two 16-Do F dexterous 
+ We aim to answer the following research questions:
+ hands for d steps, which forms a high-dimensional regression 
+ problem. Similar challenges have also been studied in image Q 1: What is the quality of DEXCAP data?
+ generation tasks, which aim to regress all pixel values in a Q 2: Can DEXIL directlylearndexterousrobotpolicies from
+ high-resolution frame. Recently, diffusion model [99, 100], DEXCAP data without any on-robot data?
+ with its step-by-step diffusion process, has shown success in Q 3: What model architecture choices are critical to improv-
+ modeling complex data distributions with high-dimensional ing the per for mance?
+ data. For robotics, diffusion policy [14] follows the same idea Q 4: Can DEXIL learn from in-the-wild DEXCAP data?
+ and formalizes the control problem into an action generation Q 5: How does human-in-the-loop correction help when
+ task. Thus we use a diffusion policy as the action decoder, DEXCAP data is insufficient?
+
+ 
+ 
+ 
+ 
+ 
+ gnikcipegnop S 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ gnipiwetal P 
+ 
+ 
+ 
+ 
+ 
+ gnigakca P 
+ 
+ 
+ 
+ gnittucrossic S 
+ gnitcelloclla B 
+ a b 
+ c 
+ d 
+ e 
+ f 
+ gniraperpae T 
+ 
+ 
+ Fig. 5: Experiment Tasks. (a) Sponge Picking: Pick and lift the sponge. (b) Ball Collecting: Pick up a ball and drop it into a
+ basket. (c) Plate Wiping: Use both hands to pick up a plate and sponge, then wipe the plate vertically twice. (d) Packaging:
+ Place items into a box with one hand while using the other to either push or stabilize them, before securely closing the box
+ lid. (e) Scissor Cutting: Secure paper with one hand and use scissors in the other to cut through the paper. (f) Tea Preparing:
+ Grasp the tea bottle with one hand, use the other hand to uncap, then pick up tweezers to extract tea and pour it into the pot.
+ 
+ Q 6: Can the whole framework handle extremely challeng- b) Data: We utilize two data types: (1) DEXCAP data
+ ing bimanual dexterous manipulation tasks (e.g., using capturing human hand motion (In-the-wild data refers to a
+ scissors and preparing tea)? mixture of data collected in more than 10 scenes) and (2)
+ human-in-the-loop correction data for adjusting robot actions
+ A. Experiment setups 
+ or enabling teleoperation to correct errors, collected using a
+ a) Tasks: we evaluate DEXIL using six tasks of varying foot pedal. Data were initially recorded at 60 Hz and then
+ difficulty to assess its per for mance with DEXCAP data. These downsampled to 20 Hz to match the robot’s control speed,
+ tasksrange from basic,suchas Spongepicking,Ballcollecting, except for correction data, which was collected directly at
+ and Plate wiping, which test single-handed and dual-handed 20 Hz.For data collection,wega the red 30 minutesof DEXCAP
+ coordination, to more complex ones like Packaging, which data across the first three tasks, resulting in 251, 179, and
+ looksatbimanualtasks and generalizationusingbothfamiliar 102 demos respectively. An hour of in-the-wild DEXCAP
+ and new objects. Scissor cutting focuses on the effectiveness data provided 104 demos for Packaging. Scissor Cutting and
+ ofthehuman-in-the-loopcorrectionmechanisminprecisetool Tea Preparing tasks each received an hour of DEXCAP data,
+ use,whereas Teapreparingchallenges the system with along- yielding 96 and 55 demos respectively.
+ horizon task requiring intricate actions. To further analyze 
+ per for mance, we introduce the Subtask metric for multi-step c) Baselines: We evaluate multiple baselines to deter-
+ tasks, indicating the completion of task subgoals, such as mine the model architecture with the best per for mance, fo-
+ placing an object inside a box in Packaging, or picking up cusing on three key aspects using DEXCAP data: identifying
+ scissors in Scissor Cutting. the best imitation learning framework for bimanual dexterous
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ gnipiwetal P 
+ 
+ 
+ 
+ 
+ gnittucrossic S 
+ 
+ 
+ 
+ 
+ 
+ gnigakca P 
+ Raw Observation Right View Middle View Left View 
+ (Right View) 
+ 
+ 
+ Fig. 6: Data Retargeting for Tasks. DEXIL effectively retargets human mocap data for activities like plate wiping, scissor
+ cutting, and packaging. The initial column displays the raw point cloud scene. Columns 2-7 offer three views—right, middle,
+ left—withbluebackgroundcolumnsdepictinghuman data andyellow for roboth and retargeting.Thisside-by-sidearrangement
+ highlights the precision of our fingertip IK in translating human to robot hand motions.
+ 
+ 
+ tupn I 
+ 
+ 
+ 
+ 
+ Re Ma H 
+ 
+ 
+ 
+ 
+ sru O 
+ total trials) and 9 unseen objects (45 total trials).
+ B. Results 
+ DEXCAP delivers high-quality 3 D mocap data (Q 1).
+ Figure 6 showcases DEXCAP’sabilitytocapturedetailedh and
+ motionin 3 D,aligninghumanactions with objectpointclouds
+ across all views, such as in Plate wiping and Scissor cutting
+ tasks (blue columns). The retargeted robot hand motions,
+ depictedin the yellowcolumns,demonstrateprecisealignment
+ inthesame 3 Dspace.In Figure 7,wecomp are DEXCAP with
+ the state-of-the-art vision-based hand pose estimation method
+ Ha Me R [39], observing their per for mance from similar view-
+ points. We find that the vision-based approach is vulnerable
+ to self-occlusion, particularly when the fingers are obscured.
+ As depicted in Figure 7, Ha Me R struggles in instances of
+ significant occlusion, either failing to detect the hand (as seen
+ Fig.7:Comp are withvision-basedmethod.Wedemonstrate 
+ in the second column) or inaccurately estimating fingertip
+ that motion capture gloves provide more stable hand pose 
+ positions (noted in the first, third, and fourth columns). In
+ estimation results compared to vision-based methods and are 
+ contrast, DEXCAP demonstrates good robustness under these
+ not affected by visual occlusion. 
+ conditions. Beyond the challenge of occlusion, most vision-
+ based methods rely on 2 D hand estimation, predicated on
+ manipulation between BC-RNN [102] and diffusion policy learning from 2 Dimageprojectionlosses.Consequently,these
+ (DP)[14], assessing the most effective observation type to methods are inherently limited in their ability to discern the
+ bridge the visual gap between human and robot hands (com- precise 3 D hand positioning, as they are trained based on
+ paringimageinputs[14,65]andapointcloudmethod[103]), presumed, fixed camera intrinsic parameters, which do not
+ and determining the most suitable encoder for point cloud necessarily match the actual camera used for experiments. In
+ inputs by comparing Point Net[104] and Perceiver [105, 106] Figure 8,weshowcase the datacollectionthroughputof DEX-
+ encoders.Implementationdetails are includedin the appendix. CAP,whichisthreetimesfasterthantraditionalteleoperation.
+ d) Metric: Each model variant is tested for 20 trials in DEXCAP data can directlytraindexterousrobotpolicies
+ each task withr and omizedinitialplacements.The task success (Q 2).Table Iis the experimentresultoftrainingrobotpolicies
+ rateisreportedin Table IIIIII.For the multi-object Packaging onlyusing DEXCAP data.Within 30-minuteh and motioncap-
+ task, each object is tested with 5 trials - 6 trained objects (30 turedemonstrationscollectedby DEXCAP,thelearnedpolicies
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ (a). Human motion (b). Dex Cap (c). Teleoperation 
+ 
+ Fig.8:Datacollectionthroughputcomparison. DEXCAP’sdatacollectionspeedin the Ballcollecting task isclosetonatural
+ human motion and is three times faster than traditional teleoperation. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Fig. 9: Visualization of human-in-the-loop corrections. DEXCAP supports teleoperation and residual correction for human-
+ in-the-loop adjustments. Teleoperation directly translates human hand movements to the robot end-effector actions, indicated
+ bycolor-fadingtrajectories from bluetogreen(human)andredtoyellow(robot)over 20 timesteps.Residualcorrectionadjusts
+ the robot’s end-effector based on changes from the human hand’s initial pose, enabling minimal movement but requiring more
+ precise control. Users can switch between correction modes with a foot pedal.
+ 
+ achieve up to 72% average task success rate in single-hand raw, DP-point, DP-prec), on the other hand, do not require
+ pick-and-place(Spongepicking,Ballcollecting)andbimanual masking over observations and achieve more than 60% task
+ coordination (Plate wiping) tasks. This result highlights the successrate.Thisresulthighlights the advantageofusingpoint
+ effectiveness of DEXCAP data on training dexterous robot cloud inputs, which allow us to add robot hand points to the
+ policies without on-robot data, which introduces a new way observation with outlosingthedetailsin the originalinputs.We
+ for training robot dexterous manipulation. also observe that, even without adding robot hand points, DP-
+ point-rawachievescloseper for manceto DP-point.Thismight
+ Generative-based algorithm with point cloud inputs 
+ because the downsampling process of the point cloud inputs
+ shows advantages (Q 3). In Table I, we comp are the per- 
+ lowers the appearance gap between human gloves and robot
+ formance of multiple model architectures. We first observe 
+ hands. Fur the rmore, compared to the Point Net, the model
+ that, due to the visual appearance gap between human and 
+ with Perceiver encoder has higher per for mance, especially in
+ robothands,thepolicies with fullimageinputsfailcompletely 
+ bimanual tasks with multiple task objects (20% improvement
+ (BC-RNN-img,DP-img).Wethentrymaskingouthuman and 
+ ontasksuccessratein Platewiping).Basedon the sefindings,
+ robothands with whitecirclesintraining and evaluation.This 
+ we use DP-perc as the default model architecture for DEXIL.
+ setting brings improvements, where DP-img-mask achieves 
+ more than 30% success rate in all tasks. Meanwhile, diffusion DEXIL canpurelylearnfromin-the-wild DEXCAP data
+ policy works better than MLP-based BC-RNN policies (25% (Q 4). The first three columns of Table II are the results of
+ higher in averaged task success rate). This result verifies training policies using in-the-wild DEXCAP data. We first
+ our hypo the sis that generative-based policy is more suitable notice that image-input baselines (BC-RNN-img-mask, DP-
+ for learning dexterous policies. Although getting promising img-mask)haveclosetozeroper for mancewhenlearning with
+ results, masking out the end-effector loses details for in-hand in-the-wild data. This observation verifies our hypo the sis that
+ manipulation. This hypo the sis is verified by the low success the viewpoint changes caused by human body movements
+ rate in the Plate wiping task, which requires the robot to during in-the-wild data collection bring challenges to learn-
+ use fine-grained finger motion to grab the plate from the ing image-based policies. Our DEXIL transforms the point
+ edge. Our point cloud-based learning algorithms (DP-point- cloud inputs into a consistent world frame, resulting in stable
+
+ 
+ 
+ 
+ 
+ DEXCAP Data Only 
+ Scissorcutting 
+ DEXCAP Data Only 30 humancorrections
+ Spongepicking Ballcollecting Platewiping Overall Subtask All Subtask All
+ BC-RNN-point[103] 0.00 0.00 0.10 0.00 
+ BC-RNN-img 0.00 0.00 0.00 0.00 
+ Ours 0.00 0.00 0.45 0.20 
+ BC-RNN-img-mask[65] 0.25 0.10 0.10 0.15 
+ BC-RNN-point[103] 0.45 0.30 0.25 0.33 
+ BC-RNN-prec[105] 0.50 0.30 0.35 0.38 TABLE III: Quantitative results for the Scissor cutting task.
+ DP-img 0.00 0.00 0.00 0.00 
+ DP-img-mask[14] 0.55 0.40 0.30 0.42 DEXCAP Data Only 30 humancorrections
+ Teapreparing 
+ DP-point-raw 0.70 0.70 0.40 0.60 Subtask All Subtask All 
+ DP-point 0.75 0.65 0.50 0.63 
+ Ours(DP-perc) 0.85 0.60 0.70 0.72 Ours 0.30 0.00 0.65 0.25 
+ TABLEI:Quantitativeresults for learning with DEXCAP data. TABLE IV: Quantitative results for the Tea preparing task.
+ In-the-wild DEXCAP 30 humancorrections 
+ Packaging the same setup used for the evaluations. This result further
+ Subtask All Unseen Subtask All Unseen 
+ supports our conclusion: image-based approaches are more
+ BC-RNN-img-mask[65] 0.00 0.00 0.00 0.23 0.07 0.00 
+ effective in learning with fixed third-view cameras compared
+ BC-RNN-point[103] 0.33 0.23 0.16 0.40 0.27 0.22 
+ DP-img-mask[14] 0.17 0.00 0.00 0.47 0.33 0.00 to the in-the-wild scenarios with moving cameras. Human
+ Ours 0.70 0.47 0.40 0.83 0.57 0.42 corrections also result in a 10% improvement in our approach
+ that utilizes point cloud inputs. However, we’ve observed that
+ TABLE II: Quantitative results for the Packaging task. 
+ fine-tuning with human corrections has a minor effect on the
+ results for unseenobjects,primarilydueto the limitedamount
+ of correction data (30 trials in total). 
+ Ourwholeframework can handleextremelychallenging
+ tasks (Q 6). DEXIL together with human-in-the-loop correc-
+ tion is able to solve extremely challenging tasks such as
+ Scissor cutting and Tea preparing. In Table III, we showcase
+ that our system can achieve a 45% success rate on picking up
+ Trainedobjects Unseenobjects the scissor from the container and 20% in cutting a piece of
+ papertape.Inoursupplementaryvideo,wealsoshowcasehow
+ Fig. 10: Objects used in the Packaging task 
+ the robot performs the long-horizon Tea preparing task which
+ includes unscrewing a bottle cap and pouring tea into the pot.
+ observations and thus getting better results (70% in Subtask Table IV presents the evaluation results of our approach (DP-
+ and 47% in full task setup). Please refer to our video results perc) in the Tea preparing task. The subtask is defined as
+ for more visualization of the stabilized input point clouds. By successfully unscrewing the cap of the tea bottle. We found
+ training the policy with multiple task objects using in-the- thateven with humanmocap data only(DEXCAP Data Only),
+ wild (Fig. 10), our model can already generalize to unseen our model can achieve a 30% success rate in uncapping.
+ object instances, with a 40% success rate. During evaluation, Most of the failures occur during the task of picking up
+ we identified two primary issues with the policy learned the tweezers, which requires high-precision control over the
+ from in-the-wild DEXCAP data: firstly, the absence of force fingertip. In such cases, human-in-the-loop correction signifi-
+ informationin DEXCAP datacauses the righth and tostruggle cantly improves per for mance. With 30 human corrections, we
+ with stabilizing the box during box closure attempts by the achievea 35%improvementin the uncappingsuccessrate and
+ left hand. Secondly, the box lid occasionally moves out of the attain a 25% success rate for the entire task. Please refer to
+ chest camera’s view due to human movements, hindering the our video submission for more qualitative results of this task.
+ robot’s ability to learn precise lid grasping. These challenges These tasks showcase the high potential of our framework in
+ prompt us to seek improvement strategies. learning extremely challenging dexterous manipulation tasks.
+ Human-in-the-loop correction greatly help when DEX- 
+ CAP data is insufficient (Q 5). Figure 9 illustrates two types 
+ VI. CONCLUSION AND LIMITATIONS 
+ of human-in-the-loop correction mode with DEXCAP. Users We present DEXCAP, a portable hand motion capture
+ can switch between the two modes by stepping on the foot system, and DEXIL, an imitation algorithm enabling robots
+ pedal and the whole trajectory is stored and used for fine- to learn dexterous manipulation directly from human mocap
+ tuning the policy. The last three columns of Table II show- data.DEXCAP,designedtoovercomeocclusions,capturefine-
+ case the effectiveness of using human-in-the-loop correction grained 3 D hand motion, record RGB-D observations, and
+ together with policy fine-tuning to improve the model perfor- allow data collection outside the lab. DEXIL applies this data
+ mance.Withjust 30 humancorrectiontrialsduringpolicyroll- toteachrobotscomplexdexterousmanipulationtasks,withan
+ out, the fine-tuned policy with image inputs (DP-img-mask) optional human-in-the-loop correction mechanism to further
+ achieves a 33% improvement in the full task success rate for improve per for mance. Demonstrating proficiency in tasks like
+ trained objects. This significant boost is mainly because the scissor cutting and tea preparation, DEXCAP and DEXIL
+ human correction data is collected using a fixed camera - signifi can tlyadvanceroboticdexterity.Wehope DEXCAP can
+
+ 
+ 
+ 
+ 
+ pave the path for future research on scaling up dexterous [6] Irmak Guzey, Ben Evans, Soumith Chintala, and Ler-
+ manipulation data with portabledevices.Allhardw are designs rel Pinto. Dexterity from touch: Self-supervised pre-
+ and code will be open-source. training of tactile representations with robotic play.
+ While DEXCAP collects high-quality mocap data in-the- ar Xiv preprint ar Xiv:2303.12076, 2023.
+ wild for learning challenging dexterous manipulation tasks, [7] Aravind Sivakumar,Kenneth Shaw,and Deepak Pathak.
+ it has several limitations that need future research: (1) The Robotic telekinesis: Learning a robotic hand imita-
+ system’s power consumption currently restricts the collection tor by watching humans on youtube. ar Xiv preprint
+ time to be at most 40 minutes. Future improvements will ar Xiv:2202.10448, 2022.
+ focus on enhancing power efficiency to extend the collection [8] Laura Smith, Nikita Dhawan, Marvin Zhang, Pieter
+ time. (2) Our learning algorithm DEXIL utilizes fingertip Abbeel, and Sergey Levine. Avid:Learning multi-stage
+ inverse kinematics to retarget human hand motion to various tasks via pixel-level translation of human videos. ar Xiv
+ robotic hands. However, the size difference between human preprint ar Xiv:1912.04443, 2019.
+ and robotic hands (with some robotic fingers being thicker) [9] Shikhar Bahl, Abhinav Gupta, and Deepak Pathak.
+ can make some tasks difficult to perform, such as playing the Human-to-robot imitation in the wild. ar Xiv preprint
+ piano.Futuredevelopments will aimtointegrateadvancements ar Xiv:2207.09450, 2022.
+ in robotic hand design to minimize these size differences and [10] Chen Wang, Linxi Fan, Jiankai Sun, Ruohan Zhang,
+ fullydemonstrate the system’spotential.(3)Current DEXCAP Li Fei-Fei, Danfei Xu, Yuke Zhu, and Anima Anand-
+ collectsonly 3 Dobservations and motioncapture data,lacking kumar. Mimicplay: Long-horizon imitation learning by
+ force sensing. One promising direction we plan to explore watchinghumanplay.ar Xivpreprintar Xiv:2302.12422,
+ involves the use of con for mal tactile textiles, as introduced in 2023. 
+ [107], to gather tactile information during data collection. [11] Homanga Bharadhwaj, Abhinav Gupta, Vikash Kumar,
+ and Shubham Tulsiani. Towardsgeneralizablezero-shot
+ ACKNOWLEDGMENTS 
+ manipulation via translating human interaction plans.
+ This research was supported by National Science Founda- ar Xiv preprint ar Xiv:2312.00775, 2023.
+ tion NSF-FRR-2153854 and Stanford Institute for Human- [12] Suraj Nair, Aravind Rajeswaran, Vikash Kumar,
+ Centered Artificial Intelligence,SUHAI.Thisworkispartially Chelsea Finn, and Abhinav Gupta. R 3 m: A universal
+ supported by ONR MURI N 00014-21-1-2801. We would visual representation for robot manipulation. ar Xiv
+ like to thank Yunfan Jiang, Albert Wu, Paul de La Sayette, preprint ar Xiv:2203.12601, 2022.
+ Ruocheng Wang, Sirui Chen, Josiah Wong, Wenlong Huang, [13] Tete Xiao, Ilija Radosavovic, Trevor Darrell, and Jiten-
+ Yanjie Ze,Christopher Agia,Jingyun Yang and the SVLPAIR dra Malik.Maskedvisualpre-training for motorcontrol.
+ group for providinghelp and feedback.Wealsothank Zhenjia ar Xiv preprint ar Xiv:2203.06173, 2022.
+ Xu, Cheng Chi, Yifeng Zhu for their suggestions on the [14] Cheng Chi, Siyuan Feng, Yilun Du, Zhenjia Xu, Eric
+ robot controller. We especially thank Kenneth Shaw, Ananye Cousineau, Benjamin Burchfiel, and Shuran Song. Dif-
+ Agrawal, Deepak Pathak for open-sourcing the LEAP Hand. fusion policy: Visuomotor policy learning via action
+ diffusion. ar Xiv preprint ar Xiv:2303.04137, 2023.
+ REFERENCES 
+ [15] J Kenneth Salisbury and John J Craig. Articulated
+ [1] Ankur Handa, Karl Van Wyk, Wei Yang, Jacky Liang, hands: Force control and kinematic issues. The Inter-
+ Yu-Wei Chao, Qian Wan, Stan Birchfield, Nathan national journal of Robotics research, 1(1):4–17, 1982.
+ Ratliff, and Dieter Fox. Dexpilot: Vision-based tele- [16] Matthew T Mason and J Kenneth Salisbury Jr. Robot
+ operation of dexterous robotic hand-arm system. In hands and the mechanics of manipulation. 1985.
+ 2020 IEEE International Conference on Robotics and [17] Igor Mordatch, Zoran Popovic´, and Emanuel Todorov.
+ Automation (ICRA), pages 9164–9170. IEEE, 2020. Contact-invariant optimization for hand manipulation.
+ [2] Tao Chen, Megha Tippur, Siyang Wu, Vikash Kumar, In Proceedings of the ACM SIGGRAPH/Eurographics
+ Edward Adelson, and Pulkit Agrawal. Visual dexterity: symposium on computer animation, pages 137–144,
+ In-hand dexterous manipulation from depth. ar Xiv 2012. 
+ preprint ar Xiv:2211.11744, 2022. [18] Yunfei Bai and C Karen Liu. Dexterous manipulation
+ [3] Kenneth Shaw, Shikhar Bahl, and Deepak Pathak. usingbothpalm and fingers.In 2014 IEEEInternational
+ Videodex: Learning dexterity from internet videos. Conference on Robotics and Automation (ICRA), pages
+ Co RL, 2022. 1560–1565. IEEE, 2014. 
+ [4] Stefan Schaal. Is imitation learning the route to hu- [19] Vikash Kumar, Yuval Tassa, Tom Erez, and Emanuel
+ manoid robots? Trends in cognitive sciences, 3(6):233– Todorov. Real-time behavi our syn the sis for dynamic
+ 242, 1999. hand-manipulation. In 2014 IEEEInternational Confer-
+ [5] Ahmed Hussein,Mohamed Medhat Gaber,Eyad Elyan, ence on Robotics and Automation (ICRA), pages 6808–
+ and Chrisina Jayne. Imitation learning: A survey of 6815. IEEE, 2014. 
+ learning methods. ACM Computing Surveys (CSUR), [20] Ankur Handa, Arthur Allshire, Viktor Makoviychuk,
+ 50(2):1–35, 2017. Aleksei Petrenko, Ritvik Singh, Jingzhou Liu, Denys
+
+ 
+ 
+ 
+ 
+ Makoviichuk, Karl Van Wyk, Alexander Zhurkevich, terity with immersive mixed reality. In 2023 IEEE
+ Balakumar Sundaralingam, et al. Dextreme: Transfer International Conference on Robotics and Automation
+ ofagilein-handmanipulation from simulationtoreality. (ICRA), pages 5962–5969. IEEE, 2023.
+ ar Xiv preprint ar Xiv:2210.13702, 2022. [33] Yuzhe Qin,Yueh-Hua Wu,Shaowei Liu,Hanwen Jiang,
+ [21] Tao Chen, Jie Xu, and Pulkit Agrawal. A system for Ruihan Yang, Yang Fu, and Xiaolong Wang. Dexmv:
+ general in-hand object re-orientation. Conference on Imitation learning for dexterous manipulation from hu-
+ Robot Learning, 2021. man videos. In European Conference on Computer
+ [22] Abhishek Gupta, Justin Yu, Tony Z. Zhao, Vikash Ku- Vision, pages 570–587. Springer, 2022.
+ mar, Aaron Rovinsky, Kelvin Xu, Thomas Devlin, and [34] Priyanka Mandikal and Kristen Grauman. Dexvip:
+ Sergey Levine. Reset-free rein for cement learning via Learning dexterous grasping with human hand pose
+ multi-task learning: Learning dexterous manipulation priors from video. In Conference on Robot Learning,
+ behaviors without human intervention. In ICRA, pages pages 651–661. PMLR, 2022.
+ 6664–6671. IEEE, 2021. [35] Yuzhe Qin, Hao Su, and Xiaolong Wang. From one
+ [23] Zhao-Heng Yin, Binghao Huang, Yuzhe Qin, Qifeng handtomultiplehands:Imitationlearning for dexterous
+ Chen, and Xiaolong Wang. Rotating without seeing: manipulation from single-camera teleoperation. IEEE
+ Towardsin-handdexteritythroughtouch.ar Xivpreprint Robotics and Automation Letters, 7(4):10873–10881,
+ ar Xiv:2303.10880, 2023. 2022. 
+ [24] Haozhi Qi, Ashish Kumar, Roberto Calandra, Yi Ma, [36] Zoey Qiuyu Chen, Karl Van Wyk, Yu-Wei Chao, Wei
+ and Jitendra Malik. In-Hand Object Rotation via Rapid Yang, Arsalan Mousavian, Abhishek Gupta, and Dieter
+ Motor Adaptation. In Conference on Robot Learning Fox. Dextransfer: Real world multi-fingered dexterous
+ (Co RL), 2022. grasping with minimal human demonstrations. ar Xiv
+ [25] Gagan Khandate, Siqi Shang, Eric T Chang, Tristan L preprint ar Xiv:2209.14284, 2022.
+ Saidi, Johnson Adams, and Matei Ciocarlie. Sampling- [37] Christian Zimmermann, Duygu Ceylan, Jimei Yang,
+ based Exploration for Rein for cement Learning of Dex- Bryan Russell, Max Argus, and Thomas Brox. Frei-
+ terous Manipulation. In Proceedings of Robotics: Sci- hand: A dataset for markerless capture of hand pose
+ ence and Systems,Daegu,Republicof Korea,July 2023. and shape from single rgb images. In Proceedings of
+ doi: 10.15607/RSS.2023.XIX.020. the IEEE/CVF International Conference on Computer
+ [26] Binghao Huang, Yuanpei Chen, Tianyu Wang, Yuzhe Vision, pages 813–822, 2019.
+ Qin, Yaodong Yang, Nikolay Atanasov, and Xiaolong [38] Gyeongsik Moon, Shoou-I Yu, He Wen, Takaaki Shira-
+ Wang. Dynamic handover: Throw and catch with bi- tori, and Kyoung Mu Lee. Interh and 2. 6 m: A dataset
+ manual hands. ar Xiv preprint ar Xiv:2309.05655, 2023. and baseline for 3 d interacting hand pose estimation
+ [27] Yuanpei Chen, Chen Wang, Li Fei-Fei, and C Karen from a single rgb image. In Computer Vision–ECCV
+ Liu. Sequential dexterity: Chaining dexterous poli- 2020:16 th European Conference,Glasgow,UK,August
+ cies for long-horizon manipulation. ar Xiv preprint 23–28, 2020, Proceedings, Part XX 16, pages 548–564.
+ ar Xiv:2309.00987, 2023. Springer, 2020. 
+ [28] Johannes Pitz, Lennart Ro¨stel, Leon Sievers, and [39] Georgios Pavlakos, Dandan Shan, Ilija Radosavovic,
+ Berthold Ba¨uml. Dextrous tactile in-hand manipulation Angjoo Kanazawa, David Fouhey, and Jitendra Malik.
+ using a modular rein for cement learning architecture. Reconstructing hands in 3 d with trans for mers. ar Xiv
+ ar Xiv preprint ar Xiv:2303.04705, 2023. preprint ar Xiv:2312.05251, 2023. 
+ [29] Kelvin Xu, Zheyuan Hu, Ria Doshi, Aaron Rovinsky, [40] Tanner Schmidt,Richard ANewcombe,and Dieter Fox.
+ Vikash Kumar, Abhishek Gupta, and Sergey Levine. Dart: Dense articulated real-time tracking. In Robotics:
+ Dexterous manipulation from images: Autonomous Science and systems, volume 2, pages 1–9. Berkeley,
+ real-world rl via substep guidance. In 2023 IEEE CA, 2014. 
+ International Conference on Robotics and Automation [41] Shreyas Hampali, Mahdi Rad, Markus Oberweger, and
+ (ICRA), pages 5938–5945. IEEE, 2023. Vincent Lepetit.Honnotate:Amethod for 3 dannotation
+ [30] Toru Lin, Zhao-Heng Yin, Haozhi Qi, Pieter Abbeel, of hand and object poses. In Proceedings of the
+ and Jitendra Malik. Twisting lids off with two hands. IEEE/CVF conference on computer vision and pattern
+ ar Xiv:2403.02338, 2024. recognition, pages 3196–3206, 2020. 
+ [31] Sridhar Pandian Arunachalam, Sneha Silwal, Ben [42] Yu-Wei Chao, Wei Yang, Yu Xiang, Pavlo Molchanov,
+ Evans, and Lerrel Pinto. Dexterous imitation made Ankur Handa, Jonathan Tremblay, Yashraj S Narang,
+ easy: A learning-based framework for efficient dexter- Karl Van Wyk, Umar Iqbal, Stan Birchfield, et al.
+ ousmanipulation. In 2023 ieeeinternationalconference Dexycb: A benchmark for capturing hand grasping of
+ on robotics and automation (icra), pages 5954–5961. objects.In Proceedingsof the IEEE/CVFConferenceon
+ IEEE, 2023. Computer Vision and Pattern Recognition,pages 9044–
+ [32] Sridhar Pandian Arunachalam, Irmak Gu¨zey, Soumith 9053, 2021. 
+ Chintala, and Lerrel Pinto. Holo-dex: Teaching dex- [43] Shangchen Han, Beibei Liu, Randi Cabezas, Christo-
+
+ 
+ 
+ 
+ 
+ pher D Twigg, Peizhao Zhang, Jeff Petkau, Tsz-Ho operation for legged robot loco-manipulation using
+ Yu, Chun-Jung Tai, Muzaffer Akbay, Zheng Wang, wearable imu-based motion capture. ar Xiv preprint
+ et al. Megatrack: monochrome egocentric articulated ar Xiv:2209.10314, 2022.
+ hand-tracking for virtual reality. ACM Transactions on [54] Sylvain Calinon, Florent D’halluin, Eric L Sauser, Dar-
+ Graphics (To G), 39(4):87–1, 2020. win G Caldwell, and Aude G Billard. Learning and
+ [44] Omid Taheri, Nima Ghorbani, Michael J Black, and reproduction of gestures by imitation. IEEE Robotics
+ Dimitrios Tzionas. Grab: A dataset of whole-body & Automation Magazine, 17(2):44–54, 2010.
+ human grasping of objects. In Computer Vision–ECCV [55] A.J. Ijspeert, J. Nakanishi, and S. Schaal. Move-
+ 2020:16 th European Conference,Glasgow,UK,August ment imitation with nonlinear dynamical systems in
+ 23–28, 2020, Proceedings, Part IV 16, pages 581–600. humanoid robots. In Proceedings 2002 IEEE Interna-
+ Springer, 2020. tional Conference on Robotics and Automation (Cat.
+ [45] Zicong Fan, Omid Taheri, Dimitrios Tzionas, No.02 CH 37292), volume 2, pages 1398–1403 vol.2,
+ Muhammed Kocabas, Manuel Kaufmann, Michael J 2002. doi: 10.1109/ROBOT.2002.1014739.
+ Black, and Otmar Hilliges. Arctic: A dataset [56] Jens Kober and Jan Peters. Imitation and rein for cement
+ for dexterous bimanual hand-object manipulation. In learning. IEEE Robotics & Automation Magazine, 17
+ Proceedingsof the IEEE/CVFConferenceon Computer (2):55–62, 2010. 
+ Vision and Pattern Recognition, pages 12943–12954, [57] Peter Englert and Marc Toussaint. Learning manipu-
+ 2023. lation skills from a single demonstration. The Inter-
+ [46] Yinghao Huang, Manuel Kaufmann, Emre Aksan, national Journal of Robotics Research, 37(1):137–154,
+ Michael JBlack,Otmar Hilliges,and Gerard Pons-Moll. 2018. 
+ Deepinertialposer:Learningtoreconstructhumanpose [58] Chelsea Finn,Tianhe Yu,Tianhao Zhang,Pieter Abbeel,
+ from sparse inertial measurements in real time. ACM and Sergey Levine. One-shot visual imitation learning
+ Transactions on Graphics (TOG), 37(6):1–15, 2018. via meta-learning. In Conference on robot learning,
+ [47] Yifeng Jiang, Yuting Ye, Deepak Gopinath, Jungdam pages 357–368. PMLR, 2017.
+ Won, Alexander W Winkler, and C Karen Liu. Trans- [59] Aude Billard,Sylvain Calinon,Ruediger Dillmann,and
+ former inertial poser: Real-time human motion recon- Stefan Schaal. Robot programming by demonstration.
+ struction from sparse imus with simultaneous terrain In Springer handbook of robotics, pages 1371–1394.
+ generation. In SIGGRAPH Asia 2022 Conference Pa- Springer, 2008. 
+ pers, pages 1–9, 2022. [60] Brenna D Argall, Sonia Chernova, Manuela Veloso,
+ [48] Xinyu Yi, Yuxiao Zhou, Marc Habermann, Soshi Shi- and Brett Browning. A survey of robot learning from
+ mada,Vladislav Golyanik,Christian Theobalt,and Feng demonstration. Robotics and autonomous systems, 57
+ Xu. Physical inertial poser (pip): Physics-aware real- (5):469–483, 2009. 
+ time human motion tracking from sparse inertial sen- [61] Stefan Schaal. Dynamic movement primitives-a frame-
+ sors. In Proceedings of the IEEE/CVF Conference work for motor control in humans and humanoid
+ on Computer Vision and Pattern Recognition, pages robotics. In Adaptive motion of animals and machines,
+ 13167–13178, 2022. pages 261–280. Springer, 2006. 
+ [49] Tom Van Wouwe, Seunghwan Lee, Antoine Falisse, [62] Jens Kober and Jan Peters. Learning motor primitives
+ Scott Delp, and C Karen Liu. Diffusion inertial poser: for robotics. In 2009 IEEE International Conference
+ Humanmotionreconstruction from arbitrarysparseimu on Robotics and Automation, pages 2112–2118. IEEE,
+ configurations. ar Xiv preprint ar Xiv:2308.16682, 2023. 2009. 
+ [50] Fabian C Weigend, Xiao Liu, and Heni Ben Amor. [63] Alex and ros Paraschos, Christian Daniel, Jan R Pe-
+ Probabilistic differentiable filters enable ubiquitous ters, and Gerhard Neumann. Probabilistic move-
+ robot control with smartwatches. ar Xiv preprint ment primitives. In C.J. Burges, L. Bottou,
+ ar Xiv:2309.06606, 2023. M. Welling, Z. Ghahramani, and K.Q. Weinberger,
+ [51] Lars Fritsche, Felix Unverzag, Jan Peters, and Roberto editors, Advances in Neural Information Process-
+ Calandra. First-person tele-operation of a humanoid ing Systems, volume 26. Curran Associates, Inc.,
+ robot.In 2015 IEEE-RAS 15 th International Conference 2013. URL https://proceedings.neurips.cc/paper/2013/
+ on Humanoid Robots (Humanoids), pages 997–1002. file/e 53 a 0 a 2978 c 28872 a 4505 bdb 51 db 06 dc-Paper.pdf.
+ IEEE, 2015. [64] Alex and ros Paraschos, Christian Daniel, Jan Peters,
+ [52] Bin Fang,Di Guo,Fuchun Sun,Huaping Liu,and Yupei and Gerhard Neumann. Using probabilistic movement
+ Wu. A robotic hand-arm teleoperation system using primitives in robotics. Autonomous Robots, 42(3):529–
+ humanarm/hand with anovel data glove. In 2015 IEEE 551, 2018. 
+ International Conference on Robotics and Biomimetics [65] Ajay Mandlekar, Danfei Xu, Josiah Wong, Soroush
+ (ROBIO), pages 2483–2488. IEEE, 2015. Nasiriany, Chen Wang, Rohun Kulkarni, Li Fei-Fei,
+ [53] Chengxu Zhou, Christopher Peers, Yuhui Wan, Robert Silvio Savarese,Yuke Zhu,and Roberto Mart´ın-Mart´ın.
+ Richardson, and Dimitrios Kanoulas. Teleman: Tele- Whatmattersinlearning from offlinehum and emonstra-
+
+ 
+ 
+ 
+ 
+ tions for robot manipulation. In 5 th Annual Conference [76] Jensen Gao, Annie Xie, Ted Xiao, Chelsea Finn, and
+ on Robot Learning, 2021. URL https://openreview.net/ Dorsa Sadigh. Efficient data collection for robotic
+ forum?id=Jrsf BJt DFd I. manipulation via compositional generalization. ar Xiv
+ [66] Peter Florence, Lucas Manuelli, and Russ Tedrake. preprint ar Xiv:2403.05110, 2024.
+ Self-supervised correspondence in visuomotor policy [77] Toru Lin, Yu Zhang, Qiyang Li, Haozhi Qi, Brent
+ learning. IEEE Robotics and Automation Letters, 5(2): Yi, Sergey Levine, and Jitendra Malik. Learn-
+ 492–499, 2019. ing visuotactile skills with two multifingered hands.
+ [67] Tony Z Zhao, Vikash Kumar, Sergey Levine, and ar Xiv:2404.16823, 2024. 
+ Chelsea Finn. Learning fine-grained bimanual ma- [78] Jiafei Duan, Yi Ru Wang, Mohit Shridhar, Dieter Fox,
+ nipulation with low-cost hardw are. ar Xiv preprint and Ranjay Krishna. Ar 2-d 2: Training a robot without
+ ar Xiv:2304.13705, 2023. a robot. ar Xiv preprint ar Xiv:2306.13818, 2023.
+ [68] Jennifer Grannen, Yilin Wu, Brandon Vu, and Dorsa [79] Mengda Xu, Zhenjia Xu, Cheng Chi, Manuela Veloso,
+ Sadigh. Stabilize to act: Learning to coordinate for and Shuran Song. Xskill: Cross embodiment skill
+ bimanualmanipulation. In Conferenceon Robot Learn- discovery. In Conference on Robot Learning, pages
+ ing, pages 563–576. PMLR, 2023. 3536–3555. PMLR, 2023. 
+ [69] Tianhao Zhang,Zoe Mc Carthy,Owen Jow,Dennis Lee, [80] Jingyun Yang, Junwu Zhang, Connor Settle, Akshara
+ Xi Chen, Ken Goldberg, and Pieter Abbeel. Deep Rai, Rika Antonova, and Jeannette Bohg. Learning
+ imitation learning for complex manipulation tasks from periodic tasks from human demonstrations. In 2022
+ virtualrealityteleoperation. In 2018 IEEEinternational International Conference on Robotics and Automation
+ conference on robotics and automation (ICRA), pages (ICRA), pages 8658–8665. IEEE, 2022.
+ 5628–5635. IEEE, 2018. [81] Jiayuan Gu, Sean Kirmani, Paul Wohlhart, Yao Lu,
+ [70] Ajay Mandlekar, Jonathan Booher, Max Spero, Albert Montserrat Gonzalez Arenas, Kanishka Rao, Wenhao
+ Tung, Anchit Gupta, Yuke Zhu, Animesh Garg, Silvio Yu, Chuyuan Fu, Keerthana Gopalakrishnan, Zhuo
+ Savarese, and Li Fei-Fei. Scaling robot supervision to Xu, et al. Rt-trajectory: Robotic task generaliza-
+ hundreds of hours with roboturk: Robotic manipulation tion via hindsight trajectory sketches. ar Xiv preprint
+ dataset through human reasoning and dexterity. In ar Xiv:2311.01977, 2023. 
+ 2019 IEEE/RSJ International Conference on Intelligent [82] Haoyu Xiong, Haoyuan Fu, Jieyi Zhang, Chen Bao,
+ Robots and Systems (IROS), pages 1048–1055. IEEE, Qiang Zhang, Yongxi Huang, Wenqiang Xu, Animesh
+ 2019. Garg, and Cewu Lu. Robotube: Learning household
+ [71] Liyiming Ke, Ajinkya Kamat, Jingqiang Wang, Tapo- manipulation from human videos with simulated twin
+ mayukh Bhattacharjee, Christoforos Mavrogiannis, and environments. In Conference on Robot Learning, pages
+ Siddhartha S Srinivasa. Telemanipulation with chop- 1–10. PMLR, 2023. 
+ sticks:Analyzinghumanfactorsinuserdemonstrations. [83] Dima Damen, Hazel Doughty, Giovanni Maria
+ In 2020 IEEE/RSJ International Conference on Intelli- Farinella, Sanja Fidler, Antonino Furnari, Evangelos
+ gent Robots and Systems (IROS), pages 11539–11546. Kazakos, Davide Moltisanti, Jonathan Munro, Toby
+ IEEE, 2020. Perrett, Will Price, et al. Scaling egocentric vision:
+ [72] Chen Wang, Rui Wang, Ajay Mandlekar, Li Fei- The epic-kitchens dataset. In Proceedings of the
+ Fei, Silvio Savarese, and Danfei Xu. Generaliza- European conference on computer vision (ECCV),
+ tion through hand-eye coordination: An action space pages 720–736, 2018. 
+ for learning spatially-invariant visuomotor control. In [84] Kristen Grauman, Andrew Westbury, Eugene Byrne,
+ 2021 IEEE/RSJ International Conference on Intelligent Zachary Chavis,Antonino Furnari,Rohit Girdhar,Jack-
+ Robots and Systems (IROS), pages 8913–8920. IEEE, son Hamburger,Hao Jiang,Miao Liu,Xingyu Liu,etal.
+ 2021. Ego 4 d: Around the world in 3,000 hours of egocentric
+ [73] Yifeng Zhu, Abhishek Joshi, Peter Stone, and Yuke video. In Proceedings of the IEEE/CVF Conference
+ Zhu. Viola: Imitation learning for vision-based ma- on Computer Vision and Pattern Recognition, pages
+ nipulation with object proposal priors. ar Xiv preprint 18995–19012, 2022. 
+ ar Xiv:2210.11339, 2022. [85] Huihan Liu, Soroush Nasiriany, Lance Zhang, Zhiyao
+ [74] Anthony Brohan, Noah Brown, Justice Carbajal, Yev- Bao,and Yuke Zhu. Robotlearningon the job:Human-
+ gen Chebotar, Joseph Dabis, Chelsea Finn, Keerthana in-the-loop autonomy and learning during deployment.
+ Gopalakrishnan,Karol Hausman,Alex Herzog,Jasmine ar Xiv preprint ar Xiv:2211.08416, 2022.
+ Hsu, et al. Rt-1: Robotics trans for mer for real-world [86] Zhenghao Peng, Wenjie Mo, Chenda Duan, Quanyi
+ controlat scale.ar Xivpreprintar Xiv:2212.06817,2022. Li, and Bolei Zhou. Learning from active human in-
+ [75] Philipp Wu,Yide Shentu,Zhongke Yi,Xingyu Lin,and volvement through proxy value propagation. In Thirty-
+ Pieter Abbeel. Gello: A general, low-cost, and intuitive seventh Conference on Neural Information Processing
+ teleoperation framework for robot manipulators. ar Xiv Systems, 2023. 
+ preprint ar Xiv:2309.13037, 2023. [87] Jonathan Spencer, Sanjiban Choudhury, Matthew
+
+ 
+ 
+ 
+ 
+ Barnes, Matthew Schmittle, Mung Chiang, Peter Ra- Michael Gleicher. Rangedik: An optimization-based
+ madge, and Siddhartha Srinivasa. Learning from in- robot motion generation method for ranged-goal tasks.
+ terventions. In Robotics: Science and Systems (RSS), pages 9700–9706, 2023.
+ 2020. [99] Jascha Sohl-Dickstein, Eric Weiss, Niru
+ [88] Shuran Song, Andy Zeng, Johnny Lee, and Thomas Maheswaranathan, and Surya Ganguli. Deep
+ Funkhouser. Grasping in the wild: Learning 6 dof unsupervised learning using nonequilibrium
+ closed-loop grasping from low-cost demonstrations. thermodynamics. In International conference on
+ IEEE Robotics and Automation Letters, 5(3):4978– machine learning, pages 2256–2265. PMLR, 2015.
+ 4985, 2020. [100] Jonathan Ho, Ajay Jain, and Pieter Abbeel. Denoising
+ [89] Sarah Young, Dhiraj Gandhi, Shubham Tulsiani, Ab- diffusion probabilistic models. Advances in neural
+ hinav Gupta, Pieter Abbeel, and Lerrel Pinto. Visual information processing systems, 33:6840–6851, 2020.
+ imitationmadeeasy. In Conferenceon Robot Learning, [101] Ajay Mandlekar, Danfei Xu, Roberto Mart´ın-Mart´ın,
+ pages 1992–2005. PMLR, 2021. Yuke Zhu, Li Fei-Fei, and Silvio Savarese. Human-in-
+ [90] Kiran Doshi, Yijiang Huang, and Stelian Coros. On the-loop imitation learning using remote teleoperation.
+ hand-held grippers and the morphological gap in ar Xiv preprint ar Xiv:2012.06733, 2020.
+ human manipulation demonstration. ar Xiv preprint [102] Ajay Mandlekar, Danfei Xu, Josiah Wong, Soroush
+ ar Xiv:2311.01832, 2023. Nasiriany, Chen Wang, Rohun Kulkarni, Li Fei-Fei,
+ [91] Felipe Sanches, Geng Gao, Nathan Elangovan, Ri- Silvio Savarese,Yuke Zhu,and Roberto Mart´ın-Mart´ın.
+ cardo V Godoy, Jayden Chapman, Ke Wang, Patrick What matters in learning from offline human demon-
+ Jarvis, and Minas Liarokapis. Scalable. intuitive hu- strations for robot manipulation. ar Xiv preprint
+ man to robot skill transfer with wearable human ma- ar Xiv:2108.03298, 2021.
+ chine interfaces: On complex, dexterous tasks. In [103] Yuzhe Qin, Binghao Huang, Zhao-Heng Yin, Hao Su,
+ 2023 IEEE/RSJ International Conference on Intelligent and Xiaolong Wang. Dexpoint: Generalizable point
+ Robots and Systems (IROS), pages 6318–6325. IEEE, cloud rein for cement learning for sim-to-real dexterous
+ 2023. manipulation. In Conference on Robot Learning, pages
+ [92] Hongjie Fang, Hao-Shu Fang, Yiming Wang, Jieji Ren, 594–605. PMLR, 2023.
+ Jingjing Chen, Ruo Zhang, Weiming Wang, and Cewu [104] Charles R. Qi, Hao Su, Kaichun Mo, and Leonidas J.
+ Lu. Low-cost exoskeletons for learning whole-arm ma- Guibas. Pointnet: Deep learning on point sets for 3 d
+ nipulationin the wild.ar Xivpreprintar Xiv:2309.14975, classification and segmentation. ar Xiv preprint ar Xiv:
+ 2023. Arxiv-1612.00593, 2016. 
+ [93] Nur Muhammad Mahi Shafiullah, Anant Rai, Haritheja [105] Andrew Jaegle, Felix Gimeno, Andrew Brock, Andrew
+ Etukuru, Yiqian Liu, Ishan Misra, Soumith Chintala, Zisserman, Oriol Vinyals, and Joao Carreira. Per-
+ and Lerrel Pinto. On bringing robots home. ar Xiv ceiver:Generalperception with iterativeattention.ar Xiv
+ preprint ar Xiv:2311.16098, 2023. preprint ar Xiv: Arxiv-2103.03206, 2021.
+ [94] Cheng Chi, Zhenjia Xu, Chuer Pan, Eric Cousineau, [106] Juho Lee, Yoonho Lee, Jungtaek Kim, Adam R. Ko-
+ Benjamin Burchfiel, Siyuan Feng, Russ Tedrake, and siorek, Seungjin Choi, and Yee Whye Teh. Set trans-
+ Shuran Song. Universal manipulation interface: In-the- former: A framework for attention-based permutation-
+ wild robot teaching without in-the-wild robots. ar Xiv invariant neural networks. ar Xiv preprint ar Xiv: Arxiv-
+ preprint ar Xiv:2402.10329, 2024. 1810.00825, 2018. 
+ [95] Kenneth Shaw, Ananye Agarwal, and Deepak Pathak. [107] Yiyue Luo, Yunzhu Li, Pratyusha Sharma, Wan Shou,
+ LEAP Hand: Low-Cost, Efficient, and Anthropomor- Kui Wu, Michael Foshey, Beichen Li, Toma´s Palacios,
+ phic Hand for Robot Learning. In Proceedings of Antonio Torralba, and Wojciech Matusik. Learning
+ Robotics: Science and Systems, Daegu, Republic of human–environment interactions using con for mal tac-
+ Korea, July 2023. doi: 10.15607/RSS.2023.XIX.089. tile textiles. Nature Electronics, 4(3):193–201, 2021.
+ [96] Daniel Rakita, Bilge Mutlu, and Michael Gleicher. Re- [108] Oussama Khatib. A unified approach for motion and
+ laxed IK: Real-time Syn the sis of Accurate and Feasible force control of robot manipulators: The operational
+ Robot Arm Motion. In Proceedings of Robotics: Sci- space formulation. IEEE Journal on Robotics and
+ ence and Systems, Pittsburgh, Pennsylvania, June 2018. Automation, 3(1):43–53, 1987.
+ doi: 10.15607/RSS.2018.XIV.043. [109] Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian
+ [97] Daniel Rakita, Haochen Shi, Bilge Mutlu, and Michael Sun. Deep residual learning for image recognition. In
+ Gleicher. Collisionik: A per-instant pose optimization Proceedingsof the IEEEconferenceoncomputervision
+ method for generating robot motions with environment and pattern recognition, pages 770–778, 2016.
+ collisionavoidance.In 2021 IEEEInternational Confer- [110] Jiaming Song, Chenlin Meng, and Stefano Ermon.
+ ence on Robotics and Automation (ICRA), pages 9995– Denoising diffusion implicit models. ar Xiv preprint
+ 10001. IEEE, 2021. ar Xiv:2010.02502, 2020. 
+ [98] Yeping Wang, Pragathi Praveena, Daniel Rakita, and 
+
+ 
+ 
+ 
+ 
+ APPENDIXA 
+ IMPLEMENTATIONDETAILS 
+ 
+ A. DEXCAP hardw are implementations 
+ Figure 11 illustrates the hardw are design of DEXCAP. All 
+ models are 3 D-printed with PLA material. The chest camera 
+ mount is equipped with four slots for cameras: at the top, 
+ an L 515 RGB-D Li DAR camera, followed by three T 265 
+ fisheye SLAM tracking cameras. The Li DAR camera and 
+ the uppermost T 265 camera are securely fixed to the camera 
+ Fig. 11: Detailed view of chest mount and glove mount
+ rack, while the two lower T 265 cameras are designed to be 
+ The glove mount follows the cont our of the hump on the
+ detachable and can be affixed to the glove’s back for hand 6- 
+ top of the Rokoko glove, and an opening is added to route
+ Do F pose tracking. The design features of the camera mounts 
+ the USB-C cable to the glove. The angle of the camera is
+ on both the chest and gloves include a locking mechanism 
+ set to 45 degrees facing upwards so that the camera view is
+ to prevent the cameras from accidentally slipping out. On the 
+ less obstructed from the back of the hand. The slide guide
+ glove, the camera mount is positioned over the magnetic hub 
+ has an indentation matching the position of the back plate
+ onitsdorsalside,ensuringafirmattachmentbetween the hub 
+ to ensure the same insertion position across experiments. The
+ and the mount. For powering and data storage, the user wears 
+ chest mount houses 3 identical slots following the cont our of
+ a backpack containing a 40000 m Ah portable power bank and 
+ the T 265. An additional slot is added to fit in the slide plate
+ a mini-PC with 64 GB RAM and 2 TB SSD. The system’s 
+ of the T 265. 
+ total weight is 3.96 pounds, optimized for ease of mobility, 
+ supporting up to 40 minutes of continuous data collection. 
+ The power bank’s rapid recharge capability, requiring only 30 
+ 10 minutes of each session prioritized for high-quality data
+ minutes for a full charge, enables extensive data collection 
+ capture. After collection, transferring the data from RAM to
+ sessions over several hours. 
+ SSD is efficiently completed within 3-5 minutes using multi-
+ threading. 
+ B. Data collection details 
+ Inthisstudy,weprimarilyinvestigatetwotypesof DEXCAP
+ Figure 13 andthesupplementaryvideoillustrate the begin- data:(1)datacapturedin the robotspace and(2)datacollected
+ ning steps of a data collection session. Initially, all cameras inthewild.For the firstcategory,weposition the chestcamera
+ are mounted on the chest. Upon initiating the program, the setup on a stand between two robot arms. The robots are then
+ participant moves within the environment for several sec- adjusted to a resting position, clearing the operational space
+ onds, allowing the SLAM algorithm to build the map of for human interaction. This arrangement allows for the direct
+ the surroundings. Subsequently, the bottom T 265 cameras are use of DEXCAP to collect data within the robot’s operational
+ relocated to the glove mounts, initiating the data collection area. Such data underpins basic experiments for tasks like
+ phase. This preparatory phase is completed in approximately Sponge picking, Ball collecting, and Plate wiping, alongside
+ 15 seconds, as demonstrated in the video submission. more complex challenges, including Scissor cutting and Tea
+ The data collection encompasses four data types, recorded preparing. For the second category, individuals don DEXCAP
+ at 60 frames per second: (1) the 6-Do F pose of the chest- togather data outside the labsetting,focusingon the system’s
+ mounted Li DAR camera, as tracked by the top T 265 camera; zero-shotlearningper for mancewithin-the-wild DEXCAP data
+ (2) the 6-Do F wrist poses, as captured by the two lower T 265 and its ability to generalize to unseen objects, particularly in
+ cameras attached to the gloves; (3) the positions of finger the Packaging task.
+ joints within each glove’s reference frame, detected by the 
+ motion capture gloves; and (4) RGB-D image frames from C. Data retargeting details
+ the Li DAR camera. The initial pose of the top T 265 camera To adapt the collected raw DEXCAP data for training robot
+ establishes the world frame for all data, allowing for the policies (commonly known as retargeting). This involves two
+ integration of all streamed data—RGB-D point clouds, hand key steps: (1) retargeting the observations and (2) retargeting
+ 6-Do F poses, and finger joint locations—into a unified world the actions. 
+ frame. This configuration permits unrestricted movement by For observation retargeting, the initial step is to convert the
+ the participant, enabling easy isolation and removal of body RGB-D inputs into 3 D point clouds, ensuring each pixel’s
+ movements from the dataset. colorispreserved.Thesepointclouds are the naligned with the
+ Data are initially buffered in the mini-PC’s RAM, support- worldframe,definedbytheinitialposeof the main T 265 cam-
+ ing a 15-minute collection at peak frame rate (60 fps). Once era. Subsequently, a point cloud visualization UI is launched,
+ the RAM is full, data capture slows to 20 fps due to storage displaying the aligned input point clouds alongside the robot
+ shifting to the SSD. We empirically find that this reduction operation space’s point clouds within a unified coordinate
+ in frame rate may affect SLAM tracking accuracy, potentially frame. Through this UI, users can adjust the point cloud’s
+ leading to jumping tracking results. Thus, we use the first position with intherobotoperationspaceusing the keyboard’s
+
+ 
+ 
+ 
+ 
+ directionalkeys.Thisadjustmentprocessisrequiredonlyonce Hyperparameter Default
+ for all data collected in the same location and is completed in Batch Size 16 
+ under a minute. After aligning the point clouds with the robot Learning Rate(LR) 1 e-4
+ Num Epoch 3000 
+ space, points below the robot’s table surface are eliminated, 
+ LRDecay None 
+ refining the observation data for policy development. Image Encoder Res Net-18 
+ Action retargeting begins with applying a consistent trans- Image Feature Dim 64
+ RNNType LSTM 
+ formation between the T 265 cameras on the chest mount to RNNHorizon 3 
+ translate the hand joint locations into the world frame. Then, GMM None 
+ we use the previously calculated point cloud trans for mation 
+ TABLE V: Hyperparameters - BC-RNN-img
+ matrix to transform the hand joints to the robot operation 
+ space.Theresultsof this process are visualizedin Figure 12 by 
+ Hyperparameter Default 
+ depicting the trans for med hand joints together with the point 
+ Batch Size 16 
+ cloudasaskeletalmodelof the hand.Thefinalphaseemploys 
+ Learning Rate(LR) 1 e-4 
+ inverse kinematics to map the fingertip positions between the Num Epoch 3000 
+ LRDecay None 
+ robot hand (LEAP hand) and the human hand. We use the 
+ Point Cloud Encoder Point Net 
+ hand’s 6-Do F pose to initialize the LEAP hand’s orientation Point Cloud Downsample 1000
+ for IKcalculation.Figure 12 illustrates the IKresults,showing Pooling Type Max Pooling
+ UNet Embed Dim 256 
+ the robot hand model integrated with the observational point UNet Downdims [256,512,1024]
+ clouds,therebygenerating the actionsrequired for training the UNet Kernel Size 5 
+ Diffusion Type DDIM 
+ robot policy. Diffusion Num Train 100 
+ All of the point cloud observations are downsampled uni- Diffusion Num Infer 10
+ Input Horizon 3 
+ formly to 5000 points and stored together with robot propri- 
+ oception states and actions into an hdf 5 file. We manually TABLE VI: Hyperparameters - DP-point
+ annotate the start and end frames of each task demonstration 
+ from the entire recording session (10 minutes each). The 
+ motion for resetting the task environment is not included in the inputs is set to three. For pointcloud-based methods, the
+ the training dataset. input point cloud is uni for mly downsampled to 1000 points.
+ We list the hyperparameters for each architecture in Table V,
+ D. Robot controller details VI, VII. 
+ Position control is employed throughout our experiments, 
+ F. Task implementations 
+ structured hierarchically: (1) At the high level, the learned 
+ policy generates the goal position for the next step, which In this section, we introduce the details of each task design
+ encompasses the 6-Do F pose of the end-effector for both • Sponge Picking: A sponge is randomly placed on the
+ robotarmsanda 16-dimensionalfingerjointposition for both table within a 40×70 centimeter area. The objective is
+ hands. (2) At the low level, an Operational Space Controller to grasp the sponge and lift it upwards by more than 30
+ (OSC) [108], continuously interpolates the arm’s trajectory centimeters. 
+ towards the high-levelspecifiedgoalposition and relaysinter- • Ball Collecting: A ball is randomly positioned on the
+ polated OSC actions to the robot for execution. Meanwhile, right side of the table within a 40×30 centimeter area,
+ finger movements are directly managed by a joint impedance while a basket is similarly placed randomly on the left
+ controller. Following each robot action, we calculate the dis- side within the same dimensions. The task is completed
+ tancebetween the robot’scurrentproprioception and the target whentheballisgrasped and thendroppedinto the basket.
+ pose.Ifthedistancebetween the missmallerthanathreshold, • Plate Wiping: In a setup akin to the Ball Collecting task,
+ we regard that the robot has reached the goal position and aplateandaspongearer and omlyplacedon the right and
+ will query the policy for the next action. To prevent the robot left sides of the table, respectively, each within a 40×30
+ from becoming idle, if it fails to reach the goal pose within centimeter area. The goal involves using both hands to
+ h steps, the policy is queried anew for the subsequent action. pick up the plate and sponge separately, then utilizing
+ We designate h=10 in our experiments. We empirically find the sponge to wipe the plate twice. This task demands
+ that for tasks that consist of physical contact with objects or coordinationbetween the twohands,positioning the plate
+ applyingforce,thissituationhappensmoreoften and asmaller in the table’s middle area to facilitate the wiping action.
+ h will have a smoother robot motion. • Packaging: An empty paper box and a target object are
+ randomly positioned on the table, with the object within
+ E. Policy model and training details 
+ a 40×30 centimeter area on the right and the box within
+ For all image-input methods, we use Res Net-18 [109] as a 10×10 centimeter area on the left. This task aims to
+ the image encoder. For models based on diffusion policy, we assess the model’s ability to generalize across various
+ use Denoising Diffusion Implicit Models (DDIM) [110] for objects, including unseen ones not present in the training
+ the denoising iterations. For all baselines, the time horizon of dataset. Success involves using one hand to pick up the
+
+ 
+ 
+ 
+ 
+ 𝑡 
+ 
+ 
+ 
+ gnipiw 
+ 
+ etal P 
+ 
+ 
+ 
+ 
+ 
+ 
+ gnittuc 
+ 
+ 
+ rossic S 
+ 
+ 
+ 
+ 
+ 
+ 
+ gnigakca P 
+ Human 
+ Robot 
+ Human 
+ Robot 
+ Human 
+ Robot 
+ Fig.12:Visualizationofcollectedhuman data and retargetedrobot data.DEXILsuccess full yadaptshumanmotioncapture
+ data for tasks such as plate wiping, scissor cutting, and packaging. We demonstrate the entire workflow of executing these
+ tasks. 
+ 
+ 
+ Hyperparameter Default • Scissor Cutting: A container is fixed at the table’s center,
+ Batch Size 16 with scissors on the left and a strip of paper tape on
+ Learning Rate(LR) 1 e-4 
+ the right. The task begins with the left hand function-
+ Num Epoch 3000 
+ LRDecay None ally grasping the scissors—inserting the thumb into one
+ Point Cloud Encoder Perceiver 
+ handle and the index and middle fingers into the other.
+ Point Cloud Downsample 1000 
+ Pooling Type Max Pooling Simultaneously,therighth and grasps the papertape.Both
+ UNet Embed Dim 256 
+ scissors and tape are then lifted and moved towards the
+ UNet Downdims [256,512,1024] 
+ UNet Kernel Size 5 center, with the left hand operating the scissors to cut
+ Diffusion Type DDIM 
+ the tape. A cut exceeding 3 millimeters deems the task
+ Diffusion Num Train 100 
+ Diffusion Num Infer 10 successful. 
+ Input Horizon 3 
+ • Tea Preparing:Ateatableiscentrallyplaced with afixed
+ TABLE VII: Hyperparameters - Ours (DP-prec) orientation, accompanied by a tea bottle, tweezers, and
+ a teapot. The robot must first grasp the tea bottle with
+ the left hand and unscrew the cap with the right hand,
+ completing two rotations. The cap is then taken off and
+ object and theothertomovetheboxto the table’scenter. 
+ placedontherightsideof the teatable.Subsequently,the
+ The object is then placed into the box, followed by 
+ righth and picksupthetweezers from the toprightcorner
+ stabilizing the box with one hand while the other closes 
+ oftheteatable.Therobot the nattemptstop our tea from
+ it by grasping and moving the lid. 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Fig. 13: Prepration of data collection in the wild. The first row illustrates data collection conducted in a laboratory setting,
+ and the second row depicts in-the-wild data collection. (a) Initially, the human data collector moves around in the environment
+ totrack 6-Do Fwristposes with SLAM.(b)-(d)Subsequently,the data collectordetachesthetwocameras from the chestmount
+ and secures them onto the glove mount. (e) With this setup, the human is prepared to begin data collection.
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Fig.14:Switching DEXCAP fromthehumanto the robot.Weillustrate,frombothfirst-person and frontviews,theseamless
+ transition of DEXCAP from a human data collector to a bimanual dexterous robot system. This process involves effortlessly
+ detaching the cameras from the chest mount and inserting them into a stationary mount on the robot’s table.
+ 
+ the bottle into the teapot with the left hand, while the additionalcorrection data,whichisusedinfur the rrefining the
+ right hand uses the tweezers to aid the pouring process. policyforenhanced task per for mance.Detaileddescriptionsof
+ Finally, the robot returns the tweezers and the tea bottle these algorithms and their implementation are provided in the
+ to their corresponding positions on the table. The task is main paper. In the human-in-the-loop process, we employ the
+ deemedsuccessfulifteamakesitinto the teapot and both mini-PC to live stream data from all T 265 tracking cameras.
+ theteabottle and tweezers are returnedto the irrespective Thistrackingin for mationis the ntransmittedtoa Redisserver
+ places.For the tasktobeconsidered full ysuccessful,the configured on the local network. Concurrently, the robot,
+ teabottlemust becompletelyreleased from the lefth and. operating the learned policy on a workstation, receives delta
+ movements of the human hands from the Redis server. These
+ G. Human-in-the-loop implementations 
+ deltasserveasresidualcorrections and areintegratedintoeach
+ DEXCAP incorporates two human-in-the-loop correction 
+ robot action. The RGB-D Li DAR camera, positioned on the
+ methodologies: teleoperation and residual correction. Both 
+ centralbarbetween the robotarms,connectsto the workstation
+ methods can be utilized during policy rollouts to gather 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ desab-UMI 
+ 
+ 
+ 
+ 
+ )sru O( 
+ 
+ 
+ UMI-MALS 
+ Trajectory overview Zoom-in result 
+ Start 
+ End 
+ Start & End 
+ Fig. 15: Comp are with IMU-based mocap system. We 
+ disable the SLAMmapping and pose-correctionfeaturesof the 
+ T 265 tracking camera, forcing it to rely on IMU information 
+ totrack the pose.Thehumanoperatorheld the camera,started 
+ from a fixed location, moved it along a predefined trajectory, 
+ and then returned to the starting position. IMU-based method 
+ (first row) fails to match the endpoint with the start point, 
+ which indicates that there is pose drift during tracking. Our 
+ SLAM-IMU method (second row) doesn’t drift and captures 
+ smooth trajectory during the tracking. 
+ Drifting error (cm) Trajectory 1 Trajectory 2 
+ IMU-based 8.0±3.1 11.3±4.7 
+ SLAM-IMU (Ours) 0.4±0.2 0.8±0.3 
+ TABLE VIII: Drifting error of different tracking methods. 
+ 
+ 
+ to capture observation data. Instead of recording the robot’s 
+ actual positional changes, we log the action commands dis- 
+ patchedto the robotcontroller.Thisdesigniscrucial for tasks 
+ involving physical contact with the environment and objects. 
+ APPENDIXB 
+ SUPPLEMENTARYEXPERIMENTRESULTS 
+ A. Tracking accuracy 
+ Figure 15 and Table VIIIpresentqualitative and quantitative 
+ results, respectively. We observe that the IMU-based method 
+ suffers from pose drifting during tracking, while our SLAM- 
+ IMU approach more accurately tracks hand poses, with an 
+ average error of 0.8 cm compared to the 11.3 cm error of the 
+ IMU-based method. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 

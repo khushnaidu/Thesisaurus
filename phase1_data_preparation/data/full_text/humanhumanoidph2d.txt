@@ -1,0 +1,1185 @@
+ 
+ 
+ 
+ 
+ 
+ 
+ Humanoid Policy ∼ Human Policy 
+ 
+ 
+ Ri-Zhao Qiu*,1 Shiqi Yang*,1 Xuxin Cheng*,1 Chaitanya Chawla*,2 Jialong Li 1
+ Tairan He 2 Ge Yan 4 David Yoon 3 Ryan Hoque 3 Lars Paulsen 1 
+ Ge Yang 5 Jian Zhang 3 Sha Yi 1 Guanya Shi 2 Xiaolong Wang 1 
+ 1 UCSan Diego,2 CMU,3 Apple,4 Universityof Washington,5 MIT 
+ https://human-as-robot.github.io/ 
+ 
+ 
+ Egocentric Vision Unified State-Action Space Robot Policies 
+ 
+ Small-scale 
+ Humanoid Data 
+ 1.5 k demos 
+ 
+ Fingers / Wrist 
+ 
+ Large-scale 
+ Human Data 
+ 27 k demos 
+ 
+ Figure 1: This paper advocates high-quality human data as a data source for cross-embodiment
+ learning-task-orientedegocentrichum and ata. Wecollectalarge-scale data set,Physical Human-
+ Humanoid Data (PH 2 D), with hand-finger 3 D poses from consumer-grade VR devices on well-
+ definedmanipulation task sdirectlyaligned with robots. Withoutrelyingonmodularperception,we
+ train a Human Action Trans for mer (HAT) manipulation policy by directly modeling humans as a
+ differenthumanoidembodimentinanend-to-endmanner. 
+ Abstract: Trainingmanipulationpolicies for humanoidrobots with diverse data
+ enhances the irrobustnessandgeneralizationacrosstasks and platforms.However,
+ learningsolely from robotdemonstrationsislabor-intensive,requiringexpensive
+ tele-operated data collection, which is difficult to scale. This paper investigates
+ amorescalable data source,egocentrichum and emonstrations,toserveascross-
+ embodiment training data for robot learning. We mitigate the embodiment gap
+ between humanoids and humans from both the data and modeling perspectives.
+ We collect an egocentric task-oriented dataset (PH 2 D) that is directly aligned
+ with humanoid manipulation demonstrations. We then train a human-humanoid
+ behavior policy, which we term Human Action Trans for mer (HAT). The state-
+ action space of HAT is unified for both humans and humanoid robots and can
+ bedifferentiablyretargetedtorobotactions. Co-trained with smaller-scalerobot
+ data,HATdirectly model shumanoidrobots and humansasdifferentembodiments
+ withoutadditionalsupervision. Weshow that hum and ataimprovebothgeneral-
+ ization and robustnessof HAT with signifi can tlybetter data collectionefficiency.
+ Keywords: Robot Manipulation,Cross-Embodiment,Humanoid 
+ 1 Introduction 
+ 
+ Learning from real robot demonstrations has led to great progress in robotic manipulation re-
+ cently [1, 2, 3, 4]. One key advancement to enable such progress was hardw are / softw are co-
+ designs to scale up data collection using teleoperation [5, 6, 7, 8, 9, 10] and directly controlling
+ 
+ 
+ 9 th Conferenceon Robot Learning(Co RL 2025),Seoul,Korea. 
+ 5202 
+ tc O 
+ 5 
+ ]OR.sc[ 
+ 3 v 14431.3052:vi Xra 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ the robot end effector [11, 12, 5, 6, 13, 7]. Instead of gathering data on a single robot, collective
+ efforts have beenmadetomergediverserobot data and trainfoundationalpoliciesacrossembodi-
+ ments[11,14,2,1,3,4],which have showntoimprovecross-embodiment and cross-taskgeneral-
+ izability. 
+ However, collecting struc- 
+ tured real-robot data Human Robot 
+ dataset 
+ is expensive and time- 
+ #Frames #Demos #Frames #Demos 
+ consuming. We are still 
+ Dex Cap[15] ∼378 k 787 NA NA 
+ far away from building a 
+ Ego Mimic[16] ∼432 k† 2,150 1.29 M† 1,000 
+ robust and generalizable 
+ PH 2 D(Ours) ∼3.02 M 26,824 ∼668 k 1,552 
+ model as what has been 
+ achieved in Computer Table 1: Comparisons of task-oriented egocentric human
+ Vision [17] and NLP [18]. datasets. Besides having the most demonstrations, PH 2 D is col-
+ If we examine humanoid lected on various manipulation tasks, diverse objects and scenes,
+ robot teleoperation more withaccurate 3 Dhand-fingerposes and languageannotations. †: es-
+ timated base donreported data collectiontime with 30 Hz; whereas
+ closely, it involves robots 
+ Dex Cap[15]and PH 2 Dreportprocessedframes for training. 
+ mimicking human actions 
+ using geometric transforms or retargeting to control robot joints and end-effectors. From this
+ perspective,weproposeto model robotsinahuman-centricrepresentation,and the robotaction
+ isjustatrans for mationaway from the humanaction. Ifwe canaccuratelycapture the end-effector
+ and head poses of humans, egocentric human demonstrations will be a more scalable source of
+ training data,aswe cancollect the mefficiently,inanyplace,and with outarobot.
+ Inthispaper,weper for mcross-human and humanoidembodimenttraining for roboticmanipulation.
+ Our key insight is to model bimanual humanoid behaviors by directly imitating human behaviors
+ without using learning surrogates such as affordances [19, 20]. To realize this, we first collect
+ an egocentric task-oriented dataset of Physical Humanoid-Human Data, dubbed PH 2 D. We adapt
+ consumer-grade VRdevicestocollectegocentricvideos with automaticbutaccurateh and pose and
+ end effector(i.e.,hand)annotations. Comp are dtoexistinghum and ailybehavior data sets[21,22],
+ PH 2 D is task-oriented so that it can be directly used for co-training. The same VR hardwares
+ are the nusedtoper for mteleoperationtocollectsmaller-scalehumanoid data for betteralignment.
+ We then train a Human-humanoid Action Trans for mer (HAT), which predicts future hand-finger
+ trajectories in a unified human-centric state-action representation space. To obtain robot actions,
+ wesimplyapplyinversekinematicsandh and retargetingtodifferentiablyconverthumanactionsto
+ robotactions for deployment. 
+ We conduct real-robot evaluations on different manipulation tasks with extensive ablation studies
+ toinvestigatehowtobestalignhuman and humanoiddemonstrations. Inparticular,wefound that
+ co-training with diverse human data improves robustness against spatial variance and background
+ perturbation,generalizinginsettingsunseeninrobot data butseeninhum and ata. Webelieve that
+ thesefindingshighlight the potentialofusinghum and ata for large-scalecross-embodimentlearning.
+ Insummary,ourcontributions are: 
+ • Adataset,PH 2 D,whichisalargeegocentric,task-orientedhuman-humanoid data set with
+ accurateh and and wristposes for modelinghumanbehavior(see Tab.1). 
+ • A cross human-humanoid manipulation policy, HAT, that introduces a unified state-
+ actionspaceando the ralignmenttechniques for humanoidmanipulation. 
+ • Improvedpolicyrobustness and generalizationvalidatedbyextensiveexperiments and
+ ablationstudiestoshow the benefitsofco-training with hum and ata. 
+ 2 Related Work 
+ Imitation Learning for Robot Manipulation. Recently, learningrobotpolicy with dataga the red
+ directly from the multipleandtargetrobotembodimenthasshownimpressiverobustness and dex-
+ 2 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ terity[23,2,24,1,25,26,9,27,28].Thescaleof data for imitationlearninghasgrownsubstantially
+ withrecentadvancementsin data collection[29,9,7,8],wherehumanoperators can efficientlycol-
+ lectlargeamountsofhigh-quality,task-oriented data.Despite the seadvances,achieving open-world
+ generalizationstillremainsasignifi can tchallengeduetolackofinternet-scaletraining data.
+ Learning from Human Videos. Learningpolicies from humanvideosisalong-standingtopicin
+ bothcomputervision and roboticsdueto the vastexistenceofhum and ata. Existingworks can be
+ approximatelydividedintotwocategories: aligningobservationsoractions.
+ Learn from Human - Aligning Observations. While teleoperating the actual robot platform al-
+ lows learning policy with great dexterity, there is still a long way to go to achieve higher levels
+ of generalization across diverse tasks, environments, and platforms. Unlike fields such as com-
+ puter vision [17] and natural language processing [18] benefiting from internet-scale data, robot
+ datacollectionin the realworldisfarmoreconstrained. Variousapproaches have attemptedtouse
+ internet-scale human videos to train robot policies [30, 31, 32, 33, 34, 35]. Due to various dis-
+ crepancies (e.g., supervision and viewpoints) between egocentric robot views and internet videos,
+ mostexistingwork[19,20]usemodularapproaches with intermediaterepresentationsassurrogates
+ for training. The most representative ones are affordances [19, 20] for object interaction, object
+ keypointspredictions[36,37,38,39,40],oro the rtypesofobjectrepresentations[41,42,43].
+ Learn from Human - Aligning Actions. Beyond observation alignment, transferring human
+ demonstrationstoroboticplat for msintroducesadditionalchallengesduetodifferencesinembodi-
+ ment,actuation,andcontroldynamics. Specificalignmentofhuman and robotactionsisrequiredto
+ overcome the sedisparities. Approaches have employedmaskinginegocentricviews[16],aligning
+ motiontrajectoriesorflow[44,45],object-centricactions[46,47],orh and tracking with specialized
+ hardw are[15].Mostcloselyrelatedto our work,Human Plus[48]designs are mappingmethod from
+ 3 Dhumanposeestimationtotele-operatehumanoidrobots. Comp are dto Human Plus, theinsight
+ ofourmethodistowaive the requirement for robothardw are incollectinghuman data and collect
+ diversehum and atadirectlyforco-training. Incontrastto Human Plus, weintentionallyavoidper-
+ formingretargetingonhumandemonstrations and designed the policytodirectlyusehumanh and
+ poses as states/actions. On the other hand, the ‘human shadowing’ retargeting in Human Plus is a
+ teleoperationmethod that stillrequiresrobots,leadingtolowercollectionefficiencythanours.
+ Cross-Embodiment. Cross-embodimentpre-traininghas been showntoimproveadaptability and
+ generalizationoverdifferentembodiments[49,50,51,52,53,54,55,56,57,58,59,60,61]. When
+ utilizinghumanvideos,introducingintermediaterepresentations can bepronetocompositeerrors.
+ Recent works investigate end-to-end approaches [2, 24, 1, 3] using cross-embodied robot data to
+ reducesuchcompoundingperceptiveerrors. Noticeably,theseworks have found that suchend-to-
+ end learning leads to desired behaviors such as retrying [3]. Some other work [62, 38] enforces
+ viewpoint constraints between training human demonstrations and test-time robot deployment to
+ allowlearningonhum and atabutittradesoffthescalabilityof the datacollectionprocess.
+ Concurrent Work. Some concurrent work [15, 16, 63] also attempts to use egocentric human
+ demonstrations for end-to-endcross-embodimentpolicylearning. Dex Cap[15]usesglovestotrack
+ 3 Dhandposes with achest-mounted RGBDcameratocaptureegocentrichumanvideos. However,
+ Dex Cap relies on 3 D inputs, whereas some recent works [3, 1] have shown the scalability of 2 D
+ visualinputs. Mostrelatedto our work,Ego Mimic[16]alsoproposestocollect data usingwearable
+ device [64] with 2 D visual inputs. However, Ego Mimic requires strict visual sensor alignments;
+ whereasweshow that scalingupdiverseobservations with differentcamerasmakes the policymore
+ robust. In addition, PH 2 D is also greater in dataset scale and object diversity. We also show our
+ policy can be deployed on real robots without strict requirements of visual sensors and heuristics,
+ whichpaves the way for scalable data collection. 
+ 
+ 
+ 
+ 
+ 3 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 3 Method 
+ 
+ To collect more data to train generalizable robot policies, recent research has explored cross-
+ embodimentlearning, enablingpoliciestogeneralizeacrossdiversephysicalforms[3,1,4,2,65,
+ 14]. This paper proposes egocentric human manipulation demonstrations as a scalable source of
+ cross-embodimenttraining data. Sec.3.1 describes our approachtoadaptconsumer-grade VRde-
+ vicesto scale uphum and atacollectionconveniently for adatasetof task-orientedegocentrichuman
+ demonstrations. Sec. 3.2 describesvarious techniques to handle domain gaps to align human data
+ androbot data for learninghumanoidmanipulationpolicy. 
+ 3.1 PH 2 D:Task-oriented Physical Humanoid-Human Data 
+ 
+ Though there has been existing work that collects egocentric human videos [16, 22, 21, 15], they
+ either (1) provide demonstrations mostly for non-task-oriented skills (e.g., dancing) and do not
+ provideworld-frame 3 Dheadandh and posesestimations for imitationlearningsupervision[21,22]
+ or(2)requirespecializedhardw are orrobotsetups[15,16]. 
+ To address these issues, we propose PH 2 D. 
+ PH 2 Daddress the setwoissuesby(1)collecting 
+ task-orientedhum and emonstrations that aredi- 
+ rectly related to robot execution, (2) adapting 
+ well-engineered SDKs of VR devices (illus- 
+ Camera / 
+ tratedin Fig.2)toprovidesupervision,and(3) Pose Tracking Camera 
+ diversifying tasks, camera sensors, and reduc- 
+ Figure 2: Consumer-grade Devices for Data Collec-
+ ing whole-body movement to reduce domain 
+ tion.Toavoidrelyingonspecializedhardw are for data
+ gapsinbothvision and behaviors. collectiontomake our methodscalable,wedesign our
+ data collection process using consumer-grade VR de-
+ Adapting Low-cost Commerical Devices vices. 
+ With development in pose estimation [66] and 
+ systemengineering,modernmobiledevices are capableofprovidingaccurateon-deviceworldframe
+ 3 Dheadposetracking and 3 Dhandkeypointtracking[9],whichhasprovedtobestableenoughto
+ teleoperaterobotinreal-time[9,13]. Wedesignsoftw are and hardw are tosupportconvenient data
+ collectionacrossdifferentdevices. Differentcamerasprovidebettervisualdiversity.
+ • Apple Vision Pro+Built-in Camera.Wedevelopeda Vision OSApp that uses the built-in
+ camera for visualobservation and uses the Apple ARKit for 3 Dheadandh and poses.
+ • Meta Quest 3/Apple Vision Pro+ZEDCamera.Wedevelopedaweb-basedapplication
+ based on Open Television [9] to gather 3 D head and hand poses. We also designed a 3 D-
+ printedholdertomount ZEDMini Stereocamerason the sedevices. Thisconfigurationis
+ bothlow-cost(<700$)andintroducesmorediversity with stereocameras. 
+ Data Collection Pipeline We collect task-oriented egocentric human demonstrations by asking
+ human operators to perform tasks overlapping with robot execution (e.g., grasping and pouring)
+ when wearing the VR devices. For every demonstration, we provide language instructions (e.g.,
+ graspa can ofcokezero with righth and),andsynchronizeproprioceptioninputs and visualinputs
+ byclosesttimestamps. 
+ Action Domain Gap. Humanactions and tele-operatedrobotactionsexhibittwodistinctcharacter-
+ istics:(1)humanmanipulationusuallyinvolvesinvoluntarywhole-bodymovement,and(2)humans
+ aremoredexterousthanrobots and havesignifi can tlyfaster task completiontimethanrobots. We
+ mitigatethefirstgapbyrequesting the hum and atacollectorstositinanuprightposition. Forthe
+ secondspeedgap,weinterpolatetranslationandrotationsofhum and ataduringtraining(effectively
+ ‘slowingdown’actions). Theslow-downfactorsα areobtainedbynormalizing the average task
+ slow 
+ completiontimeofhumans and humanoids,whichisempiricallydistributedaround 4. Forconsis-
+ tency,we useα =4 inalltasks. 
+ slow 
+ 4 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ HAT 
+ 
+ 
+ 
+ … 
+ remrofsnar T 
+ … 
+ Robot Observation Robot Human Robot Data / Deployment 
+ Human 
+ Both 
+ Teleoperator Dino V 2❄ 
+ Humanoid 
+ 6 Do FWrist Pose 6 Do F Wrist Pose 
+ 3 D Hand 3 D Hand 
+ Keypoints Keypoints 
+ Dino V 2❄ 
+ Human Observation Action Prediction 
+ Unified 
+ Distribution 
+ Inverse 
+ Kinematics 
+ Head Pose 
+ Inverse 
+ Forward Kinematics 
+ Kinematics 
+ Retargeting 
+ Human Human Data 
+ Demonstration 
+ Figure 3: Overviewof HAT.Human Action Trans for mer(HAT)learnsarobotpolicyby model ing
+ humans. Duringtraining,wesampleastate-actionpairfromei the rhum and ataorrobot data. The
+ images are encoded by a frozen Dino V 2 encoder [67]. The HAT model makes predictions in a
+ human-centric action space using wrist 6 Do F poses and finger tips, which is retargeted to robot
+ posesduringreal-robotdeployment. 
+ 3.2 HAT:Human Action Trans for mer 
+ HAT learns cross-embodied robot policy by modeling humans. We demonstrate that treating bi-
+ manualhumanoidrobots and humansasdifferentrobotembodimentsvi are targetingimprovesboth
+ generalizability and robustnessof HAT. 
+ More concretely, let D = {(S ,A )}N be the set of data collected from real bimanual
+ robot i i i=1 
+ humanoid robots using teleoperation [9], where S is the states including proprioceptive and vi-
+ i 
+ sual observations of i-th demonstration and A be the actions. The collected PH 2 D dataset,
+ i 
+ D = {(S˜ ,A˜ )}M is used to augment the training process. Note that it is reasonable to
+ human i i i=1 
+ assume M ≫N dueto the signifi can tlybetterhum and atacollectionefficiency. 
+ Thegoalistodesignapolicyπ : S → Athatpredictsfuturerobotactionsa givencurrentrobot
+ t 
+ observations attimet, where the futureactionsa isusuallyachunkofactions for multi-step
+ t t+1 
+ execution (with slight abuse of notation). We model π using HAT, which is a trans for mer-based
+ architecture predicting action chunks [5]. The overview of the model is illustrated in Fig. 3. We
+ discusskeydesignchoicesof HATwi the xperimentalablations. 
+ Unified State-Action Space. Both bimanual robots and humans have two end effectors. In our
+ case,ourrobots are alsoequipped with anactuated 2 Do Fneck that can rotate,whichresembles the
+ autonomous head movement when humans perform manipulation. Therefore, we design a unified
+ state-actionspace(i.e., (S,A) ≡ (S˜,A˜))forbothbimanualrobots and humans. Moreconcretely,
+ theproprioceptiveobservationisa 54-dimensionalvector(6 Drotations[68]ofthehead,leftwrist,
+ andrightwrist; x/y/zofleft and rightwrists and 10 fingertips). Inthiswork,sincewedeploy our
+ policyonrobots with 5-fingereddexteroushands(shownin Fig.4),thereexistsabijectivemapping
+ between the fingertipsofrobothands and humanhands.Note that injectivemappingisalsopossible
+ (e.g.,mappingdistancebetweenthethumbfingerando the rfingerstoparallelgripperdistance).
+ Visual Domain Gap. Two types of domain gaps exist for co-training on human/humanoid data:
+ camera sensors and end effector appearance. Since our human data collection process includes
+ cameras different from robot deployment, this leads to camera domain gaps such as tones. Also,
+ the appearances of human and humanoid end effectors are different. However, with sufficiently
+ large and diverse data, wefinditnotastrictnecessitytoapplyheuristicprocessingsuchasvisual
+ artifacts[16]orgenerativemethods[69]totrainhuman-robotpolicies-basicimageaugmentations
+ suchascolorjittering and Gaussianblurring are effectiveregularization. 
+ 5 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Passing Horizontal Grasp Vertical Grasp Pouring Ovr.Succ.
+ Meth. H.Data D.Norm 
+ I.D. O.O.D. I.D. O.O.D. I.D. O.O.D. I.D. O.O.D. I.D. O.O.D.
+ ACT ✗ NA 19/20 36/60 8/10 7/30 7/20 15/70 8/10 1/10 42/60 59/170
+ HAT ✓ ✗ 17/20 51/60 9/10 11/30 14/20 30/70 5/10 5/10 45/60 97/170
+ HAT ✓ ✓ 20/20 52/60 8/10 12/30 13/20 29/70 8/10 8/10 49/60 101/170
+ Typeof Generalization Background Texture Obj.Placement 
+ Table 2: Success rate of autonomous skill execution. Co-training with human data (H. Data)
+ signifi can tlyimproves the Out-Of-Distribution(O.O.D.)per for mance with nearly 100%relativeim-
+ provementonall task son Humanoid A.Wealsoablate the designchoiceofusingdifferentnormal-
+ izations(D.Norm)fordifferentembodiments. Wedesignateeach task settingtoinvestigateasingle
+ typeofgeneralization. Detailedanalysisofeachtypeofgeneralizationispresentedin Sec.C.
+ Training. Thefinalpolicyisdenotedasπ : f (·) → Aforbothhuman and robotpolicy,wheref
+ θ θ 
+ isatrans for mer-basedneuralnetworkparametrizedbyθ. Thefinallossisgivenby,
+ L=ℓ (π(s ),a )+λ·ℓ (π(s ) ,a ), (1) 
+ 1 i i 1 i EEF i,EEF 
+ where EEF are the indices of the translation vectors of the left and right wrists, and λ = 2 is
+ an (insensitive) hyperparameter used to balance loss to emphasize the importance of end effector
+ positionsoverlearningunnecessarilyprecisefingertipkeypoints. 
+ 4 Experiments 
+ Hardw are Platforms. We run our experi- 
+ ments on two humanoid robots (Humanoid A 
+ and Humanoid B shown in Fig. 4) equipped 
+ with 6-DOF Inspire dexterous hands. Hu- 
+ manoid Aisa Unitree H 1 robot and Humanoid 
+ B is a Unitree H 1 2 robot with different arm 
+ configurations. Similartohumans,bothrobots 
+ (1)areequipped with actuatednecks[9]toget (a) Humanoid A (b) Humanoid B
+ make use of egocentric views and (2) do not 
+ have wrist cameras. Unless otherwise noted, Figure 4: Hardw are Illustration. Most robot data
+ mosthumanoid data collectionisdone with Hu- attributes to Humanoid A, a Unitree H 1 robot. Hu-
+ manoid B,a Unitree H 1-2 robot with differentarmmo-
+ manoid A.we use Humanoid Bmainly for test- 
+ tor configurations, is used to evaluate few-shot cross-
+ ingcross-humanoidgeneralization. 
+ humanoidtransfer.Detailedcomparisonsin Sec.D
+ Implementation Details. Weimplementpolicyarchitecturebyadoptingantrans for mer-basedar-
+ chitecture predicting future action chunks [5]. We use a frozen Dino V 2 Vi T-S [67] as the visual
+ backbone. Weimplementtwovariants: (1)ACT:baselineimplementationusing the Action Chunk
+ Trans for mer[5], trainedusingonlyrobot data. Robotstates are representedasjointpositions. (2)
+ HAT: same architecture as ACT, but the state encoder operates in the unified state-action space.
+ Unless otherwise stated, HAT is co-trained on robot and human data. A checkpoint is trained for
+ each task with approximately 250-400 robotdemonstrations. 
+ Experimental Protocol. We collect robot and human demonstrations in different object sets.
+ Sincehum and emonstrations are easiertocollect, thesettingsinhum and emonstrations are gener-
+ allymorediverse,whichincludebackground,objecttypes,objectpositions,and the relativeposition
+ ofthehumanto the table. 
+ We experimented with four different dexterous manipulation tasks and investigated in-distribution
+ and out-of-distribution setups. The in-distribution (I.D.) setting tests the learned skills with back-
+ grounds and objectarrangementsapproximatelysimilarto the trainingdemonstrationspresentedin
+ thereal-robot data. Inthe Out-Of-Distribution(O.O.D.)setting,wetestgeneralizability and robust-
+ ness by introducing novel setups that were presented in human data but not in robot data. Fig. 7
+ visualizesdifferentmanipulationtasks and howwedefineout-of-distributionsettings for each task.
+ 6 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ (a)Per for manceof Humanoid Bco-trained with PH 2 D (b) Co-training consistently outperforms isolated
+ onhorizontalgrasping.o 1 isseenby Humanoid B.o 2 training as Humanoid B demonstrations increase,
+ ando 3 seeninhum and ata.o 4 isunseeninall data. achievinggoodsuccessrateseveninlow-dat are gimes.
+ Figure 5: Few-Shot Adaptation. Co-training consistently outperforms isolated training as Hu-
+ manoid Bdemonstrationsincrease,achievingrobustsuccessrateseveninlow-dat are gimes.
+ 4.1 Main Evaluation 
+ 
+ Human data has minor effects on I.D. testing. From Tab. 2, we can see that I.D. per for mance
+ with or without co-training with human data gives similar results. In the I.D. setting, we closely
+ match the scene setups as training demonstrations, including both background, object types, and
+ objectplacements. Thus,policiestrained with onlyasmallamountof Humanoid Adataper for med
+ wellin this setting. Thisfindingisconsistent with recentwork[9,7]thatfrozenvisualfoundation
+ models[17,67]improverobustnessagainstcertainexternalperturbationssuchaslighting.
+ Hum and ataimproves the O.O.D.settings with manygeneralizations. Onecommonchallenge
+ inimitationlearningisoverfittingtoonlyin-distribution task settings.Hence,itiscrucial for arobot
+ policy to generalize beyond the scene setups seen in a limited set of single-embodiment data. To
+ demonstrate how co-training with human data reduces such overfitting, we introduce O.O.D. task
+ settings to evaluate such generalization. From Tab. 2, we can see that co-training drastically im-
+ proves O.O.D.settings,achievingnearly 100%relativeimprovementinsettingsunseenby the robot
+ data. In particular, we find that human data improves three types of generalization: background,
+ objectplacement, andappearance. Toisolate the effectofeachvariable, each task focusesona
+ specifictypeofgeneralizationaslistedin Tab.2,within-depthanalysesin Sec.C.
+ 4.2 Few-Shot Transferacross Heterogenous Embodiments 
+ 
+ Weconductedfew-shotgeneralizationexperimentsonadistincthumanoidplatform(Humanoid B),
+ contrastingit with ourprimaryplatform,Humanoid A.Notably,Humanoid B’sdemonstration data
+ werecollectedinanentirelyseparateenvironment,introducingbo the mbodiment and environmental
+ shifts. We highlight two key advantages of our approach: (1) the ability to unify heterogeneous
+ human-centric data sources(humanoids and humans)intoageneralizablepolicyframework,and(2)
+ thecapacitytorapidlyadaptto new embodiments with drasticallyreduceddat are quirements.
+ Experiment 1: Cross-embodiment co-training efficacy Using only 20 demonstrations from Hu-
+ manoid B, we trained 3 policies - respectively on data from (i) Humanoid B only, (ii) Humanoid
+ B + Humanoid A (cross-embodiment), and (iii) Humanoid B + Humanoid A + Human (cross-
+ embodiment and humanpriors). Asshownin Fig.5 a,co-trainedpolicies(ii)and(iii)substantially
+ outper for med the Humanoid B-only base linesonall task settings,underscoring the method’sability
+ totransferlatent task structureacrossembodiments. 
+ Experiment 2: Scaling Demonstrations for Few-Shot Adaptation Wefurtherquantified the relation-
+ shipbetweenrequired for few-shotgeneralization. Wehold Humanoid Aandhum and atasetsfixed
+ 
+ 7 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Robot Only –28/90 Co-Trained –35/90 
+ 
+ Task State Space Action Speed Success 
+ ✓ ✗ 1/10 
+ Vertical Grasping ✗ ✓ 0/10 
+ ✓ ✓ 4/10 
+ Table 3: Importance of unifying policy inputs and out-
+ Figure 6: Human data has better puts. Wereport the numberofsuccessesofverticalgrasp-
+ sampling efficiency. Per-grid vertical ing objects in the upper-left block as illustrated in Fig. 8.
+ graspingsuccessesoutof 10 trials with Baselinesusejointpositionsasstateinputordonotinter-
+ modelstrained with robot-only data and polatehumanmotions. 
+ mixed data. Red boxes indicate where 
+ training data iscollected. 
+ for the horizontal grasping task and ablate number of demonstrations required for Humanoid B in
+ Fig. 5. Co-training (Humanoid B + A + Human) consistently outper for med isolated training on
+ Humanoid Bacrossallsettings,especiallyin the few-dat are gime. 
+ 4.3 Ablation Study 
+ 
+ Sampling Efficiencyof Human and Humanoid Data. Conceptually,collectinghum and ataisless
+ expensive, not just because it can be done faster, but also because it can be done in in-the-wild
+ scenes;reducessetupcostbe for eevery data collection;andavoids the hardw are costtoequipevery
+ operator with robots. 
+ Weper for madditionalexperimentstoshow that evenin the labsetting,hum and ata can havebetter
+ samplingefficiencyinunittime. Inparticular,weprovideasmall-scaleexperimenton the vertical
+ grasping task. Allocating 20 minutes for two settings, we collected (1) 60 Humanoid A demon-
+ strations,(2)30 Humanoid Ademonstrations,and 120 hum and emonstrations. Toavoidconflating
+ diversity and datasize,theobjectplacementsinalldemonstrations are evenlydistributedat the bot-
+ tom 6 cells. The results are given in Fig. 6. The policy trained with mixed robot and human data
+ per for mssignifi can tlybetter,whichvalidates the samplingefficiencyofhum and ataoverrobot data.
+ Eachcellrepresentsa 10 cm×10 cmregionwhere the robotattemptstopickupabox. 
+ State-Action Design. In Tab.3,weablatethedesignchoicesof the proprioceptionstatespace and
+ the speed of output actions. In particular, using the same set of robot and human data, we imple-
+ ment two baselines: 1) a unified state-action space, but does not interpolate (i.e., slow down) the
+ humanactions;and 2)abaseline that interpolateshumanactionsbutusesseparatestaterepresenta-
+ tion for humanoid(jointpositions)andhumans(EEFrepresentation). Thepoliciesexhibitdifferent
+ failurepatternsduringtherolloutof the setwo base lines. Withoutinterpolatinghumanactions,the
+ speed of the predicted actions fluctuates between fast (resembling humans) and slow (resembling
+ teleoperation),whichleadstoinstability. Withoutaunifiedstatespace,thepolicyisgivena‘short-
+ cut’ to distinguish between embodiments, which leads to on-par in-distribution per for mance and
+ signifi can tlyworse OODper for mance. 
+ More Ablation Study. Duetospacelimit,pleaserefertotheappendix and the supplementary for
+ morequalitativevisualization and quantitativeablationstudies. 
+ 5 Conclusions 
+ 
+ Thispaperproposes PH 2 D,anef for ttoconstructalarge-scalehuman task-orientedbehavior data set,
+ along with the trainingpipeline HAT,whichleverages PH 2 Dandrobot data toshowhowhumans can
+ betreatedasa data source for cross-embodimentlearning.Weshow that itispossibletodirectlytrain
+ animitationlearning model with mixedhuman-humanoid data with outanytrainingsurrogateswhen
+ thehum and ata are aligned with the robot data. Thelearnedpolicyshowsimprovedgeneralization
+ androbustnesscomp are dto the counterparttrainedusingonlyreal-robot data. 
+ 
+ 8 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 6 Limitations 
+ Althoughwealsocollectlanguageinstructionsin PH 2 D,dueto our focusoninvestigatingtheem-
+ bodiment gap between humans and humanoids, one limitation of the current version of the paper
+ uses a relatively simple architecture for learning policy. In the near future, we plan to expand the
+ policylearningprocesstotrainalargelanguage-conditionedcross-embodimentpolicytoinvestigate
+ generalizationtonovellanguageusinghum and emonstrations. Thecollectionofhum and atarelies
+ onoff-the-shelf VRhardwares and the irh and tracking SDKs.Sincethese SDKs were trainedmostly
+ for VR applications, hand keypoint tracking can fail for certain motions with heavy occlusion. In
+ addition, though the proposed method conceptually extends to more robot morphologies, current
+ evaluations are doneonrobotsequipped with dexteroushands. 
+ 
+ 7 Acknowledgment 
+ 
+ Thisworkwassupported,inpart,by NSFC ARE ERAward IIS-2240014,NSFCCF-2112665(TI-
+ LOS),andgifts from Amazon,Meta and Apple. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 9 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ References 
+ [1] S.Liu,L.Wu,B.Li,H.Tan,H.Chen,Z.Wang,K.Xu,H.Su,and J.Zhu. Rdt-1 b: adiffusion
+ foundation model for bimanualmanipulation. ar Xivpreprintar Xiv:2410.07864,2024.
+ 
+ [2] Octo Model Team, D. Ghosh, H. Walke, K. Pertsch, K. Black, O. Mees, S. Dasari, J. Hejna,
+ C. Xu, J. Luo, T. Kreiman, Y. Tan, L. Y. Chen, P. Sanketi, Q. Vuong, T. Xiao, D. Sadigh,
+ C. Finn, and S. Levine. Octo: An open-source generalist robot policy. In Proceedings of
+ Robotics: Science and Systems,2024. 
+ [3] K.Black,N.Brown,D.Driess,A.Esmail,M.Equi,C.Finn,N.Fusai,L.Groom,K.Hausman,
+ B. Ichter, et al. π : A vision-language-action flow model for general robot control. ar Xiv
+ 0 
+ preprintar Xiv:2410.24164,2024. 
+ [4] S.Dasari,O.Mees,S.Zhao,M.K.Srirama,and S.Levine. Theingredients for roboticdiffu-
+ siontrans for mers. ar Xivpreprintar Xiv:2410.10088,2024. 
+ [5] T.Z.Zhao, V.Kumar, S.Levine, and C.Finn. Learningfine-grainedbimanualmanipulation
+ withlow-costhardw are. ar Xivpreprintar Xiv:2304.13705,2023. 
+ [6] Z.Fu, T.Z.Zhao, and C.Finn. Mobilealoha: Learningbimanualmobilemanipulation with
+ low-costwhole-bodyteleoperation. ar Xivpreprintar Xiv:2401.02117,2024.
+ 
+ [7] C.Chi,Z.Xu,C.Pan,E.Cousineau,B.Burchfiel,S.Feng,R.Tedrake,and S.Song. Universal
+ manipulationinterface: In-the-wildrobotteaching with outin-the-wildrobots. ar Xivpreprint
+ ar Xiv:2402.10329,2024. 
+ [8] S. Yang, M. Liu, Y. Qin, R. Ding, J. Li, X. Cheng, R. Yang, S. Yi, and X. Wang. Ace: A
+ cross-plat for mvisual-exoskeletonssystem for low-costdexterousteleoperation.ar Xivpreprint
+ ar Xiv:2408.11805,2024. 
+ [9] X.Cheng,J.Li,S.Yang,G.Yang,and X.Wang. Open-television: Teleoperation with immer-
+ siveactivevisualfeedback. In Conferenceon Robot Learning(Co RL),2024. 
+ 
+ [10] T.He,Z.Luo,X.He,W.Xiao,C.Zhang,W.Zhang,K.Kitani,C.Liu,and G.Shi. Omnih 2 o:
+ Universal and dexterous human-to-humanoid whole-body teleoperation and learning. ar Xiv
+ preprintar Xiv:2406.08858,2024. 
+ [11] S. Dasari, F. Ebert, S. Tian, S. Nair, B. Bucher, K. Schmeckpeper, S. Singh, S. Levine, and
+ C.Finn. Robonet: Large-scalemulti-robotlearning. ar Xivpreprintar Xiv:1910.11215,2019.
+ 
+ [12] H.Bharadhwaj,J.Vakil,M.Sharma,A.Gupta,S.Tulsiani,and V.Kumar. Roboagent: Gener-
+ alizationandefficiencyinrobotmanipulationviasemanticaugmentations and actionchunking.
+ In 2024 IEEE International Conference on Robotics and Automation (ICRA), pages 4788–
+ 4795.IEEE,2024. 
+ [13] H.Ha,Y.Gao,Z.Fu,J.Tan,and S.Song. Umionlegs: Makingmanipulationpoliciesmobile
+ withmanipulation-centricwhole-bodycontrollers. ar Xivpreprintar Xiv:2407.10353,2024.
+ [14] A.O’Neill,A.Rehman, A.Gupta, A.Maddukuri, A.Gupta, A.Padalkar, A.Lee, A.Pooley,
+ A.Gupta,A.Mandlekar,etal.Openx-embodiment:Roboticlearning data setsandrt-xmodels.
+ ar Xivpreprintar Xiv:2310.08864,2023. 
+ 
+ [15] C.Wang,H.Shi,W.Wang,R.Zhang,L.Fei-Fei,and C.K.Liu.Dexcap:Scalable and portable
+ mocap data collection system for dexterous manipulation. ar Xiv preprint ar Xiv:2403.07788,
+ 2024. 
+ [16] S. Kareer, D. Patel, R. Punamiya, P. Mathur, S. Cheng, C. Wang, J. Hoffman, and D. Xu.
+ Egomimic: Scalingimitationlearningviaegocentricvideo. ar Xivpreprintar Xiv:2410.24221,
+ 2024. URLhttps://arxiv.org/abs/2410.24221. 
+ 
+ 10 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ [17] A. Radford, J. W. Kim, C. Hallacy, A. Ramesh, G. Goh, S. Agarwal, G. Sastry, A. Askell,
+ P.Mishkin,J.Clark,etal. Learningtransferablevisualmodels from naturallanguagesupervi-
+ sion. In ICML.PMLR,2021. 
+ [18] Open AI. Gpt-4 technicalreport. Technicalreport,Open AI,2023. 
+ 
+ [19] R.Mendonca,S.Bahl,and D.Pathak. Structuredworldmodels from humanvideos. In RSS,
+ 2023. 
+ [20] S.Bahl,R.Mendonca,L.Chen,U.Jain,and D.Pathak. Affordances from humanvideosasa
+ versatilerepresentation for robotics. In CVPR,2023. 
+ [21] K.Grauman,A.Westbury,E.Byrne,Z.Chavis,A.Furnari,R.Girdhar,J.Hamburger,H.Jiang,
+ M.Liu,X.Liu,etal. Ego 4 d: Around the worldin 3,000 hoursofegocentricvideo. In CVPR,
+ 2022. 
+ 
+ [22] D. Damen, H. Doughty, G. M. Farinella, S. Fidler, A. Furnari, E. Kazakos, D. Moltisanti,
+ J. Munro, T. Perrett, W. Price, and M. Wray. Scaling egocentric vision: The epic-kitchens
+ dataset. In ECCV,2018. 
+ [23] T.Z.Zhao,J.Tompson,D.Driess,P.Florence,K.Ghasemip our,C.Finn,and A.Wahid.Aloha
+ unleashed: Asimplerecipe for robotdexterity. ar Xivpreprintar Xiv:2410.13126,2024.
+ 
+ [24] L.Wang,X.Chen,J.Zhao,and K.He. Scalingproprioceptive-visuallearning with heteroge-
+ neouspre-trainedtrans for mers. ar Xivpreprintar Xiv:2409.20537,2024. 
+ [25] C.Chi,Z.Xu,S.Feng,E.Cousineau,Y.Du,B.Burchfiel,R.Tedrake,and S.Song. Diffusion
+ policy:Visuomotorpolicylearningviaactiondiffusion. The International Journalof Robotics
+ Research,page 02783649241273668,2023. 
+ [26] R.-Z.Qiu,Y.Song,X.Peng,S.A.Suryadevara,G.Yang,M.Liu,M.Ji,C.Jia,R.Yang,X.Zou,
+ etal.Wildlma:Longhorizonloco-manipulationin the wild.ar Xivpreprintar Xiv:2411.15131,
+ 2024. 
+ 
+ [27] C. Lu, X. Cheng, J. Li, S. Yang, M. Ji, C. Yuan, G. Yang, S. Yi, and X. Wang. Mobile-
+ television: Predictivemotionpriors for humanoidwhole-bodycontrol. In ICRA,2025.
+ [28] Y. Ze, Z. Chen, W. Wang, T. Chen, X. He, Y. Yuan, X. B. Peng, and J. Wu. Generalizable
+ humanoidmanipulation with improved 3 ddiffusionpolicies.ar Xivpreprintar Xiv:2410.10803,
+ 2024. 
+ 
+ [29] S. P. Arunachalam, S. Silwal, B. Evans, and L. Pinto. Dexterous imitation made easy: A
+ learning-based framework for efficient dexterous manipulation. In 2023 ieee international
+ conferenceonrobotics and automation(icra),pages 5954–5961.IEEE,2023. 
+ [30] A.S. Chen, S. Nair, and C.Finn. Learninggeneralizable roboticreward functions from” in-
+ the-wild”humanvideos. ar Xivpreprintar Xiv:2103.16817,2021. 
+ [31] J. Lee and M. S. Ryoo. Learning robot activities from first-person human videos using con-
+ volutionalfutureregression. In Proceedingsof the IEEEConferenceon Computer Vision and
+ Pattern Recognition Workshops,pages 1–2,2017. 
+ 
+ [32] K. Lee, Y. Su, T.-K. Kim, and Y. Demiris. A syntactic approach to robot imitation learning
+ usingprobabilisticactivitygrammars. Robotics and Autonomous Systems,61(12):1323–1334,
+ 2013. 
+ [33] A. Nguyen, D. Kanoulas, L. Muratore, D. G. Caldwell, and N. G. Tsagarakis. Translating
+ videos to commands for robotic manipulation with deep recurrent neural networks. In 2018
+ IEEEInternational Conferenceon Robotics and Automation(ICRA),pages 3782–3788.IEEE,
+ 2018. 
+ 
+ 11 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ [34] J.Rothfuss,F.Ferreira,E.E.Aksoy,Y.Zhou,and T.Asfour. Deepepisodicmemory: Encod-
+ ing,recalling,andpredictingepisodicexperiences for robotactionexecution. IEEERobotics
+ and Automation Letters,3(4):4007–4014,2018. 
+ [35] Y. Yang, Y. Li, C. Fermuller, and Y. Aloimonos. Robot learning manipulation action plans
+ by” watching” unconstrained videos from the world wide web. In Proceedings of the AAAI
+ conferenceonartificialintelligence,volume 29,2015. 
+ [36] H. Bharadhwaj, R. Mottaghi, A. Gupta, and S. Tulsiani. Track 2 act: Predicting point tracks
+ frominternetvideosenablesdiversezero-shotrobotmanipulation. In ECCV,2024.
+ 
+ [37] C.Wen,X.Lin,J.So,K.Chen,Q.Dou,Y.Gao,and P.Abbeel. Any-pointtrajectory model ing
+ forpolicylearning. ar Xivpreprintar Xiv:2401.00025,2023. 
+ [38] J.Li,Y.Zhu,Y.Xie,Z.Jiang,M.Seo,G.Pavlakos,and Y.Zhu. Okami: Teachinghumanoid
+ robots manipulation skills through single video imitation. ar Xiv preprint ar Xiv:2410.11792,
+ 2024. 
+ 
+ [39] N. Das, S. Bechtle, T. Davchev, D. Jayaraman, A. Rai, and F. Meier. Model-based inverse
+ rein for cementlearning from visualdemonstrations. In Conferenceon Robot Learning,pages
+ 1930–1942.PMLR,2021. 
+ [40] H.Xiong, Q.Li, Y.-C.Chen, H.Bharadhwaj, S.Sinha, and A.Garg. Learningbywatching:
+ Physicalimitationofmanipulationskills from humanvideos. In 2021 IEEE/RSJInternational
+ Conferenceon Intelligent Robots and Systems(IROS),pages 7827–7834.IEEE,2021.
+ [41] S. Pirk, M. Khansari, Y. Bai, C. Lynch, and P. Sermanet. Online object representations with
+ contrastivelearning. ar Xivpreprintar Xiv:1906.04312,2019. 
+ 
+ [42] S.Nair,A.Rajeswaran,V.Kumar,C.Finn,and A.Gupta. R 3 m: Auniversalvisualrepresen-
+ tation for robotmanipulation. ar Xivpreprintar Xiv:2203.12601,2022. 
+ [43] Y. J. Ma, S. Sodhani, D. Jayaraman, O. Bastani, V. Kumar, and A. Zhang. Vip: Towards
+ universal visual reward and representation via value-implicit pre-training. ar Xiv preprint
+ ar Xiv:2210.00030,2022. 
+ 
+ [44] L.-H.Lin,Y.Cui,A.Xie,T.Hua,and D.Sadigh. Flowretrieval:Flow-guideddat are trieval for
+ few-shotimitationlearning. ar Xivpreprintar Xiv:2408.16944,2024. 
+ [45] J. Ren, P. Sund are san, D. Sadigh, S. Choudhury, and J. Bohg. Motion tracks: A uni-
+ fied representation for human-robot transfer in few-shot imitation learning. ar Xiv preprint
+ ar Xiv:2501.06994,2025. 
+ [46] Y. Zhu, A. Lim, P. Stone, and Y. Zhu. Vision-based manipulation from single human video
+ with open-worldobjectgraphs. ar Xivpreprintar Xiv:2405.20321,2024. 
+ 
+ [47] C.-C.Hsu,B.Wen,J.Xu,Y.Narang,X.Wang,Y.Zhu,J.Biswas,and S.Birchfield. Spot: Se
+ (3)posetrajectorydiffusion for object-centricmanipulation.ar Xivpreprintar Xiv:2411.00965,
+ 2024. 
+ [48] Z. Fu, Q. Zhao, Q. Wu, G. Wetzstein, and C. Finn. Humanplus: Humanoid shadowing and
+ imitation from humans. In Co RL,2024. 
+ 
+ [49] W. Huang, I. Mordatch, and D. Pathak. One policy to control them all: Shared modular
+ policies for agent-agnosticcontrol. In International Conferenceon Machine Learning,pages
+ 4455–4464.PMLR,2020. 
+ [50] L. Y. Chen, K. Hari, K. Dharmarajan, C. Xu, Q. Vuong, and K. Goldberg. Mirage: Cross-
+ embodimentzero-shotpolicytransfer with cross-painting. ar Xivpreprintar Xiv:2402.19249,
+ 2024. 
+ 
+ 12 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ [51] J.Yang,C.Glossop,A.Bhorkar,D.Shah,Q.Vuong,C.Finn,D.Sadigh,and S.Levine. Push-
+ ing the limitsofcross-embodimentlearning for manipulation and navigation. ar Xivpreprint
+ ar Xiv:2402.19432,2024. 
+ [52] J.Yang,D.Sadigh,and C.Finn. Polybot: Trainingonepolicyacrossrobotswhileembracing
+ variability. ar Xivpreprintar Xiv:2307.03719,2023. 
+ [53] F. Ebert, Y. Yang, K. Schmeckpeper, B. Bucher, G. Georgakis, K. Daniilidis, C. Finn, and
+ S.Levine. Bridge data: Boostinggeneralizationofroboticskills with cross-domain data sets.
+ ar Xivpreprintar Xiv:2109.13396,2021. 
+ 
+ [54] T.Franzmeyer,P.Torr,and J.F.Henriques. Learnwhatmatters: cross-domainimitationlearn-
+ ing with task-relevantembeddings. Advancesin Neural Information Processing Systems,35:
+ 26283–26294,2022. 
+ [55] A.Ghadirzadeh,X.Chen,P.Poklukar,C.Finn,M.Bjo¨rkman,and D.Kragic. Bayesianmeta-
+ learning for few-shotpolicyadaptationacrossroboticplatforms. In 2021 IEEE/RSJInterna-
+ tional Conferenceon Intelligent Robots and Systems(IROS),pages 1274–1280.IEEE,2021.
+ 
+ [56] T.Shankar,Y.Lin,A.Rajeswaran,V.Kumar,S.Anderson,and J.Oh. Translatingrobotskills:
+ Learning unsupervised skill correspondences across robots. In International Conference on
+ Machine Learning,pages 19626–19644.PMLR,2022. 
+ [57] M.Xu,Z.Xu,C.Chi,M.Veloso,and S.Song. Xskill: Crossembodimentskilldiscovery. In
+ Conferenceon Robot Learning,pages 3536–3555.PMLR,2023. 
+ [58] Z.-H.Yin,L.Sun,H.Ma,M.Tomizuka,and W.-J.Li. Crossdomainrobotimitationwithin-
+ variantrepresentation. In 2022 International Conferenceon Robotics and Automation(ICRA),
+ pages 455–461.IEEE,2022. 
+ 
+ [59] K.Zakka,A.Zeng,P.Florence,J.Tompson,J.Bohg,and D.Dwibedi.Xirl:Cross-embodiment
+ inverse rein for cement learning. In Conference on Robot Learning, pages 537–546. PMLR,
+ 2022. 
+ [60] G.Zhang,L.Zhong,Y.Lee,and J.J.Lim. Policytransferacrossvisual and dynamicsdomain
+ gapsviaiterativegrounding. ar Xivpreprintar Xiv:2107.00339,2021. 
+ [61] Q.Zhang,T.Xiao,A.A.Efros,L.Pinto,and X.Wang.Learningcross-domaincorrespondence
+ forcontrol with dynamicscycle-consistency. ar Xivpreprintar Xiv:2012.09811,2020.
+ 
+ [62] S.Bahl,A.Gupta,and D.Pathak. Human-to-robotimitationin the wild. In RSS,2022.
+ [63] C.Wang,L.Fan,J.Sun,R.Zhang,L.Fei-Fei,D.Xu,Y.Zhu,and A.Anandkumar.Mimicplay:
+ Long-horizonimitationlearningbywatchinghumanplay. ar Xivpreprintar Xiv:2302.12422,
+ 2023. 
+ 
+ [64] J.Engel,K.Somasundaram,M.Goesele,A.Sun,A.Gamino,A.Turner,A.Talattof,A.Yuan,
+ B.Souti,B.Meredith,etal. Projectaria: Anewtool for egocentricmulti-modalairesearch.
+ ar Xivpreprintar Xiv:2308.13561,2023. 
+ [65] A. Khazatsky, K. Pertsch, S. Nair, A. Balakrishna, S. Dasari, S. Karamcheti, S. Nasiriany,
+ M.K.Srirama,L.Y.Chen,K.Ellis,etal. Droid: Alarge-scalein-the-wildrobotmanipulation
+ dataset. ar Xivpreprintar Xiv:2403.12945,2024. 
+ 
+ [66] W. Zhu, X. Ma, Z. Liu, L. Liu, W. Wu, and Y. Wang. Motionbert: A unified perspective on
+ learninghumanmotionrepresentations. In ICCV,2023. 
+ [67] M.Oquab,T.Darcet,T.Moutakanni,H.Vo,M.Szafraniec,V.Khalidov,P.Fernandez,D.Haz-
+ iza,F.Massa,A.El-Nouby,etal.Dinov 2:Learningrobustvisualfeatures with outsupervision.
+ ar Xivpreprintar Xiv:2304.07193,2023. 
+ 
+ 13 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ [68] Y.Zhou,C.Barnes,J.Lu,J.Yang,and H.Li. Onthecontinuityofrotationrepresentationsin
+ neuralnetworks. In CVPR,2019. 
+ [69] T. Yu, T. Xiao, A. Stone, J. Tompson, A. Brohan, S. Wang, J. Singh, C. Tan, J. Peralta,
+ B.Ichter,etal. Scalingrobotlearning with semanticallyimaginedexperience. ar Xivpreprint
+ ar Xiv:2302.11550,2023. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 14 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Paper Wooden Red Green #1 #2 
+ 
+ 
+ Diff. Background 
+ (a)Therobotperforms the cuppassing task acrossf our differentbackgrounds. Theleftsideshows the four
+ backgroundvariations,whiletherightsideillustrates the twopassingdirections: (#1-Righth and passes the
+ cupto the lefth and,#2-Lefth and passesthecupto the righth and). 
+ Diff. Item #1 #2 #3 #4 #5 
+ 
+ 
+ 
+ 
+ (b)Therobotperforms the horizontalgrasping task with fourdifferentitems: bottle,box 1,box 2,andcan,
+ asshownon the left. Therightsideillustrates the process: (#1-#3-Therobotgrasps the bottle,#4-#5-The
+ robotplacesitinto the plasticbin). 
+ Diff. Position #1 #2 #3 #4 #5 
+ 
+ 
+ 
+ (c)Therobotperforms the verticalgrasping task. Asshownon the left,the Dynamixelboxisplacedinnine
+ differentpositions for grasping.Therightsideillustrates the process:(#1-#3-Therobotgrasps the box,#4-#5
+ -Therobotplacestheboxinto the plasticbin). 
+ 
+ Diff. Setting #1 #2 #3 #4 #5 
+ 
+ 
+ 
+ (d)Therobotperforms the pouring task.Theleftsideshowsdifferentsettingsachievedbyvarying the robot’s
+ rotation and the table’s position. The right side illustrates the pouring process: (#1 - Right hand grasps the
+ bottle,#2-Lefth and grasps the cup,#3-Pouring the drink,#4-Lefth and places the cupdown,#5-Right
+ handplaces the bottledown). 
+ Figure 7: Illustrations of tasks used in quantitative evaluations. From top to bottom: cup passing,
+ horizontalgrasping,verticalgrasping,andp our ing. 
+ Bottle Box Box Can 
+ Method 1 2 Ovr. Succ. 
+ I.D. H.D. H.D. H.D. 
+ Withoutwhole-body 8/10 6/10 0/10 7/10 21/40 
+ Withwhole-body 9/10 3/10 3/10 3/10 18/40 
+ Table 4: Ablation of how human whole-body movement in training demonstrations affects
+ policy rollout. We collect the same number of demonstrations on the same set of objects for the
+ grasping task withor with outwhole-bodymovement.Since the robotdoesnot have anaturalwhole-
+ bodymovementlikehumans,itnegativelyinfluences the manipulationsuccessrate.
+ A More Ablation Study-Data Collection 
+ 
+ Autonomous Whole-body Movement. In Tab.4,wejustify the necessitytominimizebodymove-
+ mentinhum and atacollection.Humanstendtomove the irupperbodyunconsciouslyduringmanip-
+ ulation(includingshoulder and waistmovement). However, existinghumanoidrobots have yetto
+ reachsuchalevelofdexterity.Thus,having the sedifficult-to-replicateactionsin the hum and emon-
+ strations leads to degraded per for mance. We hypo the size that such a necessity would be greatly
+ reduced with the development of both whole-body locomotion methods and mechanical designs,
+ 
+ 15 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Method Grasping(secs) Pouring(secs) 
+ Human Demo 3.79±0.27 4.81±0.35 
+ Human Demo with VR 4.09±0.30 4.90±0.26 
+ Humanoid Demo(VRTeleop) 19.72±1.65 37.31±6.25 
+ Table 5:Amortizedmeanandst and arddeviationof the timerequiredtocollectasingledemon-
+ stration, including scene resets. The first row shows the time for regular human to complete cor-
+ responding tasks in real world. The second row represents our human data when wearing VR for
+ datacollection, demonstrating that egocentrichum and emonstrationsprovideamorescalable data
+ sourcecomp are dtorobotteleoperation. 
+ 
+ butfor the currentlyavailableplatforms,weinstructoperatorstominimizebodymovementasmuch
+ aspossiblein our data set. 
+ Efficiencyof Data Collection. In Tab.5,wecomp are taskcompletiontimesacrossdifferentsetups,
+ includingst and ardhumanmanipulation,hum and emonstrationsper for medwhilewearinga VRde-
+ vice,androbotteleoperation. Thisanalysishighlightshow task-orientedhum and emonstrations can
+ be a scalable data source for cross-embodiment learning. Notably, wearing a VR device does not
+ signifi can tlyimpacthumanmanipulationspeed,asthecompletiontimeremainsnearly the sameas
+ instandardhum and emonstrations. 
+ Amongdifferent data collectionschemes, wefind that mostoverheadarisesduring the retargeting
+ process from human actions to robot actions. This is primarily due to latency and the constrained
+ workspaceof 7-Do Froboticarms,which are inherentchallengesinexisting data collectionmethods
+ suchas VRteleoperation[9],motiontracking[48,10],andpuppeting[8,5]. 
+ Beyond data collectionspeed,hum and emonstrationsofferseveraladditionaladvantagesovertele-
+ operation. They provide a safer alternative, reducing risks associated with real-robot execution.
+ They are alsomorelabor-efficient,astheydonotrequireadditionalpersonnel for supervision. Fur-
+ thermore, human demonstrations allow for greater flexibility in settings, enabling a diverse range
+ ofenvironments with outrequiringrobot-specificadaptations. Additionally,hum and emonstrations
+ achieveahigherdemonstrationsuccessrate,and the requiredhardw are(suchasmotioncaptureor
+ VR devices) is more accessible and cost-effective compared to full robotic setups. These factors
+ collectivelymakehum and ataamorescalablesolution for large-scale data collection.
+ B Normalizationofdifferentembodiments. 
+ 
+ Tab. 2 suggests minor differences between using different normalization coefficients for the states
+ andactionsvectorsofhumans and humanoids. Wetakeacloserlookin Fig.8,whereweinvestigate
+ theimpactofdifferentnormalizationstrategiesin the verticalgrasping(picking)task. Noticeably,
+ thesamenormalizationapproachachieved the highestoverallsuccessrate,but the successdistribu-
+ tionisbiasedtowards the upper-rightregionof the grid. 
+ Wehypo the size that thisisbecausehumans have alargerworkspacethanhumanoidrobots. Thus,
+ hum and ataencompasseshumanoidproprioceptionasasubset,whichresultsin are lativelysmaller
+ distribution for the robotstate-actionspace. 
+ 
+ C In-Depth Analysisof Different Typesof Generalization 
+ 
+ Hum and ataimprovesbackgroundgeneralization. Wechosetouse the cuppassing task totest
+ background generalization. We prepared four different tablecloths as backgrounds, as shown in
+ Fig. 7 a. In terms of training data distribution, the teleoperation data for this task was collected
+ exclusivelyon the paperbackgroundshownin Fig.7 a,whereas the hum and ataincludesmorethan
+ five different backgrounds. This diverse human dataset signifi can tly enhances the generalization
+ ability of the co-trained HAT policy. As shown in Tab. 7. , HAT consistently outperforms across
+ all four backgrounds, demonstrating robustness to background variations. In addition, the overall
+ 
+ 16 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Bottle Box Box Can 
+ Method 1 2 Ovr. Succ. 
+ I.D. H.D. O.O.D. O.O.D. 
+ ACT 8/10 5/10 1/10 1/10 16/40 
+ HAT 8/10 7/10 1/10 4/10 21/40 
+ Table 6: Object Appearance Generalization: In the horizontal grasping task, we evaluated the
+ graspingper for mancebyattemptingtograspeachobject 10 times and recorded the successrate.
+ 
+ 
+ 
+ success rate increases by nearly 50% compared to training without human data, highlighting the
+ advantageofutilizingdiversehum and emonstrations. 
+ Hum and ataimprovesappearancegeneralization. Totesthowco-trainingimprovesrobustness
+ toperturbationsinobjecttextures, weevaluate the horizontalgraspingpolicyonnovelobjects, as
+ shown in Fig. 7 b. Specifically, we comp are the policy’s per for mance on the bottle, box 1, box 2,
+ andcan,asshownlefttorightin the firstimagein Fig.7 b. Theseobjectsdiffersignifi can tlyinboth
+ color and shape from thebottleusedin the teleoperation data distribution. 
+ Sincegraspingis are lativelysimple task,ouradjustedpolicydemonstratesstronglearningcapabil-
+ itieseven with only 50 teleoperation data samples. Thepolicy can success full ygraspmostbottles
+ despite the limitedtrainingset.Tobetterhighlight the impactofhum and ata,weselectedmorechal-
+ lengingobjects for evaluation. Asshownin Tab.6,hum and atasignifi can tlyenhances the policy’s
+ abilitytograsp the semoredifficultobjects. 
+ Notably,box 1 appearsin the hum and ata,whilebox 2 doesnot. Despite this,weobservethatco-
+ training with hum and atastillimprovesoverallper for mance,evenonbox 2,thoughitssuccessrate
+ doesnotincrease.Thissuggests that,beyonddirectexperience with specificobjects,thehum and ata
+ helps the policylearnbroadervisualpriors that enablemoreproactive and stablegraspingbehaviors.
+ Forbox 2,while the successrateremainslow—partiallyduetoitslowheight and colorsimilarity
+ tothetable—theco-trained HATpolicydemonstratesfewerout-of-distribution(OOD)failures and
+ more actively searches for graspable regions. The failures on box 2 are primarily due to unstable
+ grasping and thesmallboxslipping from the hand,ratherthan the inabilitytoperceiveorlocate the
+ object. 
+ Fur the rmore, adding more human data not only improves per for mance on objects seen in human
+ training demonstrations (e.g., box 1) but also enhances generalization to completely novel objects
+ (e.g., box 2 and can). We hypo the size that, as the number of objects grows, HAT starts to learn
+ inter-categoryvisualpriors that guideittograspobjectsmoreeffectively,evenwhen the ywerenot
+ explicitlypresentin the trainingset. 
+ Hum and ataimprovesobjectplacementgeneralization.Finally,weintroducevariationsinobject
+ placements that are notpresentin the real-robottrainingdemonstrations and specificallyinvestigate
+ this in the vertical grasping (picking) task. In this task, we intentionally constrain the robot data
+ collectiontoobjectplacements with inasubsetofcells,whilehumanverticalgrasping data coversa
+ muchmorediverserangeofsettings. 
+ Tosystematicallyanalyze the impactofhum and ata,weevaluate model per for manceonastructured
+ 3×3 grid,whereeachcellrepresentsa 10 cm×10 cmregion for graspingattempts. Thenumbersin
+ eachcellindicate the numberofsuccessfulpicksoutof 10 trials.Real-robottraining data iscollected
+ fromonlytwospecificcells,highlighted with dashedlines. 
+ Akeydetailin our teleoperation data distributionis that 50 pickingattempts are collected from the
+ right-handsidegrid and only 10 from the left-handsidegrid. Thisimbalanceexplainswhypolicies
+ trainedpurelyonteleoperation data struggletograspobjectsin the left-sidegrid. Weobserve that
+ models trained solely on robot data fail to generalize to unseen cells, whereas cross-embodiment
+ learning with hum and atasignifi can tlyimprovesgeneralization,doubling the overallsuccessrate.
+ 
+ 17 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ ACT HAT (diff. norm) HAT (same norm) 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Figure 8:Object Placement Generalization.Per for mancecomparisonsof model strained with and
+ without human data on vertical grasping (picking). Each cell in the 3×3 grid represents a 10 cm ×
+ 10 cmregionwhere the robotattemptstopickupabox,withnumbersindicatingsuccessfulattempts
+ outof 10. Thereal-robot data iscollectedintwocellsinside the dashedlines. Notably,ourteleop-
+ eration data isintentionallyimbalanced. 
+ 
+ Paper Wooden Red Green 
+ Method Ovr. Succ. 
+ I.D. H.D. O.O.D. O.O.D. 
+ ACT 19/20 14/20 12/20 10/20 55/80 
+ HAT 20/20 16/20 18/20 18/20 72/80 
+ Table 7:Background Generalization:Inthecuppassing task,weevaluate the passingper for mance
+ byrecording the numberoffailuresorretriesneededtocomplete 20 cup-passingtrials.
+ 
+ D In-Depth Comparisonbetween Humanoid Aand Humanoid B 
+ configurations 
+ 
+ Thissectionpresentsadetailedcomparisonof the twohumanoidplatforms,referredtoas Humanoid
+ Aand Humanoid B,withafocusonjointstructure and implications for manipulationcapabilities.
+ We restrict our analysis to the arm configurations, as other parts of the body were not exclusively
+ exploredin this work. 
+ While morphologically similar, these two humanoids have drastically different arm configura-
+ tions that create hurdles in direct policy transfer. Besides differences in motor technical specs
+ such as torque and types of encoder (Humanoid B has absolute motor position encoders), they
+ also have different mechanical limits. The range of motion (ROM) for the first four proximal
+ joints—shoulder pitch, shoulder roll, shoulder yaw, and elbow—differs across the two platforms.
+ Humanoid Bexhibitsaconsistentlywider ROM,whichallowsawidersetofreachableconfigura-
+ tions and increasesthemanipulabilityof the arminconstrainedenvironments. Table 8 summarizes
+ the ROMvalues for the sesh are djoints. 
+ Amoresignifi can tarchitecturaldivergenceisobservedat the wrist. Humanoid Aincludesasingle
+ distal joint—wrist roll—providing limited wrist articulation. This restricts end-effector dexterity
+ andconstrainsin-handmanipulationstrategiestoasinglerotationaldegreeoffreedom. Incontrast,
+ Humanoid Bisequipped with acompletewristmechanismcomposedofthreeindependentlyactu-
+ atedjoints:wrist pitch,wrist roll,andwrist yaw.Theseadditionaldegreesoffreedomallow for full
+ orientation control of the end-effector, enabling tasks that require precise alignment, rotation, and
+ fineadjustmentofobjectposes. 
+ 
+ 
+ 
+ 
+ 
+ 18 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Joint Humanoid A Humanoid B 
+ shoulder pitch −164◦to+164◦ −180◦to+90◦ 
+ shoulder roll −19◦to+178◦ −21◦to+194◦ 
+ shoulder yaw −74◦to+255◦ −152◦to+172◦ 
+ elbow −71◦to 150◦ −54◦to 182◦ 
+ wrist roll −175◦to 175◦ −172◦to 157◦ 
+ Table 8: Joint Rangeof Motion Comparisonbetween Humanoid Aand B(indegrees)
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 19 
+ 
+ 

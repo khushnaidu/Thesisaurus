@@ -1,0 +1,1263 @@
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Habitat: A Platform for Embodied AI Research 
+ 
+ 
+ Manolis Savva 1,4*,Abhishek Kadian 1*,Oleksandr Maksymets 1*,Yili Zhao 1, 
+ Erik Wijmans 1,2,3,Bhavana Jain 1,Julian Straub 2,Jia Liu 1,Vladlen Koltun 5, 
+ 
+ Jitendra Malik 1,6,Devi Parikh 1,3,Dhruv Batra 1,3 
+ 
+ 1 Facebook AIResearch,2 Facebook Reality Labs,3 Georgia Instituteof Technology,
+ 4 Simon Fraser University,5 Intel Labs,6 UCBerkeley 
+ https://aihabitat.org 
+ 
+ 1.Introduction 
+ Abstract 
+ Theembodimenthypothesisis the idea that intelligenceemerges
+ intheinteractionofanagent with anenvironment and asaresult
+ Wepresent Habitat,aplatform for researchinembodied ofsensorimotoractivity. 
+ artificialintelligence(AI).Habitatenablestrainingembod- 
+ Smith and Gasser[26] 
+ iedagents(virtualrobots)inhighlyefficientphotorealistic 
+ 3 Dsimulation. Specifically,Habitatconsistsof: 
+ Imagi new alkinguptoahomerobot and asking‘Hey–
+ (i) Habitat-Sim: a flexible, high-per for mance 3 D sim- 
+ canyougocheckifmylaptopisonmydesk?Andifso,bring
+ ulator with configurable agents, sensors, and generic 3 D 
+ ittome.’ Inordertobesuccessful,sucharobotwouldneed
+ dataseth and ling. Habitat-Simisfast–whenrendering 
+ arangeofskills–visualperception(torecognizescenes and
+ a scene from Matterport 3 D, it achieves several thous and 
+ objects),languageunderst and ing(totranslatequestions and framespersecond(fps)runningsingle-threaded,andcan
+ instructionsintoactions),andnavigationincomplexenviron-
+ reachover 10,000 fpsmulti-processonasingle GPU. 
+ ments(tomove and findthingsinachangingenvironment).
+ (ii)Habitat-API:amodularhigh-levellibrary for end-to- 
+ While there has been significant progress in the vision
+ enddevelopmentofembodied AIalgorithms–definingtasks 
+ andlanguagecommunitiesthankstorecentadvancesindeep
+ (e.g.navigation,instructionfollowing,questionanswering), 
+ representations [14, 11], much of this progress has been
+ configuring,training,andbenchmarkingembodiedagents. 
+ on‘internet AI’ratherthanembodied AI.Thefocusof the
+ formerispatternrecognitioninimages,videos,andtexton
+ Theselarge-scaleengineeringcontributionsenableusto 
+ datasetstypicallycurated from the internet[10,18,4]. The
+ answerscientificquestionsrequiringexperiments that were 
+ focusof the latteristoenableactionbyanembodiedagent
+ tillnowimpracticableor‘merely’impractical. Specifically, 
+ (e.g.arobot)inanenvironment.Thisbringsto the foreactive
+ in the context of point-goal navigation: (1) we revisit the 
+ perception, long-termplanning, learning from interaction,
+ comparisonbetweenlearning and SLAMapproaches from 
+ andholdingadialoggroundedinanenvironment.
+ tworecentworks[20,16]andfindevidence for the oppo- 
+ siteconclusion–thatlearningoutperforms SLAMifscaled Astraight for wardproposalistotrainagentsdirectlyin
+ to an order of magnitude more experience than previous thephysicalworld–exposing the mtoallitsrichness. This
+ investigations, and (2) we conduct the first cross-dataset isvaluable and willcontinuetoplayanimportantrolein the
+ generalizationexperiments{train,test}×{Matterport 3 D, developmentof AI.However,wealsorecognize that train-
+ Gibson}formultiplesensors{blind,RGB,RGBD,D}and 
+ ingrobotsin the realworldisslow(therealworldrunsno
+ find that onlyagents with depth(D)sensorsgeneralizeacross 
+ fasterthanrealtime and can notbeparallelized),dangerous
+ datasets. Wehope that ouropen-sourceplatform and these (poorly-trainedagents can unwittinglyinjure the mselves,the
+ findings will advanceresearchinembodied AI. 
+ environment,orothers),res our ceintensive(therobot(s)and
+ theenvironment(s)inwhich the yexecutedem and res our ces
+ andtime),difficulttocontrol(itishardtotestcorner-case
+ scenarios as these are, by definition, infrequent and chal-
+ lengingtorecreate),andnoteasilyreproducible(replicating
+ conditionsacrossexperiments and institutionsisdifficult).
+ *Denotesequalcontribution. Weaimtosupportacomplementaryresearchprogram:
+ 9102 
+ vo N 
+ 52 
+ ]VC.sc[ 
+ 2 v 10210.4091:vi Xra 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Habitat Platform 
+ 
+ Tasks Habitat API 
+ Embodied QA Language grounding Interactive QA Vision-Language Navigation Visual Navigation
+ (Das et al., 2018) (Hill et al., 2017) (Gordon et al., 2018) (Anderson et al., 2018) (Zhu et al., 2017, Gupta et al., 2017)
+ 
+ Simulators Habitat Sim 
+ 
+ House 3 D AI 2-THOR MINOS Gibson CHALET 
+ (Wu et al., 2017) (Kolveet al., 2017) (Savva et al., 2017) (Zamir et al., 2018) (Yan et al., 2018)
+ 
+ Generic dataset 
+ Datasets 
+ Support 
+ Replica(Straubet al., 2019) Matterport 3 D(Chang et al., 2017) 2 D-3 D-S(Armeniet al., 2017)
+ Figure 1: The‘softw are stack’for trainingembodiedagentsinvolves(1)datasetsproviding 3 Dassets with semanti can notations, (2)
+ simulators that render the seassets and withinwhichanembodiedagentmaybesimulated,and(3)tasks that defineevaluatableproblems that
+ enableustobenchmarkscientificprogress.Priorwork(highlightedinblueboxes)hascontributedavarietyof data sets,simulationsoftw are,
+ and task definitions. Weproposeaunifiedembodiedagentstack with the Habitatplatform,includinggeneric data setsupport,ahighly
+ per for mantsimulator(Habitat-Sim),andaflexible API(Habitat-API)allowing the definition and evaluationofabroadsetoftasks.
+ trainingembodiedagents(e.g.virtualrobots)inrichrealistic question answering), configuring and training embodied
+ simulators and thentransferring the learnedskillstoreality. agents(viaimitationorrein for cementlearning,orviaclassic
+ Simulations have a long and rich history in science and SLAM),andbenchmarkingusingst and ardmetrics[2].
+ engineering(fromaerospacetozoology). Inthecontextof The Habitat architecture and implementation combine
+ embodied AI,simulatorshelpovercome the aforementioned modularity and highper for mance. Whenrenderingascene
+ challenges–they can runordersofmagnitudefasterthan from the Matterport 3 D dataset, Habitat-Sim achieves
+ real-time and can be parallelized over a cluster; training several thous and frames per second (fps) running single-
+ in simulation is safe, cheap, and enables fair comparison threaded, and can reach over 10,000 fps multi-process on
+ andbenchmarkingofprogressinaconcertedcommunity- asingle GPU,whichisordersofmagnitudefasterthan the
+ wideeffort. Onceapromisingapproachhas been developed closest simulator. Habitat-API allows us to train and
+ and tested in simulation, it can be transferred to physical benchmarkembodiedagents with differentclassesofmeth-
+ plat for msthatoperatein the realworld[6,15]. ods and indifferent 3 Dscene data sets. 
+ Datasets have beenakeydriverofprogressincomputer Theselarge-scaleengineeringcontributionsenableusto
+ vision, NLP, and other areas of AI [10, 18, 4, 1]. As the answerscientificquestionsrequiringexperiments that were
+ communitytransitionstoembodied AI,webelieve that sim- tillnowimpracticableor‘merely’impractical. Specifically,
+ ulators will assume the roleplayedpreviouslyby data sets. in the context of point-goal navigation [2], we make two
+ Tosupport this transition,weaimtost and ardize the entire scientificcontributions: 
+ ‘softw are stack’ for training embodied agents (Figure 1): 1. We revisit the comparison between learning and
+ scanning the world and creatingphotorealistic 3 Dassets,de- SLAMapproaches from tworecentworks[20,16]andfind
+ veloping the nextgenerationofhighlyefficient and paralleliz- evidence for the opposite conclusion – that learning out-
+ ablesimulators,specifyingembodied AItasks that enable performs SLAM if scaled to an order of magnitude more
+ us to benchmark scientific progress, and releasing modu- experiencethanpreviousinvestigations.
+ larhigh-levellibraries for training and deployingembodied 2. Weconduct the firstcross-datasetgeneralizationexper-
+ agents. Specifically,Habitatconsistsof the following: iments{train,test}×{Matterport 3 D,Gibson}formultiple
+ 1. Habitat-Sim: a flexible, high-per for mance 3 D sensors{Blind 1,RGB,RGBD,D}×{GPS+Compass}and
+ simulator with configurable agents, multiple sensors, and find that onlyagents with depth(D)sensorsgeneralizewell
+ generic 3 Ddataseth and ling(withbuilt-insupport for Mat- across data sets. 
+ terport 3 D,Gibson,and Replica data sets). 
+ Wehope that ouropen-sourceplatform and the sefindings
+ 2. Habitat-API:amodularhigh-levellibrary for end- 
+ willadvance and guidefutureresearchinembodied AI.
+ to-enddevelopmentofembodied AIalgorithms–defining 
+ embodied AItasks(e.g.navigation, instructionfollowing, 1 Blindreferstoagents with novisualsensoryinputs.
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 2.Related Work 
+ Realityissomethingy our iseabove. 
+ 
+ Liza Minnelli 
+ 
+ Theavailabilityoflarge-scale 3 Dscene data sets[5,27,8] 
+ andcommunityinterestinactivevision task sledto are cent 
+ surgeofwork that resultedin the developmentofavariety 
+ ofsimulationplatforms for indoorenvironments[17,7,13, 
+ 24,29,3,30,31,23]. Theseplat for msvary with respectto 
+ the 3 Dscene data the yuse,theembodiedagent task sthey Figure 2:Examplerenderedsensorobservations for threesensors
+ (colorcamera,depthsensor,semanticinstancemask)intwodiffer-
+ address,andtheevaluationprotocols the yimplement. 
+ entenvironment data sets. AMatterport 3 D[8]environmentisin
+ Thissurgeofactivityisboththrilling and alarming. On 
+ thetoprow,anda Replica[28]environmentin the bottomrow.
+ theoneh and,itisclearlyasignof the interestinembodied 
+ AIacrossdiverseresearchcommunities(computervision, 
+ naturallanguageprocessing,robotics,machinelearning).On 
+ – thousands vs. one hundred frames per second – allows
+ theo the rhand,theexistenceofmultipledifferingsimulation 
+ us to evaluate agents that have been trained with signifi-
+ environments can causefragmentation,replicationofeffort, 
+ cantlylargeramountsofexperience(75 millionstepsvs.five
+ anddifficultyinreproduction and community-wideprogress. 
+ million steps). The trends we observe demonstrate that
+ Moreover,existingsimulatorsexhibitseveralshortcomings: 
+ learnedagents can begintomatch and outper for mclassical
+ – Tightcouplingof task(e.g.navigation),simulationplat- 
+ approacheswhenprovided with largeamountsoftraining
+ form(e.g.Gibson Env),and 3 Ddataset(e.g.Gibson). Ex- 
+ experience.Otherrecentworkby Koijima and Deng[16]has
+ periments with multiple task sor data sets are impractical. 
+ alsocomparedh and-engineerednavigationagentsagainst
+ – Hard-codedagentconfiguration(e.g.size,action-space). 
+ learnedagentsbut the irfocusisondefiningadditionalmet-
+ Ablationsofagentparameters and sensortypes are not 
+ ricstocharacterize the per for manceofagents and toestablish
+ supported,makingresultshardtocomp are. 
+ measuresofhardness for navigationepisodes. Toourknowl-
+ – Suboptimalrendering and simulationper for mance. Most 
+ edge,ourexperiments are the firsttotrainnavigationagents
+ existingindoorsimulatorsoperateatrelativelylowframe 
+ provided with multi-month experience in realistic indoor
+ rates (10-100 fps), becoming a bottleneck in training 
+ environments and contrast the magainstclassicalmethods.
+ agents and makinglarge-scalelearninginfeasible. Take- 
+ awaymessages from suchexperimentsbecomeunreliable 3.Habitat Platform 
+ –hasthelearningconvergedtotrust the comparisons? 
+ – Limitedcontrolofenvironmentstate. Thestructureof the What Icannotcreate Idonotunderst and.
+ 3 Dsceneintermsofpresentobjects can notbeprogram- 
+ Richard Feynman 
+ maticallymodified(e.g.totest the robustnessofagents). 
+ Mostcritically,workbuiltontopofanyof the existing 
+ plat for msishardtoreproduceindependently from the plat- Thedevelopmentof Habitatisalong-termef for ttoen-
+ form, and thus hard to evaluate against work based on a able the formation of a common task framework [12] for
+ differentplatform,evenincaseswhere the targettasks and researchintoembodiedagents,therebysupportingsystem-
+ datasets are the same. Thisstatusquoisundesirableandmo- aticresearchprogressin this area.
+ tivates the Habitateffort. Weaimtolearn from the successes Designrequirements. Theissuesdiscussedin the previous
+ ofpreviousframeworks and developaunifyingplat for mthat sectionleadustoasetofrequirements that weseektofulfill.
+ combines their desirable characteristics while addressing – Highly per for mant rendering engine: resource-
+ their limitations. A common, unifying platform can sig- efficientrenderingengine that can producemultiplechan-
+ nifi can tlyaccelerateresearchbyenablingcodere-useand nels of visual information (e.g. RGB, depth, semantic
+ consistentexperimentalmethodology. Moreover,acommon instancesegmentation,surfacenormals,opticalflow)for
+ plat for menablesustoeasilycarryoutexperimentstesting multipleconcurrentlyoperatingagents.
+ agents base dondifferentparadigms(learnedvs. classical) – Scene data setingestion API:makes the plat for magnos-
+ andgeneralizationofagentsbetween data sets. ticto 3 Dscene data sets and allowsuserstouse the irown
+ The experiments we carry out contrasting learned and datasets. 
+ classicalapproachestonavigation are similarto the recent – Agent API: allows users to specify parameterized em-
+ work of Mishkin et al. [20]. However, the per for mance bodiedagents with well-definedgeometry,physics,and
+ of the Habitat stack relative to MINOS [24] used in [20] actuationcharacteristics.
+
+ 
+ 
+ 
+ 
+ 
+ 
+ – Sensorsuite API:allowsspecificationofarbitrarynum- 1 process 5 processes 
+ bersofparameterizedsensors(e.g.RGB,depth,contact, Sensors/Resolution 128 256 512 128 256 512
+ GPS,compasssensors)attachedtoeachagent. 
+ RGB 4,093 1,987 848 10,592 3,574 2,629
+ – Scenario and task API: allows portable definition of RGB+depth 2,050 1,042 423 5,223 1,774 1,348
+ tasks and the irevaluationprotocols. 
+ – Implementation: C++ backend with Python API and Table 1: Per for mance of Habitat-Sim in frames per second
+ interoperation with commonlearningframeworks,mini- foranexample Matterport 3 Dscene(id 17 DRP 5 sb 8 fy)onan Intel
+ mizesentrythreshold. Xeon E 5-2690 v 4 CPUand Nvidia Titan Xp GPU,measuredat
+ – Containerization:enablesdistributedtraininginclusters differentframeresolutions and withavaryingnumberofconcur-
+ rentsimulatorprocessessharing the GPU.See the supplement for
+ andremote-serverevaluationofuser-providedcode. 
+ additionalbenchmarkingresults. 
+ – Humans-as-agents: allowshumanstofunctionasagents 
+ insimulationinordertocollecthumanbehaviorandin- 
+ vestigatehuman-agentorhuman-humaninteractions. 
+ three data setsbysimplyspecifyingadifferentinputscene.
+ – Environment state manipulation: programmatic con- 
+ Per for mance. Habitat-Sim achieves thousands of
+ trolof the environmentconfigurationintermsoftheob- 
+ framespersecondpersimulatorthread and isordersofmag-
+ jects that are present and the irrelativelayout. 
+ nitude faster than previous simulators for realistic indoor
+ Designoverview. Theabovedesignrequirementscutacross 
+ environments(whichtypicallyoperateattensorhundredsof
+ severallayersin the‘softw are stack’in Figure 1. Amono- 
+ framespersecond)–see Table 1 forasummary and the sup-
+ lithicdesignisnotsuitable for addressingrequirementsat 
+ plement for moredetails. Bycomparison,AI 2-THOR[17]
+ alllevels. We,therefore,structure the Habitatplat for mto 
+ and CHALET[31]runattensoffps,MINOS[24]and Gib-
+ mirror this multi-layerabstraction. 
+ son[30]runataboutahundred,and House 3 D[29]runsat
+ Atthelowestlevelis Habitat-Sim, aflexible, high- 
+ about 300 fps. Habitat-Simis 2-3 ordersofmagnitude
+ per for mance 3 Dsimulator,responsible for loading 3 Dscenes 
+ faster. Byoperatingat 10,000 framespersecondweshift
+ intoast and ardizedscene-graphrepresentation,configuring 
+ thebottleneck from simulationtooptimization for network
+ agents with multiplesensors,simulatingagentmotion,and 
+ training. Basedon Tensor Flowbenchmarks,manypopular
+ returning sensory data from an agent’s sensor suite. The 
+ network architectures run at frame rates that are 10-100 x
+ sensorabstractionin Habitatallowsadditionalsensorssuch 
+ loweronasingle GPU 3.Inpractice,wehaveobserved that
+ as LIDAR and IMUtobeeasilyimplementedasplugins. 
+ itisoftenfastertogenerateimagesusing Habitat-Sim
+ Generic 3 D dataset API using scene graphs. thantoloadimages from disk. 
+ Habitat-Sim employs a hierarchical scene graph 
+ Efficient GPU throughput. Currently, frames rendered
+ torepresentallsupported 3 Denvironment data sets,whether 
+ by Habitat-Sim are exposedas Pythontensorsthrough
+ syn the tic or based on real-world reconstructions. The 
+ shared memory. Future development will focus on even
+ use of a uniform scene graph representation allows us to 
+ higher rendering efficiency by entirely avoiding GPU-to-
+ abstract the detailsofspecific data sets,andtotreat the mina 
+ CPUmemorycopyoverheadthrough the useof CUDA-GL
+ consistentfashion. Scenegraphsallowustocompose 3 D 
+ interoperationanddirectsharingofrenderbuffers and tex-
+ environmentsthroughproceduralscenegeneration,editing, 
+ turesastensors. Ourpreliminaryinternaltestingsuggests
+ orprogrammaticmanipulation. 
+ that this can leadtoaspeedupbyafactorof 2. 
+ Renderingengine. The Habitat-Simbackendmodule Above the simulationbackend,the Habitat-APIlayer
+ isimplementedin C++andleverages the Magnumgraphics isamodularhigh-levellibrary for end-to-enddevelopment
+ middlew are library 2 tosupportcross-plat for mdeployment 
+ inembodied AI.Settingupanembodied task involvesspeci-
+ on a broad variety of hardw are configurations. The simu- fyingobservations that maybeusedby the agent(s),using
+ latorbackendemploysanefficientrenderingpipeline that environmentin for mationprovidedby the simulator,andcon-
+ implements visual sensor frame rendering using a multi- necting the information with atask-specificepisode data set.
+ attachment‘uber-shader’combiningoutputs for colorcam- – Task: this class extends the simulator’s
+ erasensors,depthsensors,andsemanticmasksensors. By Observations class and action space with task-
+ allowingalloutputstobeproducedinasinglerenderpass, specific ones. The criteria of episode termination and
+ weavoidadditionaloverheadwhensensorparameters are measures of success are provided by the Task. For
+ shared and the samerenderpass can beused for alloutputs. example, in goal-driven navigation, Task provides
+ Figure 2 showsexamplesofvisualsensorsrenderedinthree the goal and evaluation metric [2]. To support this
+ different supported datasets. The same agent and sensor kind of functionality the Task has read-only access to
+ configurationwasinstantiatedinascene from eachof the 
+ 3 https://www.tensorflow.org/guide/per for mance/
+ 2 https://magnum.graphics/ benchmarks 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Simulator and Episode-dataset. continuousstatespace 4 andmotion can producecollisions
+ – Episode: aclass for episodespecification that includes resultinginpartial(orno)progressalong the directionin-
+ theinitialposition and orientationofan Agent,sceneid, tended – simply put, it is possible for the agent to ‘slide’
+ goalposition,andoptionallytheshortestpathto the goal. alongawallorobstacle. Crucially,theagentmaychoose
+ Anepisodeisadescriptionofaninstanceof the task. move_forward(0.25 m)andendupinalocationthatis
+ – Environment: thefundamentalenvironmentconcept not 0.25 mforwardofwhereitstarted;thus,odometryisnot
+ for Habitat, abstracting all the information needed for trivialevenin the absenceofactuationnoise.
+ workingonembodiedtasks with asimulator. Goalspecification: staticordynamic? Oneconspicuous
+ More details about the architecture of the Habitat plat- underspecificationin the Point Goal task[2]iswhe the rthe
+ form,per for mancemeasurements,andexamplesof APIuse goalcoordinates are static(i.e.providedonceat the startof
+ areprovidedin the supplement. theepisode)ordynamic(i.e.providedateverytimestep).
+ The for merismorerealistic–itisdifficulttoimagineareal
+ taskwhereanoraclewouldprovideprecisedynamicgoalco-
+ 4.Point Goal Navigationat Scale 
+ ordinates.However,intheabsenceofactuationnoise and col-
+ lisions,everysteptakenby the agentresultsinaknownturn
+ To demonstrate the utility of the Habitat platform de- 
+ ortranslation,and this combined with the initialgoalloca-
+ sign,wecarryoutexperimentstotest for generalizationof 
+ tionisfunctionallyequivalenttodynamicgoalspecification.
+ goal-directedvisualnavigationagentsbetween data setsof 
+ Wehypo the size that thisiswhyrecentworks[16,20,13]
+ differentenvironments and tocomp are the per for manceof 
+ useddynamicgoalspecification. Wefollow and prescribe
+ learning-basedagentsagainstclassicagentsas the amount 
+ thefollowingconceptualdelineation–asatask,weadopt
+ ofavailabletrainingexperienceisincreased. 
+ static Point Goalnavigation;asfor the sensorsuite,weequip
+ Taskdefinition. we usethe Point Goal task(asdefinedby 
+ ouragents with anidealized GPS+Compasssensor. Thisori-
+ Andersonetal.[2])asourexperimentaltestbed. Thistaskis 
+ entsustowards are alistic task(static Point Goalnavigation),
+ ostensiblysimpletodefine–anagentisinitialize data ran- 
+ disentanglessimulatordesign(actuationnoise,collisiondy-
+ domstartingposition and orientationinanenvironment and 
+ namics)from the taskdefinition,andallowsustocomp are
+ askedtonavigatetotargetcoordinates that are providedrela- 
+ techniques by sensors used (RGB, depth, GPS, compass,
+ tiveto the agent’sposition;noground-truthmapisavailable 
+ contactsensors). 
+ and the agent must only use its sensory input to navigate. 
+ Sensoryinput. Theagents are endowed with asinglecolor
+ However, in the course of experiments, we realized that 
+ visionsensorplace data heightof 1.5 mfrom the centerof
+ this task leavesspace for subtlechoices that(a)canmakea 
+ theagent’sbase and orientedtoface‘forward’. Thissensor
+ signifi can tdifferenceinexperimentaloutcomes and(b)are 
+ provides RGBframesat are solutionof 2562 pixels and with
+ either not specified or inconsistent across papers, making 
+ afieldofviewof 90 degrees. Inaddition,anidealizeddepth
+ comparisondifficult. Weattempttobeasdescriptiveaspos- 
+ sensorisavailable,inthesameposition and orientationas
+ sibleabout the seseeminglylow-levelchoices;wehope the 
+ the color vision sensor. The field of view and resolution
+ Habitatplat for mwillhelpironout the seinconsistencies. 
+ ofthedepthsensormatchthoseof the colorvisionsensor.
+ Agentembodiment and actionspace. Theagentisphysi- We designate agents that make use of the color sensor by
+ callyembodiedasacylindricalprimitiveshape with diame- RGB,agents that makeuseof the depthsensorby Depth,
+ ter 0.2 mandheight 1.5 m. Theactionspaceconsistsoff our and agents that make use of both by RGBD. Agents that
+ actions: turn_left, turn_right, move_forward, use neither sensor are denoted as Blind. All agents are
+ and stop. These actions are mapped to idealized actua- equipped with an idealized GPS and compass – i.e., they
+ tions that result in 10 degree turns for the turning actions haveaccessto the irlocationcoordinates,andimplicitlytheir
+ andlineardisplacementof 0.25 mforthemove_forward 
+ orientationrelativeto the goalposition. 
+ action. Thestopactionallows the agenttosignalthatit 
+ Episode specification. We initialize the agent at a start-
+ hasreached the goal. Habitatsupportsnoisyactuationsbut 
+ ingposition and orientation that are sampleduni for mlyat
+ experiments in this paper are conducted in the noise-free 
+ random from allnavigablepositionsonthefloorof the envi-
+ settingas our analysisfocusesono the rfactors. 
+ ronment. Thegoalpositionischosensuch that itlieson the
+ Collisiondynamics. Somepreviousworks[3]useacoarse samefloor and thereexistsanavigablepath from the agent’s
+ irregularnavigationgraphwhereanagenteffectively‘tele- startingposition. During the episode,theagentisallowedto
+ ports’fromonelocationtoanother(1-2 mapart). Others[9] takeupto 500 actions. Thisthresholdsignifi can tlyexceeds
+ useafine-grainedregulargrid(0.01 mresolution)where the thenumberofstepsanoptimalagentrequirestoreachall
+ agentmovesonunoccupiedcells and the rearenocollisions goals (see the supplement). After each action, the agent
+ or partial steps. In Habitat and our experiments, we use 
+ amorerealisticcollision model–theagentnavigatesina 4 Uptomachineprecision. 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ receivesasetofobservations from the activesensors. differenceofstaticgoal and dynamic GPScoordinates).
+ Evaluation. Anavigationepisodeisconsideredsuccessful – Forwardonlyalwayscallsthemove_forwardaction,
+ ifandonlyif the agentissuesastopactionwithin 0.2 mof andcalls the stopactionwhenwithin 0.2 mof the goal.
+ thetargetcoordinates,asmeasuredbyageodesicdistance – Goalfollowermovestowards the goaldirection. Ifitis
+ alongtheshortestpath from the agent’spositionto the goal not facing the goal (more than 15 degrees off-axis), it
+ position. Iftheagenttakes 500 actions with out the above performsturn_leftorturn_righttoalignitself;
+ conditionbeingmet the episodeends and isconsideredun- otherwise,itcallsmove_forward. Theagentcalls the
+ successful. Per for mance is measured using the ‘Success 
+ stopactionwhenwithin 0.2 mof the goal. 
+ weightedby Path Length’(SPL)metric[2]. Foranepisode – RL(PPO)isanagenttrained with rein for cementlearn-
+ wherethegeodesicdistanceof the shortestpathisl and the ing,specificallyproximalpolicyoptimization[25]. We
+ agenttraversesadistancep,SPLisdefinedas S·l/max(p,l), experiment with RLagentsequipped with differentvisual
+ where S isabinaryindicatorofsuccess. sensors: no visual input (Blind), RGB input, Depth
+ input,and RGB with depth(RGBD).The model consists
+ Episode data setpreparation. Wecreate Point Goalnaviga- 
+ ofa CNN that producesanembedding for visualinput,
+ tionepisode-datasets for Matterport 3 D[8]and Gibson[30] 
+ whichtogether with the relativegoalvectorisusedbyan
+ scenes. For Matterport 3 Dwefollowed the publiclyavailable 
+ actor(GRU)andacritic(linearlayer). The CNNhas the
+ train/val/testsplits. Note that asinrecentworks[9,20,16], 
+ following architecture: {Conv 8×8, Re LU, Conv 4×4,
+ thereisnooverlapbetweentrain,val,andtestscenes. For 
+ Re LU,Conv 3×3,Re LU,Linear,Re LU}(seesupplement
+ Gibsonscenes,weobtainedtextured 3 Dsurfacemeshes from 
+ fordetails). Letr denote the rewardattimestept,d be
+ the Gibsonauthors[30],manuallyannotatedeachsceneon t t 
+ the geodesic distance to goal at timestep t, s a success
+ itsreconstructionquality(small/bigholes,floating/irregular 
+ rewardandλatimepenalty(toenc our ageefficiency). All
+ surfaces,poortextures),andcuratedasubsetof 106 scenes 
+ models were trained with the followingrewardfunction:
+ (outof 572);see the supplement for details.Anepisodeisde- 
+ finedbytheuniqueidof the scene,thestartingposition and 
+ (cid:40) 
+ orientationof the agent,and the goalposition. Additional r = s+d t−1 −d t +λ ifgoalisreached
+ t 
+ meta data such as the geodesic distance along the shortest d −d +λ otherwise 
+ t−1 t 
+ path(GDSP)fromstartpositiontogoalpositionisalsoin- 
+ cluded. While generating episodes, we restrict the GDSP In our experiments s is set to 10 and λ is set to −0.01.
+ to be between 1 m and 30 m. An episode is trivial if there Note that rewards are onlyprovidedintrainingenviron-
+ isanobstacle-freestraightlinebetween the start and goal ments;the task ischallengingas the agentmustgeneralize
+ positions. A good measure of the navigation complexity tounseentestenvironments.
+ of an episode is the ratio of GDSP to Euclidean distance – SLAM[20]isanagentimplementingaclassicrobotics
+ betweenstart and goalpositions(notice that GDSP can only navigationpipeline(includingcomponents for localiza-
+ be larger than or equal to the Euclidean distance). If the tion,mapping,andplanning),using RGB and depthsen-
+ ratioisnearly 1,there are fewobstacles and the episodeis sors.we use the classicagentby Mishkinetal.[20]which
+ easy;iftheratioismuchlargerthan 1,theepisodeisdifficult leverages the ORB-SLAM 2 [21] localization pipeline,
+ becausestrategicnavigationisrequired. Tokeep the navi- withthesameparametersasreportedin the originalwork.
+ gationcomplexityof the precomputedepisodesreasonably 
+ high,weperformrejectionsampling for episodes with the training procedure. Whentraininglearning-basedagents,
+ aboveratiofallingin the range[1,1.1]. Following this,there wefirstdividethescenesin the trainingsetequallyamong
+ isasignifi can tdecreasein the numberofnear-straight-line 8(Gibson),6(Matterport 3 D)concurrentlyrunningsimula-
+ episodes (episodes with a ratio in [1,1.1]) – from 37% to torworkerthreads. Eachthreadestablishesblocksof 500
+ 10%forthe Gibson data setgeneration. Thisstepwasnot trainingepisodes for eachsceneinitstrainingsetpartition
+ per for medinanypreviousstudies. Wefind that with outthis andshufflestheorderingof the seblocks. Trainingcontinues
+ filtering, all metrics appear inflated. Gibson scenes have throughshuffledcopiesof this array.Wedonothardcode the
+ smallerphysicaldimensionscomp are dto the Matterport 3 D stopactiontoretaingenerality and allow for comparison
+ scenes. Thisisreflectedin the resulting Point Goal data set– withfuturework that doesnotassume GPSinputs. Forthe
+ average GDSPofepisodesin Gibsonscenesissmallerthan 
+ experimentsreportedhere,wetrainuntil 75 millionagent
+ thatof Matterport 3 Dscenes. steps are accumulated across all worker threads. This is
+ Baselines. Wecomp are the following base lines: 15 x larger than the experience used in previous investiga-
+ – Random chooses an action randomly among tions[20,16]. Trainingagentsto 75 millionstepstook(in
+ turn_left, turn_right, and move_forward sum over all three datasets): 320 GPU-hours for Blind,
+ with uniform distribution. The agent calls the stop 566 GPU-hours for RGB,475 GPU-hours for Depth,and
+ actionwhenwithin 0.2 mof the goal(computedusing the 906 GPU-hours for RGBD(overall 2267 GPU-hours).
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 1.0 
+ 
+ 0.8 
+ 
+ 0.6 
+ 0.4 
+ 
+ 0.2 
+ 
+ 0 10 20 30 40 50 60 70 
+ Number of training steps taken (experience) in million 
+ LPS 
+ Per for mance on Gibson validation split 
+ 1.0 
+ 0.8 
+ 0.6 
+ 0.4 
+ RGB 
+ Depth 
+ RGBD 0.2 
+ Blind 
+ SLAM 
+ 0 10 20 30 40 50 60 70 
+ Number of training steps taken (experience) in million
+ LPS 
+ Per for mance on Matterport 3 D validation split
+ RGB 
+ Depth 
+ RGBD 
+ Blind 
+ SLAM 
+ Figure 3: Average SPLofagentsonthevalsetover the courseoftraining. Previouswork[20,16]hasanalyzedper for manceat 5-10
+ millionsteps.Interestingtrendsemerge with moreexperience:i)Blindagentsinitiallyoutperform RGBand RGBDbutsaturatequickly;
+ ii)Learning-based Depthagentsoutper for mclassic SLAM.Theshaded are asaroundcurvesshow the standarderrorof SPLoverfiveseeds.
+ Gibson MP 3 D Matterport 3 D).All RL(PPO)agentsstartout with farworse
+ SPL, but RL (PPO) Depth, in particular, improves dra-
+ Sensors Baseline SPL Succ SPL Succ 
+ matically and matches the classic base lineatapproximately
+ Random 0.02 0.03 0.01 0.01 10 Mframes(Gibson)or 30 Mframes(Matterport 3 D)ofex-
+ Forwardonly 0.00 0.00 0.00 0.00 perience, continuing to improve thereafter. Notice that if
+ Blind 
+ Goalfollower 0.23 0.23 0.12 0.12 weterminated the experimentat 5 Mframesasin[20]we
+ RL(PPO) 0.42 0.62 0.25 0.35 wouldalsoconclude that SLAM[20]dominates. Interest-
+ ingly, RGBagentsdonotsignifi can tlyoutperform Blind
+ RGB RL(PPO) 0.46 0.64 0.30 0.42 
+ agents;wehypo the sizebecauseboth are equipped with GPS
+ Depth RL(PPO) 0.79 0.89 0.54 0.69 sensors. Indeed,qualitativeresults(Figure 4 andvideoin
+ RL(PPO) 0.70 0.80 0.42 0.53 supplement) suggest that Blind agents ‘hug’ walls and
+ RGBD 
+ SLAM[20] 0.51 0.62 0.39 0.47 implement‘wallfollowing’heuristics. Incontrast,RGBsen-
+ sorsprovideahigh-dimensionalcomplexsignal that maybe
+ pronetooverfittingtotrainenvironmentsdueto the variety
+ Table 2:Per for manceof base linemethodson the Point Goal task[2] 
+ testedon the Gibson[30]and MP 3 D[8]testsetsundermultiple acrossscenes(evenwithin the same data set). Wealsonotice
+ sensorconfigurations.RLmodels have beentrained for 75 million in Figure 3 thatallmethodsper for mbetteron Gibsonthan
+ steps.Wereportaveragerateofepisodesuccess and SPL[2]. Matterport 3 D.Thisisconsistent with ourpreviousanalysis
+ that Gibsoncontainssmallerscenes and shorterepisodes.
+ 5.Results and Findings Next, for each agent and dataset, we select the best-
+ per for mingcheckpointonvalidation and reportresultson
+ We seek to answer two questions: i) how do learning- testin Table 2.Weobserve that uni for mlyacross the datasets,
+ based agents comp are to classic SLAM and hand-coded RL(PPO)Depthper for msbest,outper for ming RL(PPO)
+ baselinesas the amountoftrainingexperienceincreases and RGBD(by 0.09-0.16 SPL),SLAM(by 0.15-0.28 SPL),and
+ ii)howwelldolearnedagentsgeneralizeacross 3 Ddatasets. RGB(by 0.13-0.33 SPL)inthatorder(see the supplement for
+ Itshould betacitlyunderstood,buttobeexplicit–‘learn- additionalexperimentsinvolvingnoisydepth). Webelieve
+ ing’and‘SLAM’arebroadfamiliesoftechniques(andnot Depthper for msbetterthan RGBDbecausei)the Point Goal
+ a single method), are not necessarily mutually exclusive, navigation task requiresreasoningonlyaboutfreespace and
+ and are not‘settled’intheirdevelopment. Wecomp are rep- depth provides relevant information directly, and ii) RGB
+ resentative instances of these families to gain insight into hassignifi can tlymoreentropy(differenthouseslookvery
+ questionsofscaling and generalization,anddonotmakeany different),thusitiseasiertooverfitwhenusing RGB.Weran
+ claimsaboutintrinsicsuperiorityofoneor the other. ourexperiments with 5 randomseedsperrun,toconfirm that
+ Learning vs SLAM. To answer the first question we plot thesedifferences are statisticallysignificant. Thedifferences
+ agentper for mance(SPL)onvalidation(i.e.unseen)episodes areaboutanorderofmagnitudelargerthan the standarddevi-
+ over the courseoftrainingin Figure 3(top: Gibson,bottom: ationofaverage SPL for allcases(e.g.onthe Gibson data set
+ Matterport 3 D). SLAM [20] does not require training and errors are,Depth: ±0.015,RGB:±0.055,RGBD:±0.028,
+ thushasaconstantper for mance(0.59 on Gibson,0.42 on Blind: ±0.005). Random and forward-onlyagents have
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Gibson MP 3 D per for mance degradation, while the Blind agent is least
+ Blind SPL=0.28 RGBSPL=0.57 Blind SPL=0.35 RGBSPL=0.88 
+ affected(aswewouldexpect). 
+ Second, we find a potentially counter-intuitive trend –
+ agentstrainedon Gibsonconsistentlyoutperform the ircoun-
+ terpartstrainedon Matterport 3 D,evenwhenevaluatedon
+ RGBDSPL=0.91 Depth SPL=0.98 RGBDSPL=0.90 Depth SPL=0.94 Matterport 3 D.Webelievethereasonis the previouslynoted
+ observation that Gibsonscenes are smaller and episodes are
+ shorter(lower GDSP)than Matterport 3 D.Gibsonagents are
+ trainedon‘easier’episodes and encounterpositivereward
+ moreeasilyduringr and omexploration,thusbootstrapping
+ learning. Consequently,forafixedcomputationbudget Gib-
+ Figure 4:Navigationexamples for differentsensoryconfigurations 
+ of the RL (PPO) agent, visualizing trials from the Gibson and sonagents are strongeruniversally(notjuston Gibson).This
+ MP 3 Dvalsets. Abluedot and reddotindicate the starting and findingsuggests that visualnavigationagentscouldbenefit
+ goalpositions,and the bluearrowindicatesfinalagentposition. fromcurriculumlearning.
+ Theblue-green-redlineis the agent’strajectory.Colorshifts from Theseinsights are enabledby the engineeringof Habitat,
+ bluetoredas the maximumnumberofagentstepsisapproached. whichmade the seexperimentsassimpleasachangein the
+ See the supplementalmaterials for moreexampletrajectories. evaluation data setname.
+ Gibson MP 3 D 6.Habitat Challenge 
+ Blind Gibson 0.42 0.34 
+ MP 3 D 0.28 0.25 
+ Nobattleplaneversurvivescontact with the enemy.
+ RGB Gibson 0.46 0.40 
+ MP 3 D 0.25 0.30 Helmuth Karl Bernhardvon Moltke 
+ Depth Gibson 0.79 0.68 
+ MP 3 D 0.56 0.54 Challengesdriveprogress. Thehistoryof AIsub-fields
+ RGBD Gibson 0.70 0.53 
+ indicates that the formulation of the right questions, the
+ MP 3 D 0.44 0.42 
+ creationof the right data sets,and the coalescenceofcommu-
+ Figure 5: Generalizationofagentsbetween data sets. Wereport nitiesaround the rightchallengesdrivesscientificprogress.
+ average SPL for amodeltrainedon the source data setineachrow, Ourgoalistosupport this process for embodied AI.Habitat
+ asevaluatedontestepisodes for the target data setineachcolumn. Challengeisanautonomousnavigationchallenge that aims
+ to benchmark and advance efforts in goal-directed visual
+ navigation. 
+ verylowper for mance,while the hand-codedgoalfollower Onedifficultyincreatingachallengearoundembodied AI
+ and Blind base lineseemodestper for mance.See the sup- tasksis the transition from staticpredictions(asinpassive
+ plement for additionalanalysisoftrainedagentbehavior. perception) to sequential decision making (as in sensori-
+ In Figure 4 weplotexampletrajectories for the RL(PPO) motorcontrol). Intraditional‘internet AI’challenges(e.g.
+ agents,toqualitativelycontrasttheirbehaviorin the same Image Net[10],COCO[18],VQA[4]),itispossibletore-
+ episode. Consistent with the aggregatestatistics,weobserve leaseastatictesting data set and askparticipantstosimply
+ that Blindcollides with obstacles and followswalls,while upload the irpredictionson this set.Incontrast,embodied AI
+ Depth is the most efficient. See the supplement and the taskstypicallyinvolvesequentialdecisionmaking and agent-
+ video for moreexampletrajectories. drivencontrol,makingitinfeasibletopre-packageatesting
+ Generalization across datasets. Our findings so far are dataset. Essentially,embodied AIchallengesrequirepartici-
+ that RL(PPO)agentssignifi can tlyoutperform SLAM[20]. pantstouploadcodenotpredictions. Theuploadedagents
+ This prompts our second question – are these findings can the nbeevaluatedinnovel(unseen)testenvironments.
+ dataset specific or do learned agents generalize across Challenge infrastructure. We leverage the frontend and
+ datasets? We report exhaustive comparisons in Figure 5 challengesubmissionprocessof the Eval AIplatform,and
+ – specifically, average SPL for all combinations of {train, buildbackendinfrastructure our selves. Participantsin Habi-
+ test} × {Matterport 3 D, Gibson} for all agents {Blind, tat Challenge are asked to upload Docker containers [19]
+ RGB,RGBD,Depth}. Rowsindicate(agent,trainset)pair, with the iragentsvia Eval AI.Thesubmittedagents are then
+ columnsindicatetestset. Wefindanumberofinteresting evaluatedonalive AWSGPU-enabledinstance.Specifically,
+ trends. First,nearlyallagentssufferadropinper for mance contestants are freetotraintheiragentshowever the ywish
+ whentrainedonone data set and testedonanother,e.g.RGBD (any language, any framework, any infrastructure). In or-
+ Gibson→Gibson 0.70 vs RGBDGibson→Matterport 3 D 0.53 dertoevaluate the seagents,participants are askedtoderive
+ (drop of 0.17). RGB and RGBD agents suffer a significant froma base Habitat Dockercontainer and implementaspe-
+
+ 
+ 
+ 
+ 
+ 
+ 
+ cificinterfaceto the irmodel–agent’sactiontakengivenan sensorsgeneralizewellbetweendifferent 3 Denvironment
+ observation from the environmentateachstep. Thisdocker- datasetsincomparisontoagentsequipped with only RGB.
+ izedinterfaceenablesrunning the participantcodeon new Feature roadmap. Our near-term development roadmap
+ environments. willfocusonincorporatingphysicssimulation and enabling
+ More details regarding the Habitat Challenge held at physics-based interaction between mobile agents and ob-
+ CVPR 2019 areavailableat the https://aihabitat. jects in 3 D environments. Habitat-Sim’s scene graph
+ org/challenge/ website. In a future iteration of this representationiswell-suited for integration with physicsen-
+ challengewe will introducethreemajordifferencesdesigned gines,allowingustodirectlycontrol the stateofindividual
+ tobothreduce the gapbetweensimulation and realityandto objects and agents with inascenegraph. Ano the rplanned
+ increasethedifficultyof the task. avenueoffutureworkinvolvesproceduralgenerationof 3 D
+ – Inthe 2019 challenge,therelativecoordinatesspecifying environmentsbyleveragingacombinationof 3 Dreconstruc-
+ the goal were continuously updated during agent tion and virtualobject data sets. Bycombininghigh-quality
+ movement–essentiallysimulatinganagent with perfect reconstructions of large indoor spaces with separately re-
+ localization and headingestimation(e.g. anagent with constructedor model ledobjects,we cantake full advantage
+ an idealized GPS+Compass). However, high-precision ofourhierarchicalscenegraphrepresentationtointroduce
+ localizationinindoorenvironments can notbeassumedin controlledvariationin the simulated 3 Denvironments.
+ realisticsettings–GPShaslowprecisionindoors,(visual) Lastly,weplantofocusondistributedsimulationsettings
+ odometry may be noisy, SLAM-based localization can thatinvolvelargenumbersofagentspotentiallyinteracting
+ fail,etc. Hence,wewillinvestiageonlyprovidingto the withoneano the rincompetitiveorcollaborativescenarios.
+ agent a fixed relative coordinate for the goal position 
+ from the startlocation. Acknowledgments. Wethankthereviewers for the irhelp-
+ fulsuggestions. The Habitatprojectwouldnot have been
+ – Likewise, the 2019 Habitat Challenge modeled agent 
+ actions (e.g. forward, turn 10◦ left,...) deter- possible with out the support and contributionsofmanyin-
+ dividuals. Wearegratefulto Mandeep Baines,Angel Xuan
+ ministically. However in real settings, agent intention 
+ Chang, Alexander Clegg, Devendra Singh Chaplot, Xin-
+ (e.g.goforward 1 m)and the resultr are lymatchperfectly 
+ lei Chen,Wojciech Galuba,Georgia Gkioxari,Daniel Gor-
+ –actuationerror,differingsurfacematerials,andamyriad 
+ don,Leonidas Guibas,Saurabh Gupta,Jerry(Zhi-Yang)He,
+ ofo the rsourcesoferrorintroducesignifi can tdriftovera 
+ Rishabh Jain,Or Litany,Joel Marcey,Dmytro Mishkin,Mar-
+ longtrajectory. Tomodel this,weintroduceanoise model 
+ cus Rohrbach,Amanpreet Singh,Yuandong Tian,Yuxin Wu,
+ acquired by benchmarking a real robotic platform [22]. 
+ Fei Xia,Deshraj Yadav,Amir Zamir,and Jiazhi Zhang for
+ Visual sensing is an excellent means of combating this 
+ theirhelp. 
+ “dead-reckoning”drift and thischangeallowsparticipants 
+ tostudymethodologies that are robustto and can correct 
+ Licenses for referenced data sets. 
+ for this noise. 
+ Gibson: https://storage.googleapis. 
+ – Finally,wewillintroducerealistic model sofsensornoise com/gibson_material/Agreement%20 GDS%
+ for RGB and depthsensors–narrowing the gapbetween 2006-04-18.pdf 
+ perceptualexperiencesagentswould have insimulation Matterport 3 D: http://kaldir.vc.in.tum.de/
+ andreality. matterport/MP_TOS.pdf. 
+ Welook for wardtosupporting the communityinestab- 
+ lishingabenchmarktoevaluate the state-of-the-artinmeth- 
+ ods for embodiednavigationagents. 
+ 7.Future Work 
+ Wedescribed the design and implementationof the Habi- 
+ tatplatform. Ourgoalistounifyexistingcommunityefforts 
+ andtoaccelerateresearchintoembodied AI.Thisisalong- 
+ termef for tthat will succeedonlyby full engagementof the 
+ broaderresearchcommunity. 
+ Experimentsenabledby the generic data setsupport and 
+ the high per for mance of the Habitat stack indicate that 
+ i)learning-basedagents can match and exceed the perfor- 
+ mance of classic visual navigation methods when trained 
+ forlongenoughandii)learnedagentsequipped with depth 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ References [17] Eric Kolve,Roozbeh Mottaghi,Daniel Gordon,Yuke Zhu,
+ Abhinav Gupta,and Ali Farhadi. AI 2-THOR:Aninteractive
+ [1] Phil Ammirato, Patrick Poirson, Eunbyung Park, Jana 
+ 3 Denvironment for visual AI. ar Xiv:1712.05474,2017.
+ Košecká,and Alexander CBerg. Adataset for developing 
+ [18] Tsung-Yi Lin,Michael Maire,Serge Belongie,James Hays,
+ andbenchmarkingactivevision. In ICRA,2017. 
+ Pietro Perona,Deva Ramanan,Piotr Dollár,and C.Lawrence
+ [2] Peter Anderson,Angel X.Chang,Devendra Singh Chaplot, 
+ Zitnick. Microsoft COCO:Commonobjectsincontext. In
+ Alexey Dosovitskiy, Saurabh Gupta, Vladlen Koltun, Jana 
+ ECCV,2014. 
+ Kosecka,Jitendra Malik,Roozbeh Mottaghi,Manolis Savva, 
+ [19] Dirk Merkel. Docker:Lightweight Linuxcontainers for con-
+ and Amir Roshan Zamir. Onevaluationofembodiednaviga- 
+ sistentdevelopment and deployment. Linux Journal,2014.
+ tionagents. ar Xiv:1807.06757,2018. 
+ [20] Dmytro Mishkin,Alexey Dosovitskiy,and Vladlen Koltun.
+ [3] Peter Anderson,Qi Wu,Damien Teney,Jake Bruce,Mark 
+ Benchmarkingclassi can dlearnednavigationincomplex 3 D
+ Johnson, Niko Sünderhauf, Ian Reid, Stephen Gould, and 
+ environments. ar Xiv:1901.10915,2019. 
+ Antonvanden Hengel. Vision-and-languagenavigation:In- 
+ [21] Raúl Mur-Artal and Juan D. Tardós. ORB-SLAM 2: An
+ terpretingvisually-groundednavigationinstructionsinreal 
+ environments. In CVPR,2018. open-source SLAMsystem for monocular,stereo and RGB-D
+ cameras. IEEETransactionson Robotics,33(5),2017.
+ [4] Stanislaw Antol,Aishwarya Agrawal,Jiasen Lu,Margaret 
+ Mitchell,Dhruv Batra,C.Lawrence Zitnick,and Devi Parikh. [22] Adithyavairavan Murali,Tao Chen,Kalyan Vasudev Alwala,
+ VQA:Visual Question Answering. In ICCV,2015. Dhiraj Gandhi, Lerrel Pinto, Saurabh Gupta, and Abhinav
+ [5] Iro Armeni,Ozan Sener,Amir R.Zamir,Helen Jiang,Ioannis Gupta. Pyrobot:Anopen-sourceroboticsframeworkforre-
+ Brilakis,Martin Fischer,and Silvio Savarese. 3 Dsemantic search and benchmarking. ar Xivpreprintar Xiv:1906.08236,
+ parsingoflarge-scaleindoorspaces. In CVPR,2016. 2019. 
+ [6] Alex Bewley, Jessica Rigley, Yuxuan Liu, Jeffrey Hawke, [23] Xavier Puig,Kevin Ra,Marko Boben,Jiaman Li,Tingwu
+ Richard Shen,Vinh-Dieu Lam,and Alex Kendall. Learning Wang,Sanja Fidler,and Antonio Torralba.Virtual Home:Sim-
+ todrive from simulation with outrealworldlabels. In ICRA, ulatinghouseholdactivitiesviaprograms. In CVPR,2018.
+ 2019. [24] Manolis Savva, Angel X. Chang, Alexey Dosovitskiy,
+ [7] Simon Brodeur,Ethan Perez,Ankesh Anand,Florian Golemo, Thomas Funkhouser, and Vladlen Koltun. MINOS: Mul-
+ Luca Celotti, Florian Strub, Jean Rouat, Hugo Larochelle, timodalindoorsimulator for navigationincomplexenviron-
+ and Aaron C.Courville. Ho ME:Ahouseholdmultimodal ments. ar Xiv:1712.03931,2017.
+ environment. ar Xiv:1711.11017,2017. [25] John Schulman,Filip Wolski,Prafulla Dhariwal,Alec Rad-
+ [8] Angel Chang,Angela Dai,Thomas Funkhouser,Maciej Hal- ford,and Oleg Klimov. Proximalpolicyoptimizationalgo-
+ ber,Matthias Niessner,Manolis Savva,Shuran Song,Andy rithms. ar Xiv:1707.06347,2017.
+ Zeng,and Yinda Zhang. Matterport 3 D:Learning from RGB- [26] Linda Smith and Michael Gasser. Thedevelopmentofem-
+ Ddatainindoorenvironments. In International Conference bodiedcognition: Sixlessons from babies. Artificial Life,
+ on 3 DVision(3 DV),2017. 11(1-2),2005. 
+ [9] Abhishek Das,Samyak Datta,Georgia Gkioxari,Stefan Lee, [27] Shuran Song,Fisher Yu,Andy Zeng,Angel XChang,Mano-
+ Devi Parikh,and Dhruv Batra. Embodied Question Answer- lis Savva,and Thomas Funkhouser. Semanticscenecomple-
+ ing. In CVPR,2018. tion from asingledepthimage. In CVPR,2017.
+ [10] Jia Deng,Wei Dong,Richard Socher,Li-Jia Li,Kai Li,and 
+ [28] Julian Straub,Thomas Whelan,Lingni Ma,Yufan Chen,Erik
+ Fei-Fei Li. Image Net: A large-scale hierarchical image 
+ Wijmans,Simon Green,Jakob J.Engel,Raul Mur-Artal,Carl
+ data base. In CVPR,2009. 
+ Ren,Shobhit Verma,Anton Clarkson,Mingfei Yan,Brian
+ [11] Jacob Devlin,Ming-Wei Chang,Kenton Lee,and Kristina 
+ Budge,Yajie Yan,Xiaqing Pan,June Yon,Yuyang Zou,Kim-
+ Toutanova. BERT:Pre-trainingofdeepbidirectionaltrans- 
+ berly Leon, Nigel Carter, Jesus Briales, Tyler Gillingham,
+ formers for language underst and ing. ar Xiv:1810.04805, 
+ Elias Mueggler,Luis Pesqueira,Manolis Savva,Dhruv Batra,
+ 2018. 
+ Hauke M.Strasdat,Renzo De Nardi,Michael Goesele,Steven
+ [12] David Donoho. 50 yearsof data science. In Tukey Centennial 
+ Lovegrove,and Richard Newcombe. The Replica data set:A
+ Workshop,2015. 
+ digitalreplicaofindoorspaces. ar Xiv:1906.05797,2019.
+ [13] Saurabh Gupta,James Davidson,Sergey Levine,Rahul Suk- 
+ [29] Yi Wu, Yuxin Wu, Georgia Gkioxari, and Yuandong Tian.
+ thankar,and Jitendra Malik. Cognitivemapping and planning 
+ Building generalizable agents with a realistic and rich 3 D
+ forvisualnavigation. In CVPR,2017. 
+ environment. ar Xiv:1801.02209,2018. 
+ [14] Kaiming He,Xiangyu Zhang,Shaoqing Ren,and Jian Sun. 
+ [30] Fei Xia,Amir R.Zamir,Zhiyang He,Alexander Sax,Jiten-
+ Deepresiduallearning for imagerecognition.In CVPR,2016. 
+ dra Malik, and Silvio Savarese. Gibson env: Real-world
+ [15] Jemin Hwangbo, Joonho Lee, Alexey Dosovitskiy, Dario 
+ perception for embodiedagents. In CVPR,2018.
+ Bellicoso, Vassilios Tsounis, Vladlen Koltun, and Marco 
+ [31] Claudia Yan,Dipendra Misra,Andrew Bennnett,Aaron Wals-
+ Hutter. Learningagile and dynamicmotorskills for legged 
+ man,Yonatan Bisk,and Yoav Artzi.CHALET:Cornellhouse
+ robots. Science Robotics,2019. 
+ agentlearningenvironment. ar Xiv:1801.07357,2018.
+ [16] Noriyuki Kojima and Jia Deng. To learn or not to learn: 
+ Analyzing the roleoflearning for navigationinvirtualenvi- 
+ ronments. ar Xiv:1907.11770,2019. 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ A.Habitat Platform Details • Flexible,structuredrepresentationof 3 Denvironments
+ using Scene Graphs,allowing for programmaticma-
+ Asdescribedin the mainpaper,Habitatconsistsof the 
+ nipulationofobjectstate,andcombinationofobjects
+ followingcomponents: 
+ fromdifferentenvironments. 
+ • Habitat-Sim: a flexible, high-per for mance 3 D 
+ • High-efficiencyrenderingengine with multi-attachment
+ simulator with configurable agents, multiple sensors, 
+ renderpasstoreduceoverhead for multiplesensors.
+ and generic 3 D dataset handling (with built-in sup- 
+ • Arbitrary numbers of Agents and corresponding
+ port for Matterport 3 D [8], Gibson [30], and other 
+ Sensors that can belinkedtoa 3 Denvironmentby
+ datasets). Habitat-Simisfast–whenrenderinga 
+ attachmenttoa Scene Graph. 
+ realistics can nedscene from the Matterport 3 Ddataset, 
+ Theper for manceof the simulationbackendsurpasses that
+ Habitat-Simachievesseveralthous and framesper 
+ ofpriorworkoperatingonrealisticreconstruction data sets
+ second (fps) running single-threaded, and can reach 
+ byalargemargin. Table 3 reportsper for mancestatisticson
+ over 10,000 fpsmulti-processonasingle GPU. 
+ atestscene from the Matterport 3 Ddataset. Single-thread
+ • Habitat-API:amodularhigh-levellibrary for end- 
+ per for mance reaches several thous and frames per second
+ to-enddevelopmentofembodied AI–definingembod- 
+ (fps),whilemulti-processoperation with severalsimulation
+ ied AI tasks (e.g. navigation [2], instruction follow- 
+ backends can reach over 10,000 fps on a single GPU. In
+ ing[3],questionanswering[9]),configuringembodied 
+ addition,byemploying Open GL-CUDAinteroperationwe
+ agents(physicalform,sensors,capabilities),training 
+ enable direct sharing of rendered image frames with ML
+ theseagents(viaimitationorrein for cementlearning, 
+ frameworkssuchas Py Torch with outameasurableimpact
+ orviaclassic SLAM),andbenchmarking the irper for- 
+ on per for mance as the image resolution is increased (see
+ manceon the defined task susingst and ardmetrics[2]. 
+ Figure 7). 
+ Habitat-APIcurrentlyuses Habitat-Simas the 
+ Habitat-API. The second layer of the Habitat platform
+ coresimulator,butisdesigned with amodularabstrac- 
+ (Habitat-API) focuses on creating a general and flex-
+ tion for the simulatorbackendtomaintaincompatibility 
+ ible API for definingembodiedagents,tasks that the ymay
+ overmultiplesimulators. 
+ carryout,andevaluationmetrics for thosetasks. Whende-
+ Key abstractions. The Habitat platform relies on a num- 
+ signingsuchan API,akeyconsiderationistoallow for easy
+ berofkeyabstractions that model the domainofembodied 
+ extensibilityof the definedabstractions. Thisisparticularly
+ agents and tasks that can becarriedoutinthree-dimensional 
+ importantsincemanyof the parametersofembodiedagent
+ indoorenvironments. Hereweprovideabriefsummaryof 
+ tasks, specific agent configurations, and 3 D environment
+ keyabstractions: 
+ setups can bevariedininterestingways. Futureresearchis
+ • Agent: aphysicallyembodiedagent with asuiteof 
+ likelytopropose new tasks,newagentconfigurations,and
+ Sensors.Canobserve the environment and iscapable 
+ new 3 Denvironments. 
+ oftakingactions that changeagentorenvironmentstate. 
+ The API allows for alternative simulator backends to
+ • Sensor: associated with aspecific Agent, capable 
+ beused,beyond the Habitat-Simmodule that weimple-
+ ofreturningobservation data from the environmentata 
+ mented.Thismodularityhas the advantageofallowingincor-
+ specifiedfrequency. 
+ porationofexistingsimulatorbackendstoaidintransitioning
+ • Scene Graph: ahierarchicalrepresentationofa 3 D 
+ fromexperiments that previousworkhasper for medusing
+ environment that organizes the environment into re- 
+ legacyframeworks. Thearchitectureof Habitat-APIis
+ gions and objectswhich can beprogrammaticallyma- 
+ illustratedin Figure 8,indicatingcore APIfunctionality and
+ nipulated. 
+ functionalityimplementedasextensionsto the core.
+ • Simulator: an instance of a simulator backend. 
+ Above the APIlevel,wedefineaconcreteembodied task
+ Given actions for a set of configured Agents and 
+ suchasvisualnavigation. Thisinvolvesdefiningaspecific
+ Scene Graphs,canupdate the stateof the Agents 
+ datasetconfiguration, specifying the structureofepisodes
+ and Scene Graphs,andprovideobservations for all 
+ (e.g.numberofstepstaken,terminationconditions),training
+ active Sensorspossessedby the Agents. 
+ curriculum(progressionofepisodes,difficultyramp),and
+ These abstractions connect the different layers of the 
+ evaluationprocedure(e.g.testepisodesets and taskmetrics).
+ platform.Theyalsoenablegeneri can dportablespecification 
+ Anexampleofloadingapre-configured task(Point Nav)and
+ ofembodied AItasks. 
+ stepping through the environment with a random agent is
+ Habitat-Sim.Thearchitectureof the Habitat-Simback- 
+ shownin the codebelow. 
+ end module is illustrated in Figure 6. The design of this 
+ 5 Note:Thesemanticsensorin Matterport 3 Drequiresusingadditional
+ moduleensuresafewkeyproperties: 
+ 3 Dmeshes with signifi can tlymoregeometriccomplexity,leadingtore-
+ • Memory-efficientmanagementof 3 Denvironmentre- 
+ ducedper for mance. Weexpect this tobeaddressedinfutureversions,
+ sources(trianglemeshgeometry,textures,shaders)en- leadingtospeedscomparableto RGB+depth.
+ suringsharedres our ces are cached and reused. 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Resource Manager Simulator Agent 
+ 
+ 
+ Scene Manager 
+ 
+ Texture Material Shader 
+ Scene Graph 
+ 
+ 
+ Mesh Scene Node Sensor 
+ 
+ Figure 6:Architectureof Habitat-Simmainclasses.The Simulatordelegatesmanagementofallres our cesrelatedto 3 Denvironments
+ toa Resource Manager that isresponsible for loading and caching 3 Denvironment data from avarietyofon-disk for mats.Theseres our ces
+ areusedwithin Scene Graphsat the levelofindividual Scene Nodes that representdistinctobjectsorregionsinaparticular Scene.Agents
+ andtheir Sensors are instantiatedbybeingattachedto Scene Nodesinaparticular Scene Graph.
+ GPU→CPU→GPU GPU→CPU GPU→GPU 
+ Sensors/numberofprocesses 1 3 5 1 3 5 1 3 5 
+ 
+ RGB 2,346 6,049 7,784 3,919 8,810 11,598 4,538 8,573 7,279 
+ RGB+depth 1,260 3,025 3,730 1,777 4,307 5,522 2,151 3,557 3,486 
+ RGB+depth+semantics 5 378 463 470 396 465 466 464 455 453 
+ 
+ Table 3:Per for manceof Habitat-Siminframespersecond for anexample Matterport 3 Dscene(id 17 DRP 5 sb 8 fy)ona Xeon E 5-2690
+ v 4 CPUand Nvidia Titan Xp GPU,measure data frameresolutionof 128 x 128,underdifferentframememorytransferstrategies and witha
+ varyingnumberofconcurrentsimulatorprocessessharing the GPU.‘GPU-CPU-GPU’indicatespassingofrenderedframes from Open GL
+ contextto CPUhostmemory and backto GPUdevicememory for useinoptimization,‘GPU-CPU’onlyreportscopying from Open GL
+ contextto CPUhostmemory,whereas‘GPU-GPU’indicatesdirectsharingthrough Open GL-CUDAinteroperation.
+ 
+ reporttheaveragegeodesicdistancealong the shortestpath
+ (GDSP)betweenstartingpoint and goalposition. Asnoted
+ inthemainpaper,Gibsonepisodes are signifi can tlyshorter
+ than Matterport 3 D ones. Figure 9 visualizes the episode
+ distributionsovergeodesicdistance(GDSP),Euclideandis-
+ tancebetweenstart and goalposition, and the ratioof the
+ two(anapproximatemeasureofcomplexity for the episode).
+ Weagainnote that Gibsonepisodes have moreepisodes with
+ shorterdistances,leadingto the datasetbeingoveralleasier
+ than the Matterport 3 Ddataset. 
+ import habitat 
+ # Load embodied AI task (Point Nav) 
+ # and a pre-specified virtual robot 
+ config = habitat.get_config(config_file= 
+ "pointnav.yaml") 
+ Figure 7:Per for manceof Habitat-Simunderdifferentsensor env = habitat.Env(config)
+ framememorytransferstrategies for increasingimageresolution. 
+ observations = env.reset() 
+ Wesee that‘GPU->GPU’isunaffectedbyimageresolutionwhile 
+ otherstrategiesdegraderapidly. # Step through environment with random actions
+ while not env.episode_over: 
+ observations = \ 
+ B.Additional dataset Statistics 
+ env.step(env.action_space.sample()) 
+ In Table 5 wesummarize the train,validation and testsplit 
+ sizes for allthree data setsusedin our experiments. Wealso 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Sensor API 
+ RL Environment RL baselines 
+ Habitat-Sim Simulator API 
+ SLAM 
+ . . . 
+ Environment 
+ Embodied QA 
+ Imitation 
+ Task 
+ learning 
+ Navigation 
+ Episodes 
+ Episode Baselines 
+ dataset 
+ Gibson Point Nav Matterport 3 D Point Nav Replica Point Nav Matterport 3 D EQA Replica EQA
+ 
+ use inherit core API extensions and implementations 
+ 
+ Figure 8:Architectureof Habitat-API.Thecorefunctionalitydefinesfundamentalbuildingblockssuchas the API for interacting with
+ thesimulatorbackend and receivingobservationsthrough Sensors. Concretesimulationbackends,3 Ddatasets,andembodiedagent
+ baselines are implementedasextensionsto the core API. 
+ 
+ dataset scenes(#) episodes(#) average GDSP(m) C.1.Analysisof Collisions 
+ Matterport 3 D 58/11/18 4.8 M/495/1008 11.5/11.1/13.2 To further characterize the behavior of learned agents
+ Gibson 72/16/10 4.9 M/1000/1000 6.9/6.5/7.0 
+ duringnavigationweplot the averagenumberofcollisions
+ in Figure 10. We see that Blind incurs a much larger
+ Table 4: Statistics of the Point Goal navigation datasets that we numberofcollisionsthano the ragents,providingevidence
+ precompute for the Matterport 3 Dand Gibson data sets:totalnumber 
+ for‘wall-following’behavior. Depth-equippedagents have
+ ofscenes,totalnumberofepisodes,andaveragegeodesicdistance 
+ the lowest number of collisions, while RGB agents are in
+ betweenstart and goalpositions.Eachcellreportstrain/val/test 
+ between. 
+ splitstatistics. 
+ C.2.Noisy Depth 
+ dataset Min Median Mean Max 
+ Toinvestigate the impactofnoisydepthmeasurementson
+ Matterport 3 D 18 90.0 97.1 281 
+ agentper for mance,were-evaluateddepthagents(without
+ Gibson 15 60.0 63.3 207 
+ re-training)onnoisydepthgeneratedusingasimplenoise
+ Table 5: Statisticsofpathlength(inactions)foranoraclewhich model: iid Gaussiannoise(µ = 0,σ = 0.4)ateachpixel
+ greedily fits actions to follow the negative of geodesic distance in inverse depth (larger depth = more noise). We observe
+ gradienton the Point Goalnavigationvalidationsets.Thisprovides a drop of 0.13 and 0.02 SPL for depth-RL and SLAM on
+ expectedhorizonlengths for anear-perfectagent and contextualizes Gibson-val(depth-RLstilloutperforms SLAM).Note that
+ thedecision for amax-steplimitof 500. SLAM from [20] utilizes ORB-SLAM 2, which is quite
+ robusttonoise,whiledepth-RLwastrained with outnoise.
+ C.Additional Experimental Results If we increase σ to 0.1, depth-RL gets 0.12 SPL whereas
+ SLAMsufferscatastrophicfailures. 
+ In order to confirm that the trends we observe for the 
+ experimentalresultspresentedin the paperhold for much D.Gibson dataset Curation 
+ largeramountsofexperience,wescaled our experimentsto 
+ 800 M steps. We found that (1) the ordering of the visual Wemanuallycurated the full data setof Gibson 3 Dtex-
+ inputs stays Depth > RGBD > RGB > Blind; (2) RGB turedmeshes[30]toselectmeshes that donotexhibitsignif-
+ is consistently better than Blind (by 0.06/0.03 SPL on icantreconstructionartifactssuchasholesortexturequality
+ Gibson/Matterport 3 D),and(3)RGBDoutperforms SLAM issues. Akeyissue that wetriedtoavoidis the presenceof
+ on Matterport 3 D(by 0.16 SPL). 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Figure 9:Statisticsof Point Goalnavigationepisodes.Fromleft:distributionover Euclideandistancebetweenstart and goal,distribution
+ overgeodesicdistancealongshortestpathbetweenstart and goal,anddistributionover the ratioofgeodesicto Euclide and istance.
+ 
+ Gibson Blind habitat-api/habitat_baselines. Below is the
+ RGB 
+ shellscriptwe used for our RLexperiments: 
+ RGBD 
+ Depth 
+ MP 3 D Blind # Note: parameters in {} are experiment specific.
+ RGB # Note: use 8, 6 processes for Gibson, MP 3 D
+ RGBD # respectively. 
+ Depth 
+ 0 5 10 15 20 25 30 35 40 python habitat_baselines/train_ppo.py \ 
+ Avg. Collisions --sensors {RGB_SENSOR,DEPTH_SENSOR} \ 
+ --blind {0,1} --use-gae --lr 2.5 e-4 \ 
+ Figure 10: Averagenumberofcollisionsduringsuccessfulnavi- --clip-param 0.1 --use-linear-lr-decay \
+ gationepisodes for the differentsensoryconfigurationsof the RL --num-processes {8,6} --num-steps 128 \
+ (PPO)baselineagentontestsetepisodes for the Gibson and Matter- --num-mini-batch 4 --num-updates 135000 \
+ --use-linear-clip-decay \ 
+ port 3 Ddatasets.The Blindagentexperiences the highestnumber 
+ ofcollisions,whileagentspossessingdepthsensors(Depth and 
+ For running SLAM please refer to habitat-
+ RGBD)have the fewestcollisionsonaverage. 
+ api/habitat_baselines/slambased. 
+ holesorcracksinfloorsurfaces.Thisisparticularlyproblem- 
+ F.Example Navigation Episodes 
+ atic for navigation task sasitdividesseeminglyconnected 
+ navigable areasintonon-traversabledisconnectedcompo- 
+ Figure 12 visualizes additional example navigation
+ nents. Wemanuallyannotated the scenes(using the 0 to 5 
+ episodes for the differentsensoryconfigurationsof the RL
+ quality scale shownin Figure 11)andonlyusesceneswitha (PPO) agents that we describe in the main paper. Blind
+ ratingof 4 orhigher,i.e.,noholes,goodreconstruction,and 
+ agents have the lowestper for mance,collidingmuchmore
+ negligibletextureissuestogenerate the datasetepisodes. 
+ frequently with the environment and adoptinga‘wallhug-
+ ging’ strategy for navigation. RGB agents are less prone
+ E.Reproducing Experimental Results 
+ tocollisions but stillstruggle tonavigateto the goalposi-
+ Our experimental results can be reproduced us- tionsuccess full yinsomecases. Incontrast,depth-equipped
+ ing the Habitat-API (commit ec 9557 a) and agents are muchmoreefficient,exhibitingfewercollisions,
+ Habitat-Sim (commit d 383 c 20) repositories. The andnavigatingtogoalsmoresuccessfully(asindicatedby
+ code for running experiments is present under the folder theoverallhigher SPLvalues).
+ 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 0:criticalreconstructionartifacts,holes,ortextureissues 1:bigholesorsignifi can ttextureissues and reconstructionartifacts
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 2:bigholesorsignifi can ttextureissues,butgoodreconstruction 3:smallholes,sometextureissues,goodreconstruction
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 4:noholes,sometextureissues,goodreconstruction 5:noholes,uni for mtextures,goodreconstruction
+ 
+ Figure 11:Rating scale usedincurationof 3 Dtexturedmeshreconstructions from the Gibson data set.we useonlymeshes with ratingsof 4
+ orhigher for the Habitat Challenge data set. 
+ 
+ 
+ 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ Gibson 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Blind SPL=0.00 RGBSPL=0.45 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ RGBDSPL=0.82 Depth SPL=0.88 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Blind SPL=0.00 RGBSPL=0.29 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ RGBDSPL=0.49 Depth SPL=0.96 
+ 
+ Figure 12:Additionalnavigationexampleepisodes for the differentsensoryconfigurationsof the RL(PPO)agent,visualizingtrials from
+ the Gibson and MP 3 Dvalsets.Abluedot and reddotindicate the starting and goalpositions,and the bluearrowindicatesfinalagent
+ position.Theblue-green-redlineis the agent’strajectory.Colorshifts from bluetoredas the maximumnumberofallowedagentstepsis
+ approached. 
+ 
+ 
+ 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ MP 3 D 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Blind SPL=0.00 RGBSPL=0.40 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ RGBDSPL=0.92 Depth SPL=0.98 
+ 
+ Figure 12:Additionalnavigationexampleepisodes for the differentsensoryconfigurationsof the RL(PPO)agent,visualizingtrials from
+ the Gibson and MP 3 Dvalsets.Abluedot and reddotindicate the starting and goalpositions,and the bluearrowindicatesfinalagent
+ position.Theblue-green-redlineis the agent’strajectory.Colorshifts from bluetoredas the maximumnumberofallowedagentstepsis
+ approached. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 

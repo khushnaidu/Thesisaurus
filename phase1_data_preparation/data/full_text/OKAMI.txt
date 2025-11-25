@@ -1,0 +1,1166 @@
+ 
+ 
+ 
+ 
+ 
+ 
+ OKAMI: Teaching Humanoid Robots Manipulation 
+ 
+ Skills through Single Video Imitation 
+ 
+ 
+ Jinhan Li 1† Yifeng Zhu 1∗ Yuqi Xie 1,2∗ Zhenyu Jiang 1,2∗ Mingyo Seo 1 
+ Georgios Pavlakos 1 Yuke Zhu 1,2 
+ UTAustin 1 NVIDI ARe search 2 
+ 
+ Abstract:Westudy the problemofteachinghumanoidrobotsmanipulationskills
+ byimitating from singlevideodemonstrations. Weintroduce OKAMI,amethod
+ that generates a manipulation plan from a single RGB-D video and derives a
+ policy for execution. At the heart of our approach is object-aware retargeting,
+ which enables the humanoid robot to mimic the human motions in an RGB-D
+ video while adjusting to different object locations during deployment. OKAMI
+ uses open-world vision models to identify task-relevant objects and retarget the
+ body motions and hand poses separately. Our experiments show that OKAMI
+ achievesstronggeneralizationsacrossvaryingvisual and spatialconditions,out-
+ per for ming the state-of-the-art baseline on open-world imitation from observa-
+ tion. Fur the rmore,OKAMIrollouttrajectories are leveragedtotrainclosed-loop
+ visuomotorpolicies,whichachieveanaveragesuccessrateof 79.2%without the
+ need for labor-intensiveteleoperation. Morevideos can befoundon our website
+ https://ut-austin-rpl.github.io/OKAMI/. 
+ Keywords:Humanoid Manipulation,Imitation From Videos,Motion Retargeting
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Single Video 
+ H D u e m m a o n Imitation H D u e m m a o n 
+ 
+ 
+ 
+ 
+ Human Human 
+ Demo Demo 
+ Figure 1: OKAMIenablesahumanusertoteach the humanoidrobothowtoper for manew task byproviding
+ asinglevideodemonstration. 
+ 
+ 1 Introduction 
+ Deployinggeneralistrobotstoassist with everyday task srequires the mtooperateautonomouslyin
+ natural environments. With recent advances in hardw are designs and increased commercial avail-
+ ability,humanoidrobotsemergeasapromisingplat for mtodeployin our living and workingspaces.
+ Despite the irgreatpotential,theystillstruggletooperateautonomously and deployrobustlyin the
+ †Thisworkwasdo new hile Jinhan Liwasavisitingresearcherat UTAustin. 
+ *Equalcontribution. 
+ 
+ 8 th Conferenceon Robot Learning(Co RL 2024),Munich,Germany. 
+ 4202 
+ tc O 
+ 51 
+ ]OR.sc[ 
+ 1 v 29711.0142:vi Xra 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ unstructured world. A burgeoning line of work has resorted to deep imitation learning methods
+ forhumanoidmanipulation[1–3]. However,theyrelyonlargeamountsofdemonstrationsthrough
+ whole-body teleoperation, requiring domain expertise and strenuous efforts. In contrast, humans
+ have the innate ability to watch their peers do a task once and mimic the behaviors. Equipping
+ robots with theabilitytoimitate from visualobservations will moveuscloserto the goaloftraining
+ roboticfoundationmodels from Internet-scalehumanactivityvideos. 
+ We explore teaching humanoid robots to manipulate objects by watching humans. We consider a
+ problemsettingrecently for mulatedas“open-worldimitation from observation,”wherearobotim-
+ itates a manipulation skill from a single video of human demonstration [4–6]. This setting would
+ facilitateusersinef for tlesslydemonstratingtasks and enableahumanoidrobottoacquire new skills
+ quickly. Enabling humanoids to imitate from single videos presents a significant challenge — the
+ videodoesnot have actionlabels, butyet the robothastolearntoper for mtasksin new situations
+ beyondwhat’sdemonstratedin the video. Priorworksonone-shotvideolearning have attemptedto
+ optimizerobotactionstoreconstruct the futureobjectmotiontrajectories[4,5]. However,they have
+ been applied to single-arm manipulators and are computationally prohibitive for humanoid robots
+ due to their high degrees of freedom and joint redundancy [7]. Meanwhile, the similar kinematic
+ structuresh are dbyhumans and humanoidsmakesdirectlyretargetinghumanmotionstorobotsfea-
+ sible[8,9]. None the less,existingretargetingtechniquesfocusonfree-spacebodymotions[10–14],
+ lacking the contextual awareness of objects and interactions needed for manipulation. To address
+ thisshortcoming, weintroduce the conceptof“object-awareretargeting”. Byincorporatingobject
+ contextual information into the retargeting process, the resulting humanoid motions can be effi-
+ cientlyadaptedto the locationsofobjectsin open-endedenvironments. 
+ Tothisend,weintroduce OKAMI(Object-aware Kinematicret Argetingforhu Manoid Imitation),
+ anobject-awareretargetingmethod that enablesabimanualhumanoid with twodexteroush and sto
+ imitate manipulation behaviors from a single RGB-D video demonstration. OKAMI uses a two-
+ stage process to retarget the human motions to the humanoid robot to accomplish the task across
+ varyinginitialconditions. Thefirststageprocesses the videotogenerate are ferencemanipulation
+ plan.Thesecondstageuses this plantosynthesize the humanoidmotionsthroughmotionretargeting
+ thatadaptsto the objectlocationsintargetenvironments. 
+ OKAMI consists of two key designs. The first design is an open-world vision pipeline that iden-
+ tifies task-relevantobjects,reconstructshumanmotions from the video,andlocalizes task-relevant
+ objects during evaluation. Localizing objects at test time also enables motion retargeting to adapt
+ todifferentbackgroundsor new objectinstancesof the samecategories. Theseconddesignis the
+ factorized process for retargeting, where we retarget the body motions and hand poses separately.
+ Wefirstretargetthebodymotions from thereferenceplanin the taskspace,andthenwarp the retar-
+ getedtrajectorygiven the locationof task-relevantobjects. Thetrajectoryofbodyjointsisobtained
+ throughinversekinematics. Thejointanglesoffingers are mapped from theplanonto the dexterous
+ hands, reproducing hand-object interaction. With object-aware retargeting, OKAMI policies sys-
+ tematicallygeneralizeacrossvariousspatiallayoutsofobjects and sceneclutters. Finally,wetrain
+ visuomotorpolicieson the rollouttrajectories from OKAMI throughbehavioralcloningtoobtain
+ vision-basedmanipulationskills. 
+ Weevaluate OKAMI onhumanvideodemonstrationsofdiversetasks that coverrichobjectinter-
+ actions, suchaspicking, placing, pushing, andp our ing. Weshow that itsobject-awareretargeting
+ achieves 71.7%tasksuccessratesaveragedacrossalltasks and outperforms the ORION[4]baseline
+ by 58.3%. Wethentrainclosed-loopvisuomotorpolicieson the trajectoriesgeneratedby OKAMI,
+ achievinganaveragesuccessrateof 79.2%. Ourcontributionsof OKAMI are three-fold:
+ 1. OKAMI enables a humanoid robot to mimic human behaviors from a single video for
+ dexterousmanipulation. Itsobject-awareretargetingprocessgeneratesfeasiblemotionsof
+ thehumanoidrobotwhileadapting the motionstotargetobjectlocationsattesttime;
+ 2. OKAMI uses vision foundation models [15, 16] to identify task-relevant objects with-
+ outadditionalhumaninputs. Theircommon-sensereasoningabilityhelpsrecognize task-
+ 2 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ relevantobjectsevenifthey are notdirectlyincontact with otherobjectsor the robothands,
+ allowing our methodtoimitatemorediverse task sthanpriorwork; 
+ 3. Wevalidate OKAMI’sstrongspatial and visualgeneralizationabilitiesonhumanoidhard-
+ ware. OKAMIenablesreal-robotdeploymentinnaturalenvironments with unseenobject
+ layouts,varyingvisualbackgrounds,and new objectinstances. 
+ 
+ 2 Related Work 
+ 
+ Humanoid Robot Control. Methods like motion planning and optimal control have been devel-
+ oped for humanoid locomotion and manipulation [10, 12, 17]. These model-based approaches
+ rely on precise physical modeling and expensive computation [11, 12, 18]. To mitigate the
+ stringent requirements, researchers have explored policy training in simulation and sim-to-real
+ transfer [10, 19]. However, thesemethods still require a significant amount of labor and expertise
+ indesigningsimulationtasks and rewardfunctions,limiting the irsuccessestolocomotiondomains.
+ In parallel to automated methods, a variety of human control mechanisms and devices have been
+ developed for humanoid teleoperation using motion capture suits [9, 12, 20–24], telexistence
+ cockpits[25–29],VRdevices[1,30,31],orvideos that trackhumanbodies[17,32]. Whilethese
+ systems can control the robotstogeneratediversebehaviors,theyrequirereal-timehumaninput that
+ posessignifi can tcognitive and physicalburdens. Incontrast,OKAMIonlyrequiressingle RGB-D
+ humanvideostoteach the humanoidrobot new skills,signifi can tlyreducing the humancost.
+ Imitation Learning for Robot Manipulation. Imitation Learning has signifi can tly advanced
+ vision-basedrobotmanipulation with highsampleefficiency[33–44]. Priorworks have shown that
+ robots can learnvisuomotorpoliciestocompletevarioustasks with justdozensofdemonstrations,
+ ranging from long-horizon manipulation [34–36] to dexterous manipulation [37–39]. However,
+ collecting demonstrations often requires domain expertise and high costs, creating challenges to
+ scale. Another line of work focuses on one-shot imitation learning [40–44], yet they demand
+ excessive data collection for meta-training tasks. Recently, researchers have looked into a new
+ problem setting of imitating from a single video demonstration [4–6], referred to as “open-world
+ imitation from observation” [4]. Unlike prior works that abstract away embodiment motions
+ due to kinematic differences between the robot and the human, we exploit embodiment motion
+ information owing to the kinematic similarity between humans and humanoids. Specifically, we
+ introduceobject-awareretargeting that adaptshumanmotionstohumanoidrobots.
+ Motion Retargeting. Motion retargeting has wide applications in computer graphics and 3 D
+ vision[8],whereextensiveliteraturestudieshowtoadapthumanmotionstodigitalavatars[45–47].
+ This technique has been adopted in robotics for recreating human-like motions on humanoid or
+ anthropomorphic robots through various retargeting methods, including optimization-based ap-
+ proaches[11,12,20,48],geometric-basedmethods[49],andlearning-basedtechniques[10,13,17].
+ However, in manipulation tasks, these retargeting methods have been used within teleoperation
+ systems,lackingavisionpipeline for automaticadaptationtoobjectlocations. OKAMIintegrates
+ theretargetingprocess with open-worldvision,endowingit with objectaw are nessso that the robot
+ canmimichumanmotions from videodemonstrations and adapttoobjectlocationsattesttime.
+ 3 OKAMI 
+ In this work, we introduce OKAMI, a two-staged method that tackles open-world imitation from
+ observation for humanoidrobots. OKAMIfirstgenerates are ferenceplanusing the objectlocations
+ andreconstructedhumanmotions from agiven RGB-Dvideo. Then,itretargets the humanmotion
+ trajectories to the humanoid robot while adapting the trajectories based on new locations of the
+ objects. Figure 2 illustrates the wholepipeline. 
+ Problem Formulation We formulate a humanoid manipulation task as a discrete-time Markov
+ Decision Process defined by a tuple: M = (S,A,P,R,γ,µ), where S is the state space, A is the
+ action space, P(·|s,a) is the transition probability, R(s) is the reward function, γ ∈ [0,1) is the
+ 
+ 3 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ GPT 4 V 
+ “bottle” 
+ “bowl” 
+ Identify Keyframes Through 
+ Returnalistof task- Trackobjectsacross Changepoint Detections
+ relevantobjectnames thevideo 
+ Reference Plan 
+ Human 
+ RGB-DVideo 
+ Reconstruction 
+ Reference Plan Model l<latexit sha 1_base 64="L 8 w Fmirg Yiq Iex Nq 3 ulkz L 02 s EI=">AAAB 7 Hicb VBNS 8 NAEJ 3 Ur 1 q/qh 69 LBb BU 0 l E 1 GPRi 8 c Kpi 20 o Wy 2 m 3 bp Zh N 2 J 0 IJ/Q 1 e PCji 1 R/kz X/jts 1 BWx 8 MPN 6 b YWZem Eph 0 HW/nd La+sbm Vnm 7 sr O 7 t 39 QPTxqm STTj Pssk Ynuh NRw KRT 3 Ua Dkn VRz Goe St 8 Px 3 cxv P 3 Ft RKIec ZLy IKZDJSLBKFr Jl/3 cnfar Nbfuzk FWi Ve QGh Ro 9 qtfv UHCspgr ZJIa 0/Xc FIOcah RM 8 mmllxme Ujam Q 961 VNGYmy Cf Hzsl Z 1 YZk Cj Rth SSufp 7 Iqex MZM 4 t J 0 xx ZFZ 9 mbif 143 w+gmy IVKM+SKLRZFm SSYk Nnn ZCA 0 Zygnll Cmhb 2 Vs BHVl KHNp 2 JD 8 JZf Xi Wti 7 p 3 Vb 98 u Kw 1 bos 4 yn ACp 3 AOHlx DA+6 h CT 4 w EPAMr/Dm KOf Fe Xc+Fq 0 lp 5 g 5 hj 9 w Pn 8 Av 0+Oq A==</latexit> 0 l<latexit sha 1_base 64="9 L/YXDXQXOLHv 1 NEo N 5 OIo Od PBM=">AAAB 7 Hicb VBNS 8 NAEJ 3 Ur 1 q/qh 69 LBb BU 0 l E 1 GPRi 8 c Kpi 20 o Wy 2 m 3 bp Zh N 2 J 0 IJ/Q 1 e PCji 1 R/kz X/jts 1 BWx 8 MPN 6 b YWZem Eph 0 HW/nd La+sbm Vnm 7 sr O 7 t 39 QPTxqm STTj Pssk Ynuh NRw KRT 3 Ua Dkn VRz Goe St 8 Px 3 cxv P 3 Ft RKIec ZLy IKZDJSLBKFr Jl/3 cm/ar Nbfuzk FWi Ve QGh Ro 9 qtfv UHCspgr ZJIa 0/Xc FIOcah RM 8 mmllxme Ujam Q 961 VNGYmy Cf Hzsl Z 1 YZk Cj Rth SSufp 7 Iqex MZM 4 t J 0 xx ZFZ 9 mbif 143 w+gmy IVKM+SKLRZFm SSYk Nnn ZCA 0 Zygnll Cmhb 2 Vs BHVl KHNp 2 JD 8 JZf Xi Wti 7 p 3 Vb 98 u Kw 1 bos 4 yn ACp 3 AOHlx DA+6 h CT 4 w EPAMr/Dm KOf Fe Xc+Fq 0 lp 5 g 5 hj 9 w Pn 8 Aw NSOq Q==</latexit> 1 l<latexit sha 1_base 64="j Afv Ax TKm Ay IZRV+Bm Wd/Jpc Kv I=">AAAB 7 Hicb VBNS 8 NAEJ 3 Ur 1 q/qh 69 LBb BU 0 mkq Mei F 09 Swb SFNp TNdtsu 3 Wz C 7 k Qoob/Biwd Fv Pq Dv Plv 3 LY 5 a Ou Dgcd 7 M 8 z MCx Mp DLrut 1 NYW 9/Y 3 Cpul 3 Z 29/YPyod HTROnmn Gfx TLW 7 ZAa Lo Xi Pgq Uv J 1 o Tq NQ 8 l Y 4 vp 35 r Seuj Yj VI 04 SHk R 0 q MRAMIp W 8 m Uvu 5/2 yh W 36 s 5 BVom Xkwrka PTKX 91+z NKIK 2 SSGt Px 3 ASDj Go UTPJpq Zsanl A 2 pk Pes VTRi Jsgmx 87 JWd W 6 ZNBr G 0 p JHP 190 RGI 2 Mm UWg 7 I 4 ojs+z Nx P+8 Toq D 6 y ATKkm RK 7 ZYNEglw Zj MPid 9 o Tl DOb GEMi 3 sr YSNq KYMb T 4 l G 4 K 3/PIqa V 5 Uvctq 7 a FWqd/kc RTh BE 7 h HDy 4 gjrc QQN 8 YCDg GV 7 hz VHOi/Puf Cxa C 04+cwx/4 Hz+AOzljs Y=</latexit> N
+ Generation SMPL-Htrajectory Identifytarget/refobjects and
+ generatereferenceplan 
+ Estimatetrans for mation Inverse 
+ Robot Observation Localizerelevantobjects betweenpointclouds Kinematics
+ attesttime 
+ Reference Plan Hand Finger 
+ l<latexit sha 1_base 64="L 8 w Fmirg Yiq Iex Nq 3 ulkz L 02 s EI=">AAAB 7 Hicb VBNS 8 NAEJ 3 Ur 1 q/qh 69 LBb BU 0 l E 1 GPRi 8 c Kpi 20 o Wy 2 m 3 bp Zh N 2 J 0 IJ/Q 1 e PCji 1 R/kz X/jts 1 BWx 8 MPN 6 b YWZem Eph 0 HW/nd La+sbm Vnm 7 sr O 7 t 39 QPTxqm STTj Pssk Ynuh NRw KRT 3 Ua Dkn VRz Goe St 8 Px 3 cxv P 3 Ft RKIec ZLy IKZDJSLBKFr Jl/3 cnfar Nbfuzk FWi Ve QGh Ro 9 qtfv UHCspgr ZJIa 0/Xc FIOcah RM 8 mmllxme Ujam Q 961 VNGYmy Cf Hzsl Z 1 YZk Cj Rth SSufp 7 Iqex MZM 4 t J 0 xx ZFZ 9 mbif 143 w+gmy IVKM+SKLRZFm SSYk Nnn ZCA 0 Zygnll Cmhb 2 Vs BHVl KHNp 2 JD 8 JZf Xi Wti 7 p 3 Vb 98 u Kw 1 bos 4 yn ACp 3 AOHlx DA+6 h CT 4 w EPAMr/Dm KOf Fe Xc+Fq 0 lp 5 g 5 hj 9 w Pn 8 Av 0+Oq A==</latexit> 0 l<latexit sha 1_base 64="9 L/YXDXQXOLHv 1 NEo N 5 OIo Od PBM=">AAAB 7 Hicb VBNS 8 NAEJ 3 Ur 1 q/qh 69 LBb BU 0 l E 1 GPRi 8 c Kpi 20 o Wy 2 m 3 bp Zh N 2 J 0 IJ/Q 1 e PCji 1 R/kz X/jts 1 BWx 8 MPN 6 b YWZem Eph 0 HW/nd La+sbm Vnm 7 sr O 7 t 39 QPTxqm STTj Pssk Ynuh NRw KRT 3 Ua Dkn VRz Goe St 8 Px 3 cxv P 3 Ft RKIec ZLy IKZDJSLBKFr Jl/3 cm/ar Nbfuzk FWi Ve QGh Ro 9 qtfv UHCspgr ZJIa 0/Xc FIOcah RM 8 mmllxme Ujam Q 961 VNGYmy Cf Hzsl Z 1 YZk Cj Rth SSufp 7 Iqex MZM 4 t J 0 xx ZFZ 9 mbif 143 w+gmy IVKM+SKLRZFm SSYk Nnn ZCA 0 Zygnll Cmhb 2 Vs BHVl KHNp 2 JD 8 JZf Xi Wti 7 p 3 Vb 98 u Kw 1 bos 4 yn ACp 3 AOHlx DA+6 h CT 4 w EPAMr/Dm KOf Fe Xc+Fq 0 lp 5 g 5 hj 9 w Pn 8 Aw NSOq Q==</latexit> 1 l<latexit sha 1_base 64="j Afv Ax TKm Ay IZRV+Bm Wd/Jpc Kv I=">AAAB 7 Hicb VBNS 8 NAEJ 3 Ur 1 q/qh 69 LBb BU 0 mkq Mei F 09 Swb SFNp TNdtsu 3 Wz C 7 k Qoob/Biwd Fv Pq Dv Plv 3 LY 5 a Ou Dgcd 7 M 8 z MCx Mp DLrut 1 NYW 9/Y 3 Cpul 3 Z 29/YPyod HTROnmn Gfx TLW 7 ZAa Lo Xi Pgq Uv J 1 o Tq NQ 8 l Y 4 vp 35 r Seuj Yj VI 04 SHk R 0 q MRAMIp W 8 m Uvu 5/2 yh W 36 s 5 BVom Xkwrka PTKX 91+z NKIK 2 SSGt Px 3 ASDj Go UTPJpq Zsanl A 2 pk Pes VTRi Jsgmx 87 JWd W 6 ZNBr G 0 p JHP 190 RGI 2 Mm UWg 7 I 4 ojs+z Nx P+8 Toq D 6 y ATKkm RK 7 ZYNEglw Zj MPid 9 o Tl DOb GEMi 3 sr YSNq KYMb T 4 l G 4 K 3/PIqa V 5 Uvctq 7 a FWqd/kc RTh BE 7 h HDy 4 gjrc QQN 8 YCDg GV 7 hz VHOi/Puf Cxa C 04+cwx/4 Hz+AOzljs Y=</latexit> N Target and Mapping Send Joint
+ referenceobjects Commands 
+ Object-Aware 
+ Retargeting SMPL-Htrajectory Retargetmotions 
+ segment Using SMPL-H Warpedmotions Robotexecution 
+ Figure 2: Overviewof OKAMI.OKAMIisatwo-stagedmethod that enablesahumanoidrobottoimitatea
+ manipulation task from asinglehumanvideo.Inthefirststage,OKAMIgenerates are ferenceplanusing GPT-
+ 4 Vandlargevisionmodels for subsequentmanipulation. Inthesecondstage,OKAMIfollows the reference
+ plan,whereitretargetshumanmotionsonto the humanoid with objectaw are ness. Theretargetedmotions are
+ convertedintoasequenceofrobotjointcomm and sfor the robottofollow. 
+ discountfactor,andµistheinitialstatedistribution. Inourcontext,S isthespaceofraw RGB-D
+ observations that captureboth the robot and objectstates, Aisthespaceof the motioncommands
+ for the humanoidrobot,Ris the sparserewardfunction that returns 1 whena task iscomplete. The
+ objectiveofsolvingataskistofindapolicyπthatmaximizestheexpectedtasksuccessratesfrom
+ awiderangeofinitialconfigurationsdrawnfromµattesttime. 
+ We consider the setting of “open-world imitation from observation” [4], where the robot system
+ takes are corded RGB-Dhumanvideo, V asinput, andreturnsahumanoidmanipulationpolicyπ
+ thatcompletes the taskasdemonstratedin V.Thissettingis“open-world”astherobotdoesnot have
+ priorknowledgeorground-truthaccessto the categoriesorphysicalstatesofobjectsinvolvedin the
+ task, and it is “from observation” in the sense that video V does not come with any ground-truth
+ robotactions. Apolicyexecutionisconsideredsuccessfulifthestatematchesthestateof the final
+ frame from V. Thesuccessconditionsofalltestedtasks are describedin Appendix B.1. Notably,
+ two assumptions are made about V in this paper: all the image frames in V capture the human
+ bodies,and the cameraviewofshooting V isstaticthroughout the recording. 
+ 3.1 Reference Plan Generation 
+ Toenableobject-awareretargeting,OKAMIfirstgenerates are ferenceplan for the humanoidrobot
+ to follow. Plan generation involves underst and ing what task-relevant objects are and how humans
+ manipulatethem. 
+ Identifying and Localizing Task-Relevant Objects. To imitate manipulation tasks from videos
+ V,OKAMImustidentify the task-relevantobjectstointeract with.Whilepriormethodsrelyonun-
+ supervisedapproaches with simplebackgroundsorrequireadditionalhumanannotations[50–53],
+ OKAMIusesanoff-the-shelf Vision-Language Models(VLMs),GPT-4 V,toidentify task-relevant
+ objects in V by leveraging the commonsense knowledge internalized in the model. Concretely,
+ OKAMI obtains the names of task-relevant objects by sampling RGB frames from the video
+ demonstration V and prompting GPT-4 V with the concatenation of these images (details in
+ Appendix A.2). Using these object names, OKAMI employs Grounded-SAM [16] to segment
+ the objects in the first frame and track their locations throughout the video using a Vidoe Object
+ 4 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Segmentation model,Cutie[54]. Thisprocessenables OKAMItolocalize task-relevantobjectsin
+ V,forming the basis for subsequentsteps. 
+ Reconstructing Human Motions. To retarget human motions to the humanoid robot, OKAMI
+ reconstructs human motions from V to obtain motion trajectories. We adopt an improved version
+ of SLAHMR [55], an iterative optimization algorithm that reconstructs human motion sequences.
+ While SLAHMR assumes flat hands, our extension optimizes the hand poses of the SMPL-H
+ model [56], which are initialized using estimated hand poses from Ha Me R [57] (More details
+ in Appendix A.1). This modification allows us to jointly optimize body and hand poses from
+ monocularvideo. Theoutputisasequenceof SMPL-Hmodelscapturing full-bodyandh and poses,
+ enabling OKAMI to retarget human motions to humanoids (See Section 3.2). Additionally, the
+ SMPL-Hmodel can representhumanposesacrossdemographicdifferences,allowingeasymapping
+ ofmotions from hum and emonstratorsto the humanoid. 
+ Generatinga Plan from Video. Havingidentified task-relevantobjects and reconstructedhuman
+ motions,OKAMIgenerates are ferenceplan from V forrobotstocompleteeachsubgoal. OKAMI
+ identifies subgoals by per for ming temporal segmentation on V with the following procedure: We
+ first track keypoints using Co Tracker [58] and detect velocity changes of keypoints to determine
+ keyframes, which correspond to subgoal states. For each subgoal, we identify a target object (in
+ motion due to manipulation) and a reference object (serving as a spatial reference for the target
+ object’smovementsthroughei the rcontactornon-contactrelations). Thetargetobjectisdetermined
+ basedon the averagedkeypointvelocitiesperobject,while the referenceobjectisidentifiedthrough
+ geometric heuristics or semantic relations predicted by GPT-4 V (More implementation details of
+ plangenerationin Appendix A.4). 
+ Withsubgoals and associatedobjectsdetermined,wegenerate are ferenceplanl ,l ,...,l ,where
+ 0 1 N 
+ eachstepl correspondstoakeyframe and includesthepointcloudsof the targetobjecto ,the
+ i target 
+ reference object o , and the SMPL-H trajectory segment τSMPL . If no reference object is
+ reference ti:ti+1 
+ required (e.g., grasping an object), o is null. Point clouds are obtained by back-projecting
+ reference 
+ segmentedobjects from RGBimagesusingdepthimages[59]. 
+ 3.2 Object-Aware Retargeting 
+ Given are ferenceplan from the videodemonstration,OKAMIenables the humanoidrobottoimi-
+ tate the taskin V. Therobotfollowseachstepl intheplanbylocalizing task-relevantobjects and
+ i 
+ retargeting the SMPL-Htrajectorysegmentonto the humanoid. Theretargetedtrajectories are then
+ convertedintojointcomm and sthroughinversekinematics. Thisprocessrepeatsuntilall the steps
+ areexecuted,andsuccessisevaluated base don task-specificconditions(see Appendix B.1).
+ Localizing Objectsat Test Time. Toexecutetheplanin the test-timeenvironment,OKAMImust
+ localize the task-relevant objects in the robot’s observations, extracting 3 D point clouds to track
+ objectlocations. Byattendingto task-relevantobjects, OKAMI policiesgeneralizeacrossvarious
+ visualconditions,includingdifferentbackgroundsor the presenceofnovelinstancesof task-relevant
+ objects. 
+ Retargeting Human Motionsto the Humanoid. Thekeyaspectofobject-awarenessisadapting
+ motions to new object locations. After localizing the objects, we employ a factorized retargeting
+ process that syn the sizesarmandh and motionsseparately. OKAMIfirstadapts the armmotionsto
+ theobjectlocationsso that thefingersoftheh and sareplacedwithin the object-centriccoordinate
+ frame. Then OKAMI only needs to retarget fingers in the joint configuration to mimic how the
+ demonstratorinteracts with objects with the irhands. 
+ Concretely,wefirstmaphumanbodymotionstothe task spaceof the humanoid,scaling and adjust-
+ ingtrajectoriestoaccount for differencesinsize and proportion. OKAMIthenwarps the retargeted
+ trajectoryso that the robot’sarmreaches the newobjectlocations(Moredetailsin Appendix A.5).
+ Weconsidertwocasesintrajectorywarping—when the relationalstatebetweentarget and refer-
+ enceobjectsisunchanged and whenitchanges,adjusting the warpingaccordingly. Inthefirstcase,
+ 5 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Sprinkle-salt Plush-toy-in-basket Close-the-laptop 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Close-the-drawer Place-snacks-on-plate Bagging 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Figure 3:Visualizationofinitialandfinalframesofbothhumandemonstrations and robotrollouts for alltasks.
+ 
+ weonlywarpthetrajectory base don the targetobjectlocations;inthesecondcase,thetrajectoryis
+ warped base don the referenceobjectlocation. 
+ After warping, we use inverse kinematics to compute a sequence of joint configurations for the
+ arms while balancing the weights of position and rotation targets in inverse kinematics computa-
+ tiontomaintainnaturalpostures. Simultaneously,weretargetthehumanh and posesto the robot’s
+ finger joints, allowing the robot to perform fine-grained manipulations (Implementation details in
+ Appendix A.3). Intheend,weobtaina full-bodyjointconfigurationtrajectory for execution. Since
+ armmotionretargetingisaffine,ourprocessnaturallyscales and adjustsmotions from demonstrators
+ withvarieddemographiccharacteristics. Byadaptingarmtrajectoriestoobjectlocations and retar-
+ getingh and posesindependently,OKAMIachievesgeneralizationacrossvariousspatiallayouts.
+ 4 Experiments 
+ 
+ Our experiments are designed to answer the following research question: 1) Is OKAMI effective
+ forahumanoidrobottoimitatediversemanipulationtasks from singlevideosofhum and emonstra-
+ tion?2)Isitcriticalin OKAMItoretargetthebodymotionsofdemonstratorsto the humanoidrobot
+ insteadofonlyretargeting base donobjectlocations? 3)Can OKAMIretainitsper for mancescon-
+ sistentlyonvideosdemonstratedbyhumansofdiversedemographics?4)Can the rolloutsgenerated
+ by OKAMIbeused for trainingclosed-loopvisuomotorpolicies? 
+ 
+ 4.1 Experimental Setup 
+ Task Designs.Wedescribe the six task swe usein the experiments:1)Plush-toy-in-basket:
+ placing a plush toy in the basket; 2) Sprinkle-salt: sprinkling a bit of salt into the bowl;
+ 3) Close-the-drawer: pushing the drawer in to close it; 4) Close-the-laptop: closing
+ the lid of the laptop; 5) Place-snacks-on-plate: placing a bag of snacks on the plate. 6)
+ Bagging: placing a chip bag into a shopping bag. We select these six tasks that cover a diverse
+ rangeofmanipulationbehaviors: Plush-toy-in-basket and Place-snacks-on-plate
+ requirepick-and-placebehaviorsofdailyobjects; Sprinkle-saltis the task that coversp our-
+ ingbehavior;Close-the-drawer and Close-the-laptoprequire the humanoidtointeract
+ with articulated objects, a prevalent type of interaction in daily environments; Bagging involves
+ dexterous, bimanualmanipulation and includesmultiplesubgoals. Whilewemainlyfocusonreal
+ 
+ 6 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Successrate Missedgrasping Failed Completion Demonstrator 1 Demonstrator 2 Demonstrator 3
+ 83.3% 83.3% 83.3% 
+ 75.0% 75.0% 75.0% 75.0% 75.0% 
+ 66.7% 66.7% 
+ 58.3% 58.3% 58.3% 
+ Sprinkle-salt Plush-toy-in- Close-the- Close-the- Place-snacks- Bagging Place-snacks- Close-the-
+ basket laptop drawer on-plate on-plate laptop 
+ (a) (b) 
+ Figure 4: (a)Evaluationof OKAMI overallsixtasks, includingthesuccessrates and the quantificationof
+ failedtrials,separatedbyfailuremode.(b)Evaluationof OKAMIusingvideos from differentdemonstrations.
+ Demonstrator 1 isthemainpersonrecordingvideos for allevaluationsin(a). 
+ robot experiments, we also implement Sprinkle-salt and Close-the-drawer in simula-
+ tionusing Robo Suite[60]foreasyreproducibilityof OKAMI.See Appendix B.4. 
+ Hardw are Setup. we usea Fourier GR 1 robotas our hardw are platform,equipped with two 6-Do F
+ Inspiredexteroush and sanda D 435 i Intel Real Sensecamera for videorecording and test-timeobser-
+ vation. Weimplementajointpositioncontroller that operatesat 400 Hz. Toavoidjerkymovements,
+ wecomputejointpositioncomm and sat 40 Hzandinterpolate the comm and sto 400 Hztrajectories.
+ Evaluation Protocol. We run 12 trials for each task. The locations of the objects are randomly
+ initialized within the intersection of the robot camera’s view and the humanoid arms’ reachable
+ range. The tasks are evaluated on a tabletop workspace with multiple objects, including both
+ task-relevant objects and various other objects. Further, we test new object generalization on
+ Place-snacks-on-plate,Plush-toy-in-basket,and Sprinkle-salttasks,chang-
+ ing the involvedplate,snackbag,plushtoy,andbowltootherinstancesof the sametype.
+ Baselines. Wecomp are ourresult with abaseline ORION [4]. Since ORION wasproposed for
+ parallel-jawgrippers,itisnotdirectlyapplicablein our experiments and weadoptit with minimal
+ modifications: we estimate the palm trajectory using the SMPL-H trajectories, and warp the tra-
+ jectory conditioning on the new object locations. The warped trajectory is used in the subsequent
+ inversekinematics for computingrobotjointconfigurations. 
+ 4.2 Quantitative Results 
+ 
+ Toanswerquestion(1), weevaluate the policiesof OKAMI acrossall the tasks, coveringdiverse
+ behaviorssuchasdailypick-place,pouring,andmanipulationofarticulatedobjects. Theresults are
+ presentedin Figure 4(a). Inourexperiment,wer and omlyinitialize the objectlocationsso that the
+ robotneedstoadapttothelocationsof the objects. Thisresultshows the effectivenessof OKAMI
+ ingeneralizingoverdifferentvisual and spatialconditions. 
+ To answer question (2), we comp are OKAMI against ORION on two representative tasks,
+ Place-snacks-on-plate and Close-the-laptop. In the comparison experiment,
+ OKAMI differs from ORION in that ORION does not condition on the human body poses.
+ OKAMIachieves 75.0%and 83.3%successrates,respectively,while ORIONonlyachieves 0.0%
+ and 41.2%,respectively. Additionally,wecomp are OKAMIagainst ORIONon the twosimulated
+ versionsof Sprinkle-salt and Close-the-drawertasks. Insimulation,OKAMIachieves
+ 82.0% and 84.0% success rates in two tasks while ORION only achieves 0.0% and 10.0%. Most
+ failuresof ORIONpolicies are duetofailingtoapproachobjects with reliablegraspingposes(e.g.,
+ in Place-snacks-on-plate task, ORION tries to grasp the snack from the sides instead of
+ thetop-downgraspinhumanvideo),andfailingtorotate the wrist full ytoachievebehaviorssuchas
+ pouring. Thesebehaviorsoriginate from the fact that ORIONignores the embodimentin for mation,
+ thusfallingshortinper for mancecomp are dto OKAMI.Thesuperiorper for manceof OKAMIsug-
+ geststheimportanceofretargetingthebodymotionofthehum and emonstratorsonto the humanoid
+ whenimitating from humanvideos. 
+ To answer question (3), we conduct a controlled experiment of recording videos of different
+ demonstrators and test if OKAMI policies maintain strong per for mance across the video inputs.
+ 7 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Sameas the previousexperiment,weevaluate OKAMIon the Place-snacks-on-plate and
+ Close-the-laptoptasks. Theresults are presentedin Figure 4(b). Weshow that for the task
+ Close-the-laptop, there is no statistical significance in per for mance change. As for task
+ Place-snacks-on-plate, while the evaluation maintains above 50%, the worst policy per-
+ formanceis 16.7%worsethan the bestpolicyper for mance. Afterlookinginto the videorecording,
+ wefind that the motionofdemonstrator 2 isrelativelyfasterthantheo the rtwodemonstrators,and
+ fastermotionscreateanoisyestimationofmotionwhendoinghuman model reconstruction. Over-
+ all,OKAMI can maintainreasonablygoodper for mancegivenvideos from differentdemonstrators,
+ but the reisroom for improvementson our visionpipelinetoh and lesuchvariety. 
+ 4.3 Learning Visuomotor Policy With OKAMIRollout Data 
+ 
+ We address question (4) by training neural 
+ visuomotor policies on OKAMI rollouts. We 50 Trajectories 100 Trajectories
+ first run OKAMI over randomly initialized 83.3% 
+ 75.0% 
+ object layouts to generate multiple rollouts 66.7% 
+ 58.3% 
+ and collect a dataset of successful trajectories 
+ while discarding the failed ones. We train 
+ neuralnetworkpolicieson this datasetthrough 
+ a behavioral cloning algorithm. Since smooth 
+ execution is critical for humanoid manipu- 
+ Sprinkle-salt Bagging 
+ lation, we implement the behavioral cloning 
+ Figure 5: Successratesoflearnedvisuomotorpolicies
+ with ACT[61], whichpredictssmoothactions 
+ on Sprinkle-salt and Baggingusing 50 and 100 
+ via its temporal ensemble design, a trajectory trajectories,respectively.
+ smoothing component (more implementation 
+ details in Appendix B.5). We train visuomotor policies for Sprinkle-salt and Bagging.
+ Figure 5 illustrates the success rates of these policies, demonstrating that OKAMI rollouts are
+ effective data sources for training. Wealsoshow that the learnedpoliciesimproveasmorerollouts
+ are collected. These results hold the promise of scaling up data collection for learning humanoid
+ manipulationskills with outlaboriousteleoperation. 
+ 5 Conclusion 
+ This paper introduces OKAMI that enables a humanoid robot to imitate a single RGB-D human
+ videodemonstration.Atthecoreof OKAMIisobject-awareretargeting,whichretargets the human
+ motions onto the humanoid robot and adapts the motions to the target object locations. OKAMI
+ consists of two stages to realize object-aware retargeting. The first stage is generating a reference
+ plan for manipulation from the video. The second stage is used for retargeting, where OKAMI
+ retargetsthearmmotionsinthe task space and thefingermotionsin the jointconfigurationspace.
+ Ourexperimentsvalidate the designof OKAMI,showing the systematicgeneralizationof OKAMI
+ policies. OKAMI enables efficient collection of trajectory data based on a single human video
+ demonstration. OKAMI-based data collectionsignifi can tlyreduces the humancost for policytrain-
+ ingcomp are dto that requiredbyteleoperation. 
+ Limitations and Future Work. The current focus of OKAMI is on the upper body motion
+ retargetingofhumanoidrobots, particularly for manipulationtasks with intabletopworkspaces. A
+ promising future direction is to include lower body retargeting that enables locomotion behaviors
+ during video imitation. To enable full-body loco-manipulation, a whole-body motion controller
+ needstobeimplementedasopposedto the jointpositioncontrollerusedin OKAMI.Additionally,
+ we rely on RGB-D videos in OKAMI, which limits us from using in-the-wild Internet videos
+ recorded in RGB. Extending OKAMI to use web videos will be another promising direction for
+ futureworks. Atlast,thecurrentimplementationofretargetinghaslimitedrobustnessagainstlarge
+ variationsinobjectshapes. Afutureimprovementwouldbeintegratingmorepowerfulfoundation
+ models that endow the robot with ageneralunderst and ingofhowtointeract with aclassofobjects
+ inspiteof the irlargeshapechanges. 
+ 8 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ Acknowledgments 
+ We would like to thank William Yue for providing the initial implementation of the behavioral
+ cloningpolicies, Peter Stone for hisvaluablesupport with taskdesigns and demoshooting, Yuzhe
+ Qin for sharing the dex-retargeting code base, and Zhenjia Xu for his advice on developing the
+ humanoidrobotinfrastructure. 
+ 
+ References 
+ 
+ [1] M.Seo,S.Han,K.Sim,S.H.Bang,C.Gonzalez,L.Sentis,and Y.Zhu. Deepimitationlearn-
+ ing for humanoidloco-manipulationthroughhumanteleoperation. In IEEE-RASInternational
+ Conferenceon Humanoid Robots(Humanoids),2023. 
+ [2] Y.Matsuura,K.Kawaharazuka,N.Hiraoka,K.Kojima,K.Okada,and M.Inaba.Development
+ ofawhole-bodyworkimitationlearningsystembyabipedandbi-armedhumanoid. In 2023
+ IEEE/RSJInternational Conferenceon Intelligent Robots and Systems(IROS),pages 10374–
+ 10381.IEEE,2023. 
+ [3] T.Asfour,P.Azad,F.Gyarfas,and R.Dillmann. Imitationlearningofdual-armmanipulation
+ tasksinhumanoidrobots. Internationalj our nalofhumanoidrobotics,5(02):183–202,2008.
+ 
+ [4] Y. Zhu, A. Lim, P. Stone, and Y. Zhu. Vision-based manipulation from single human video
+ with open-worldobjectgraphs. ar Xivpreprintar Xiv:2405.20321,2024. 
+ [5] N.Heppert,M.Argus,T.Welschehold,T.Brox,and A.Valada.Ditto:Demonstrationimitation
+ bytrajectorytrans for mation. ar Xivpreprintar Xiv:2403.15203,2024. 
+ 
+ [6] D. Guo. Learning multi-step manipulation tasks from a single human demonstration. ar Xiv
+ preprintar Xiv:2312.15346,2023. 
+ [7] T.Asfour and R.Dillmann. Human-likemotionofahumanoidrobotarm base donaclosed-
+ formsolutionof the inversekinematicsproblem. In Proceedings 2003 IEEE/RSJInternational
+ Conferenceon Intelligent Robots and Systems(IROS 2003)(Cat.No.03 CH 37453),volume 2,
+ pages 1407–1412.IEEE,2003. 
+ [8] M.Gleicher.Retargettingmotionto new characters.Proceedingsof the 25 thannualconference
+ on Computergraphics and interactivetechniques,1998. 
+ 
+ [9] K.Darvish,Y.Tirupachuri,G.Romualdi,L.Rapetti,D.Ferigo,F.J.A.Chavez,and D.Pucci.
+ Whole-bodygeometricretargeting for humanoidrobots.In 2019 IEEE-RAS 19 th International
+ Conferenceon Humanoid Robots(Humanoids),pages 679–686.IEEE,2019. 
+ [10] X.Cheng,Y.Ji,J.Chen,R.Yang,G.Yang,and X.Wang. Expressivewhole-bodycontrol for
+ humanoidrobots. ar Xivpreprintar Xiv:2402.16796,2024. 
+ 
+ [11] S.Nakaoka,A.Nakazawa,F.Kanehiro,K.Kaneko,M.Morisawa,and K.Ikeuchi.Task model
+ oflowerbodymotion for abipedhumanoidrobottoimitatehum and ances. In 2005 IEEE/RSJ
+ International Conferenceon Intelligent Robots and Systems,pages 3157–3162.IEEE,2005.
+ [12] K.Hu,C.Ott,and D.Lee. Onlinehumanwalkingimitationin task and jointspace base don
+ quadraticprogramming. In 2014 IEEEInternational Conferenceon Robotics and Automation
+ (ICRA),pages 3458–3464.IEEE,2014. 
+ [13] S. Choi, M. K. Pan, and J. Kim. Nonparametric motion retargeting for humanoid robots on
+ sharedlatentspace. In Robotics: Science and Systems,2020. 
+ 
+ [14] E.Demir can,T.Besier,S.Menon,and O.Khatib. Humanmotionreconstruction and syn the sis
+ ofhumanskills. In Advancesin Robot Kinematics: Motionin Manand Machine: Motionin
+ Manand Machine,pages 283–292.Springer,2010. 
+ 
+ 9 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ [15] Open AI. Gpt-4 technicalreport,2023. 
+ [16] S.Liu,Z.Zeng,T.Ren,F.Li,H.Zhang,J.Yang,C.Li,J.Yang,H.Su,J.Zhu,etal.Grounding
+ dino: Marryingdino with groundedpre-training for open-setobjectdetection. ar Xivpreprint
+ ar Xiv:2303.05499,2023. 
+ 
+ [17] T.He,Z.Luo,W.Xiao,C.Zhang,K.Kitani,C.Liu,and G.Shi.Learninghuman-to-humanoid
+ real-timewhole-bodyteleoperation. Inar Xiv,2024. 
+ [18] A.Escande,N.Mansard,and P.-B.Wieber. Hierarchicalquadraticprogramming: Fastonline
+ humanoid-robot motion generation. The International Journal of Robotics Research, 33(7):
+ 1006–1028,2014. 
+ 
+ [19] Q. Liao, B. Zhang, X. Huang, X. Huang, Z. Li, and K. Sreenath. Berkeley humanoid: A
+ researchplatform for learning-basedcontrol. ar Xivpreprintar Xiv:2407.21781,2024.
+ [20] L.Penco,N.Scianca,V.Modugno,L.Lanari,G.Oriolo,and S.Ivaldi. Amultimodeteleop-
+ erationframework for humanoidloco-manipulation: Anapplication for the icubrobot. IEEE
+ Robotics&Automation Magazine,26(4):73–82,2019. 
+ 
+ [21] D. Kim, B.-J. You, and S.-R. Oh. Whole body motion control framework for arbitrarily and
+ simultaneously assigned upper-body tasks and walking motion. Modeling, Simulation and
+ Optimizationof Bipedal Walking,pages 87–98,2013. 
+ [22] A.Di Fava,K.Bouyarmane,K.Chappellet,E.Ruffaldi,and A.Kheddar.Multi-contactmotion
+ retargeting from humantohumanoidrobot. In 2016 IEEE-RAS 16 thinternationalconference
+ onhumanoidrobots(humanoids),pages 1081–1086.IEEE,2016. 
+ 
+ [23] M.Arduengo,A.Arduengo,A.Colome´,J.Lobo-Prat,and C.Torras. Humantorobotwhole-
+ bodymotiontransfer. In 2020 IEEE-RAS 20 th International Conferenceon Humanoid Robots
+ (Humanoids),pages 299–305.IEEE,2021. 
+ [24] R.Cisneros,M.Benallegue,K.Kaneko,H.Kaminaga,G.Caron,A.Tanguy,R.Singh,L.Sun,
+ A. Dallard, C. Fournier, et al. Team janus humanoid avatar: A cybernetic avatar to embody
+ human telepresence. In Toward Robot Avatars: Perspectives on the ANA Avatar XPRIZE
+ Competition,RSSWorkshop,volume 3,2022. 
+ 
+ [25] S. Tachi, K. Komoriya, K. Sawada, T. Nishiyama, T. Itoko, M. Kobayashi, and K. Inoue.
+ Telexistencecockpit for humanoidrobotcontrol. Advanced Robotics,17(3):199–217,2003.
+ [26] J.Ramos and S.Kim. Humanoiddynamicsynchronizationthroughwhole-bodybilateralfeed-
+ backteleoperation. IEEETransactionson Robotics,34(4):953–965,2018. 
+ 
+ [27] Y.Ishiguro,T.Makabe,Y.Nagamatsu,Y.Kojio,K.Kojima,F.Sugai,Y.Kakiuchi,K.Okada,
+ and M.Inaba. Bilateralhumanoidteleoperationsystemusingwhole-bodyexoskeletoncockpit
+ tablis. IEEERobotics and Automation Letters,5(4):6419–6426,2020. 
+ [28] F.Abi-Farrajl,B.Henze,A.Werner,M.Panzirsch,C.Ott,and M.A.Roa.Humanoidteleoper-
+ ationusing task-relevanthapticfeedback.In 2018 IEEE/RSJInternational Conferenceon Intel-
+ ligent Robots and Systems(IROS),pages 5010–5017,2018. doi:10.1109/IROS.2018.8593521.
+ [29] M. Schwarz, C. Lenz, A. Rochow, M. Schreiber, and S. Behnke. Nimbro avatar: Interactive
+ immersivetelepresence with force-feedbacktelemanipulation.In 2021 IEEE/RSJInternational
+ Conferenceon Intelligent Robots and Systems(IROS),pages 5312–5319.IEEE,2021.
+ 
+ [30] M. Hirschmanner, C. Tsiourti, T. Patten, and M. Vincze. Virtual reality teleoperation of a
+ humanoid robot using markerless human upper body pose imitation. in 2019 ieee-ras 19 th
+ internationalconferenceonhumanoidrobots(humanoids),2019. 
+ 
+ 10 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ [31] D.Lim,D.Kim,and J.Park.Onlinetelemanipulationframeworkonhumanoid for bothmanip-
+ ulation and imitation. 202219 th International Conferenceon Ubiquitous Robots(UR),pages
+ 8–15,2022. URLhttps://api.semanticscholar.org/Corpus ID:250577582. 
+ [32] Z. Fu, Q. Zhao, Q. Wu, G. Wetzstein, and C. Finn. Humanplus: Humanoid shadowing and
+ imitation from humans. ar Xivpreprintar Xiv:2406.10454,2024. 
+ 
+ [33] A. Mandlekar, D. Xu, J. Wong, S. Nasiriany, C. Wang, R. Kulkarni, L. Fei-Fei, S. Savarese,
+ Y. Zhu, and R. Mart´ın-Mart´ın. What matters in learning from offline human demonstrations
+ forrobotmanipulation. ar Xivpreprintar Xiv:2108.03298,2021. 
+ [34] A. Mandlekar, D. Xu, R. Mart´ın-Mart´ın, S. Savarese, and L. Fei-Fei. Learning to general-
+ izeacrosslong-horizontasks from hum and emonstrations. ar Xivpreprintar Xiv:2003.06085,
+ 2020. 
+ 
+ [35] C.Wang,L.Fan,J.Sun,R.Zhang,L.Fei-Fei,D.Xu,Y.Zhu,and A.Anandkumar.Mimicplay:
+ Long-horizonimitationlearningbywatchinghumanplay. ar Xivpreprintar Xiv:2302.12422,
+ 2023. 
+ [36] Y.Zhu,A.Joshi,P.Stone,and Y.Zhu. Viola:Imitationlearning for vision-basedmanipulation
+ withobjectproposalpriors. ar Xivpreprintar Xiv:2210.11339,2022. 
+ 
+ [37] C.Wang,H.Shi,W.Wang,R.Zhang,L.Fei-Fei,and C.K.Liu.Dexcap:Scalable and portable
+ mocap data collection system for dexterous manipulation. ar Xiv preprint ar Xiv:2403.07788,
+ 2024. 
+ [38] T.Lin,Y.Zhang,Q.Li,H.Qi,B.Yi,S.Levine,and J.Malik. Learningvisuotactileskills with
+ twomultifingeredhands. ar Xivpreprintar Xiv:2404.16823,2024. 
+ 
+ [39] Y.Ze,G.Zhang,K.Zhang,C.Hu,M.Wang,and H.Xu. 3 ddiffusionpolicy. ar Xivpreprint
+ ar Xiv:2403.03954,2024. 
+ [40] M.Chang and S.Gupta. One-shotvisualimitationviaattributedwaypoints and demonstration
+ augmentation. ar Xivpreprintar Xiv:2302.04856,2023. 
+ 
+ [41] T. Yu, P. Abbeel, S. Levine, and C. Finn. One-shot composition of vision-based skills from
+ demonstration. In 2019 IEEE/RSJInternational Conferenceon Intelligent Robots and Systems
+ (IROS),pages 2643–2650.IEEE,2019. 
+ [42] E. Valassakis, G. Papagiannis, N. Di Palo, and E. Johns. Demonstrate once, imitate imme-
+ diately (dome): Learning visual servoing for one-shot imitation learning. In 2022 IEEE/RSJ
+ International Conferenceon Intelligent Robots and Systems(IROS),pages 8614–8621.IEEE,
+ 2022. 
+ [43] E.Johns. Coarse-to-fineimitationlearning: Robotmanipulation from asingledemonstration.
+ In 2021 IEEEinternationalconferenceonrobotics and automation(ICRA),pages 4613–4619.
+ IEEE,2021. 
+ 
+ [44] N.Di Palo and E.Johns. Learningmulti-stagetasks with onedemonstrationviaself-replay. In
+ Conferenceon Robot Learning,pages 1180–1189.PMLR,2022. 
+ [45] Z. Luo, J. Cao, K. Kitani, W. Xu, et al. Perpetual humanoid control for real-time simulated
+ avatars. In Proceedingsof the IEEE/CVFInternational Conferenceon Computer Vision,pages
+ 10895–10904,2023. 
+ 
+ [46] X.B.Peng,Z.Ma,P.Abbeel,S.Levine,and A.Kanazawa. Amp: Adversarialmotionpriors
+ for stylized physics-based character control. ACM Transactions on Graphics (To G), 40(4):
+ 1–20,2021. 
+ 
+ 11 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ [47] B.Jiang,X.Chen,W.Liu,J.Yu,G.Yu,and T.Chen. Motiongpt: Humanmotionasa for eign
+ language. Advancesin Neural Information Processing Systems,36,2024. 
+ [48] S.Kuindersma,R.Deits,M.Fallon,A.Valenzuela,H.Dai,F.Permenter,T.Koolen,P.Marion,
+ and R.Tedrake. Optimization-basedlocomotionplanning,estimation,andcontroldesign for
+ theatlashumanoidrobot. Autonomousrobots,40:429–455,2016. 
+ 
+ [49] Y. Liang, W. Li, Y. Wang, R. Xiong, Y. Mao, and J. Zhang. Dynamic movement primitive
+ based motion retargeting for dual-arm sign language motions. In 2021 IEEE International
+ Conferenceon Robotics and Automation(ICRA),pages 8195–8201.IEEE,2021. 
+ [50] S. Caelles, J. Pont-Tuset, F. Perazzi, A. Montes, K.-K. Maninis, and L. Van Gool. The
+ 2019 davis challenge on vos: Unsupervised multi-object segmentation. ar Xiv preprint
+ ar Xiv:1905.00737,2019. 
+ [51] Y. Huang, J. Yuan, C. Kim, P. Pradhan, B. Chen, L. Fuxin, and T. Hermans. Out of sight,
+ still in mind: Reasoning and planning about unobserved objects with video tracking enabled
+ memorymodels. ar Xivpreprintar Xiv:2309.15278,2023. 
+ 
+ [52] Y. Zhu, Z. Jiang, P. Stone, and Y. Zhu. Learning generalizable manipulation policies with
+ object-centric 3 drepresentations. In 7 th Annual Conferenceon Robot Learning,2023.
+ [53] A.Stone,T.Xiao,Y.Lu,K.Gopalakrishnan,K.-H.Lee,Q.Vuong,P.Wohlhart,S.Kirmani,
+ B.Zitkovich,F.Xia,etal. Open-worldobjectmanipulationusingpre-trainedvision-language
+ models. ar Xivpreprintar Xiv:2303.00905,2023. 
+ [54] H.K.Cheng,S.W.Oh,B.Price,J.-Y.Lee,and A.Schwing. Putting the objectbackintovideo
+ object segmentation. In Proceedings of the IEEE/CVF Conference on Computer Vision and
+ Pattern Recognition,pages 3151–3161,2024. 
+ 
+ [55] V.Ye,G.Pavlakos,J.Malik,and A.Kanazawa. Decouplinghuman and cameramotion from
+ videosin the wild. In CVPR,2023. 
+ [56] J.Romero,D.Tzionas,and M.J.Black. Embodiedhands. ACMTransactionson Graphics,36
+ (6):1–17,2017. 
+ 
+ [57] G.Pavlakos,D.Shan,I.Radosavovic,A.Kanazawa,D.Fouhey,and J.Malik. Reconstructing
+ handsin 3 Dwithtrans for mers. In CVPR,2024. 
+ [58] N.Karaev,I.Rocco,B.Graham,N.Neverova,A.Vedaldi,and C.Rupprecht. Cotracker: Itis
+ bettertotracktogether. ar Xivpreprintar Xiv:2307.07635,2023. 
+ 
+ [59] Q.-Y.Zhou,J.Park,and V.Koltun. Open 3 d: Amodernlibrary for 3 ddataprocessing. ar Xiv
+ preprintar Xiv:1801.09847,2018. 
+ [60] Y. Zhu, J. Wong, A. Mandlekar, R. Mart´ın-Mart´ın, A. Joshi, S. Nasiriany, and Y. Zhu. ro-
+ bosuite: Amodularsimulationframework and benchmark for robotlearning. ar Xivpreprint
+ ar Xiv:2009.12293,2020. 
+ 
+ [61] T.Z.Zhao, V.Kumar, S.Levine, and C.Finn. Learningfine-grainedbimanualmanipulation
+ withlow-costhardw are. ar Xivpreprintar Xiv:2304.13705,2023. 
+ [62] S.Goel,G.Pavlakos,J.Rajasegaran,A.Kanazawa,and J.Malik. Humansin 4 D:Reconstruct-
+ ing and trackinghumans with trans for mers. In ICCV,2023. 
+ [63] Y.Xu,J.Zhang,Q.Zhang,and D.Tao. Vi TPose++: Visiontransformer for genericbodypose
+ estimation. IEEETransactionson Pattern Analysis and Machine Intelligence,2023.
+ 
+ [64] S.Caron,Y.De Mont-Marin,R.Budhiraja,and S.H.Bang. Pink: Pythoninversekinematics
+ basedon Pinocchio,2024. URLhttps://github.com/stephane-caron/pink. 
+ 
+ 12 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ [65] Y.Qin,W.Yang,B.Huang,K.Van Wyk,H.Su,X.Wang,Y.-W.Chao,and D.Fox.Anyteleop:
+ Ageneralvision-baseddexterousrobotarm-handteleoperationsystem. In Robotics: Science
+ and Systems,2023. 
+ [66] R. Killick, P. Fearnhead, and I. A. Eckley. Optimal detection of changepoints with a linear
+ computational cost. Journal of the Ameri can Statistical Association, 107(500):1590–1598,
+ 2012. 
+ [67] X.Cheng,J.Li,S.Yang,G.Yang,and X.Wang. Open-television: Teleoperation with immer-
+ siveactivevisualfeedback. ar Xivpreprintar Xiv:2407.01512,2024. 
+ 
+ [68] T.Darcet,M.Oquab,J.Mairal,and P.Bojanowski. Visiontrans for mersneedregisters. ar Xiv
+ preprintar Xiv:2309.16588,2023. 
+ [69] M. Oquab, T. Darcet, T. Moutakanni, H. V. Vo, M. Szafraniec, V. Khalidov, P. Fernandez,
+ D. Haziza, F. Massa, A. El-Nouby, R. Howes, P.-Y. Huang, H. Xu, V. Sharma, S.-W. Li,
+ W. Galuba, M. Rabbat, M. Assran, N. Ballas, G. Synnaeve, I. Misra, H. Jegou, J. Mairal,
+ P. Labatut, A. Joulin, and P. Bojanowski. Dinov 2: Learning robust visual features without
+ supervision,2023. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 13 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ A Implementation Details 
+ 
+ A.1 Human Reconstruction From Videos 
+ Method. Forthe 3 Dhumanreconstruction,westartbytrackingthepersonin the video and getting
+ aninitialestimateoftheir 3 Dbodyposeusing 4 DHumans[62]. Thisbodyreconstruction can not
+ capture the handposedetails(i.e.,theh and sareflat). Therefore,foreachdetectionof the personin
+ thevideo, wedetect the twoh and susing Vi TPose[63], and for eachh and, weapply Ha Me R[57]
+ togetanestimateof the 3 Dhandpose. However,theh and sreconstructedby Ha Me Rcan beincon-
+ sistent with the arms from the body reconstruction (e.g., different wrist orientation and location).
+ Toaddress this,weapplyanoptimizationrefinementtomakethebody and the handsconsistentin
+ each frame, andenc our age that the holistic body and hands motion is smooth overtime. This op-
+ timizationissimilarto SLAHMR[55],withthedifference that besides the bodypose and location
+ ofthe SMPL+Hmodel[56],wealsooptimize the handposes. Weinitialize the procedureusing the
+ 3 Dbodyposeestimate from 4 DHumans and the 3 Dhandposes from Ha Me R.Moreover, we use
+ the 2 Dprojectionof the 3 Dhandspredictedby Ha Me Rtoconstrain the projectionof the 3 Dhand
+ keypoints of the holistic model using a reprojection loss. Finally, we can jointly optimize all the
+ parameters (body location, body pose, hand poses) over the duration of the video, as described in
+ SLAHMR[55]. 
+ Our modified SLAHMR incorporates the SMPL-H model [56] to include hand poses in the hu-
+ manmotionreconstruction. Weinitializeh and posesineachframeusing 3 Dhandestimates from
+ Ha Me R [57]. The optimization process then jointly refines body locations, body poses, and hand
+ posesover the videosequence. Thisjointoptimizationallows for accurate model ingofhowhands
+ interact with objects,whichiscrucial for manipulationtasks. 
+ Theoptimizationminimizes the errorbetween the 2 Dprojectionsof the 3 Djoints from the SMPL-H
+ model and the detected 2 Djointlocations from the video. we usestandardparameters and settings
+ asdescribedin SLAHMR[55],adapting the mtoaccommodate the SMPL-Hmodel. 
+ Inference Requirements. The model ofhumanreconstructionwe useislarge and needstoberun
+ onacomputer with sufficientlygoodcomputationspeed. Hereweprovidedetailsabout the runtime
+ per for manceof the humanreconstruction model.we useadesktop that comeswitha GPURTX 3090
+ thathasthesizeof the memory 24 GB.Fora 10 secondsvideo with fps 30,itprocesses 10 minutes.
+ A.2 Promptsof Using GPT 4 V 
+ 
+ In order to use GPT 4 V in OKAMI, we need GPT 4 V’s output to be in a typed format so that the
+ restof the programs can parse the result. Moreover,inorder for the promptstobegeneralacrossa
+ diversesetoftasks,ourpromptdoesnotleakanytaskin for mationto the model. Herewedescribe
+ thethreedifferentpromptsin OKAMI for using GPT 4 V. 
+ Identify Task-relevant Objects. OKAMI uses the followingprompttoinvoke GPT 4 Vsothatit
+ canidentify the task-relevantobjects from aprovidedhumanvideo: 
+ Prompt: Youneedtoanalyzewhatthehumanisdoingin the images,thentellme: 1. Allthe
+ objectsinfrontscene(mostlyon the table). Youshouldignore the backgroundobjects. 2. The
+ objectsofinterest. Theyshould beasubsetofy our answerto the firstquestion. They are likely
+ theobjectsmanipulatedbyhumanornearhuman. Note that the reareirrelevantobjectsin the
+ scene,suchasobjects that doesnotmoveatall. Youshouldignore the irelevantobjects.
+ Youroutput for matis: 
+ 
+ The human is xxx. 
+ All objects are xxx. 
+ The objects of interest are: 
+ ‘‘‘json 
+ { 
+ 
+ 14 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ "objects": ["OBJECT 1", "OBJECT 2", ...], 
+ } 
+ ‘‘‘ 
+ Ensure the response can beparsedby Python‘json.loads’, e.g.: notrailingcommas, nosingle
+ quotes, etc. You should output the names of objects of interest in a list [“OBJECT 1”, “OB-
+ JECT 2”, ...] that can be easily parsed by Python. The name is a string, e.g., “apple”, “pen”,
+ “keyboard”,etc. 
+ 
+ 
+ Identify Target Objects. OKAMI usesthefollowingprompttoidentify the targetobjectofeach
+ stepin the referenceplan: 
+ 
+ Prompt:Thefollowingimagesshowsamanipulationmotion,where the humanismanipulating
+ anobject. 
+ Your task istodetermi new hichobjectisbeingmanipulatedin the imagesbelow. Youneedto
+ choose from the followingobjects: {alistof task-relevantobjects}. 
+ Tips:themanipulatedobjectistheobject that the humanisinteracting with,suchaspickingup,
+ moving,orpressing,anditisincontact with the human’s{themajormovingarmin this step}
+ hand. 
+ 
+ Youroutput for matis: 
+ ‘‘‘json 
+ { 
+ "manipulate_object_name": "MANIPULATE_OBJECT_NAME", 
+ } 
+ ‘‘‘ 
+ Ensure the response can beparsedby Python‘json.loads’, e.g.: notrailingcommas, nosingle
+ quotes,etc. 
+ 
+ 
+ Identify Reference Objects. Hereis the prompt that asks GPT 4 Vtoidentify the referenceobject
+ ofeachstepin the referenceplan: 
+ 
+ Prompt:Thefollowingimagesshowsamanipulationmotion,where the humanismanipulating
+ theobject{manipulate object name}. 
+ Please identify the reference object in the image below, which could be an object on which
+ toplace{manipulate object name}, oranobject that{manipulate object name}isinteracting
+ with. Note that the remaynotnecessarily have anreferenceobject, assometimeshumanmay
+ just playing with the object itself, like throwing it, or spinning it around. You need to first
+ identify whether there is a reference object. If so, you need to output the reference object’s
+ namechosen from the followingobjects: {alistof task-relevantobjects}. 
+ Youroutput for matis: 
+ ‘‘‘json 
+ { 
+ "reference_object_name": "REFERENCE_OBJECT_NAME" or "None", 
+ } 
+ ‘‘‘ 
+ Ensure the response can beparsedby Python‘json.loads’, e.g.: notrailingcommas, nosingle
+ quotes,etc. 
+ 
+ 
+ 15 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ A.3 Detailson Factorized Process for Retargeting 
+ Body Motion Retarget. To retarget body motions from the SMPL-H representation to the hu-
+ manoid, we extract the shoulder, elbow, and wrist poses from the SMPL-H models. We then use
+ inversekinematicstosolvethebodyjointson the humanoid,ensuring the yproducesimilarshoulder
+ and elbow orientations and similar wrist poses. The inverse kinematics is implemented using an
+ open-sourcedlibrary Pink[64]. The IKweightswe use for shoulderorientation,elboworientation,
+ wristorientation,andwristposition are 0.04,0.04,0.08,and 1.0,respectively.
+ Hand Pose Mapping. As we describe in the method section, we first retarget the hands from
+ SMPL-Hmodelsto the humanoid’sdexteroush and susingahybridimplementationofinversekine-
+ matics and anglemapping. Here are the detailsofhow this mappingisper for med. Onceweobtain
+ the SMPL-Hmodels from avideodemonstration,we canobtain the locationsof 3 Djoints from the
+ handmeshmodels from SMPL-H.Subsequently,we cancompute the rotatinganglesofeachjoint
+ thatcorrespondtocertainh and poses. Thenweapplythecomputedjointanglesto the handmeshes
+ of a canonical SMPL-H model, which is pre-defined to have the same size as the humanoid robot
+ hardw are. From this canonical SMPL-H model, we can get the 3 D keypoints of hand joints and
+ useanexistingpackage,dex-retarget,anoff-the-shelfoptimizationpackagetodirectlycompute the
+ handjointanglesof the robot[65]. 
+ Inverse Kinematics. Afterwarping the armtrajectory,we useinversekinematicstocompute the
+ robot’s joint configurations. We assign weights of 1.0 to hand position and 0.08 to hand rotation,
+ prioritizingaccurateh and placementwhileallowing the armstomaintainnaturalpostures.
+ For retargeting human hand poses to the robot, we map the human hand joint angles to the corre-
+ spondingjointsin the robot’shand. Thisenables the robottoreplicatefine-grainedmanipulations
+ demonstrated by the human, such as grasping and object interaction. Our implementation ensures
+ that the retargeted motions are physically feasible for the robot and that overall execution appears
+ natural and effective for the taskath and. 
+ 
+ A.4 Additional Detailsof Plan Generation 
+ For temporal segmentation, we sample keypoints from the segmented objects in the first frame
+ and track them across the video using Co Tracker [58]. We compute the average velocity of these
+ keypointsateachframe and applyanunsupervisedchangepointdetectionalgorithm[66]todetect
+ signifi can tchangesinmotion,identifyingkeyframes that correspondtosubgoalstates.
+ To determine contact between objects, we compute the relative spatial locations and distances be-
+ tween the pointcloudsofobjects. Ifthedistancebetweenobjectsfallsbelowapredefinedthreshold,
+ we consider them to be in contact. For non-contact relations that are difficult to infer geometri-
+ cally—suchasacupinap our ing task—we use GPT 4 Vtopredictsemanticrelations base don the
+ visualcontext. GPT 4 Vcaninfer that thecupistherecipientinap our ingactionevenif the reisno
+ directcontact. 
+ 
+ A.5 Trajectory Warping 
+ Here, we mathematically describe the process of trajectory warping. We denote the trajectory for
+ robotasτrobotretargetedfromτSMPL inthegeneratedplan. Denote the startingpoint and endpoint
+ ti:ti+1 
+ ofτrobot asp ,p ,respectively. Note that allpointsalong the trajectory are representedin SE(3)
+ start end 
+ space. 
+ Eachpointp ontheoriginalretargetdtrajectory can bedescribedby the followingfunction:
+ t 
+ p =p +(τrobot(t)−p ) (1) 
+ t start start 
+ wheret∈{t ,...,t },τrobot(t )=p ,τrobot(t )=p . 
+ i i+1 i start i+1 end 
+ When warping the trajectory, we either only needs to adapt the trajectory to the new target object
+ location, or adapt the trajectory to the new locations of both the target and the reference objects,
+ 16 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ as described in Section 3.2. Without loss of generality, we denote the SE(3) trans for mation for
+ the startingpoint is T , andthe SE(3)trans for mation forthe endpoint is T . Nowthe warped
+ start end 
+ trajectory can bedescribedby the followingfunction: 
+ p =T ·p +(τˆrobot(t)−T ·p ) (2) 
+ t start start start start 
+ whereτˆrobot(t)= τrobot(t)−pstart(T ·p −T ·p )+T ·p ,∀t∈{t ,...,t }.Inthisway,
+ pend−pstart end end start start start start i i+1 
+ wehaveτˆrobot(t )=T ·p ,τˆrobot(t )=T ·p . Note that thistrajectorywarpingassumes
+ i start start i+1 end end 
+ theendpointofatrajectoryisnotthesameas the startingpoint,whichisacommonassumption for
+ mostof the manipulationbehaviors. 
+ B Additional Experimental Details 
+ B.1 Success Conditions 
+ Wedescribe the successconditionswe usetoevaluateifa task rolloutissuccessfulornot.
+ • Sprinkle-salt: Thesaltbottlereachesapositionwhere the saltisp our edoutinto the
+ bowl. 
+ • Plush-toy-in-basket:Theplushtoyisputinside the container,withmorethan 50%
+ ofthetoyinside the container. 
+ • Close-the-laptop: Thedisplayislo were dtowardsthe base until the twopartsmeet
+ atthehinge(aka the laptopisclosed). 
+ • Close-the-drawer: Thedrawerispushedbackto the containingregion, eitherit’sa
+ draweroralayerofacabinet. 
+ 
+ • Place-snacks-on-plate: The snack is placed on top of the plate, with more than
+ 50%ofthesnackpackageon the plate. 
+ • Bagging: Thechipbagisputinto the shoppingbagwhichisinitiallyclosed.
+ 
+ B.2 Implementationof Baseline 
+ We implement the baseline ORION [4] with minimal modifications to apply it to our humanoid
+ setting.First,weestimate the palmtrajectory from SMPL-Htrajectoriesbyusing the centerpointof
+ thereconstructedfingersas the palmpositionateachtimestep. Next,wewarp the palmtrajectory
+ basedon the test-timeobjects’locations. Finally,we useinversekinematicstosolve for the robot’s
+ bodyjoints,withthewarpedtrajectoryservingas the targetpalmposition. 
+ 
+ B.3 Detailson Different Demonstrators 
+ 
+ Figure 6 shows the videos of three different human demonstrators per for ming
+ Place-snacks-on-plate and Close-the-laptop tasks. We calculate the success
+ ratesofimitatingdifferentvideos,and the results are shownin Figure 4(b). 
+ B.4 Simulation Evaluation 
+ 
+ For easy reproducibility, we replicate two tasks, Sprinkle-salt and Close-the-drawer,
+ insimulation(Figure 7). Weimplement the setasksusingrobosuite[60],whichrecentlyprovided
+ cross-embodimentsupport, includinghumanoidmanipulation. we use“GR 1 Fixed Lower Body”as
+ therobotembodimentin the setwotasks. 
+ Note that for the policy of each task, we use the same human video as the ones used in real robot
+ experiments. Wecomp are threemethodsinsimulation: OKAMI(w/vision),OKAMI(w/ovision),
+ and ORION.OKAMI(w/vision)thesamemethodwe usein our realrobotexperiments. OKAMI
+ (w/o vision) is the simplified version of OKAMI where we assume the model directly gets the
+ 
+ 17 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Figure 6: Theinitialandendframesofvideosper for medbydifferenthum and emonstrators. Thefirstrowis
+ Place-snacks-on-plate task,and the secondrowis Close-the-laptop task. 
+ 
+ ground-truth poses of objects. The evaluation results are shown in Table 1, where each reported
+ numberis the successrateaveragedover 50 rollouts. 
+ Wenotice that thesimulationresults are generallybetterthan the realrobotexperiments. Theper-
+ formancedifferencecomes from the easyphysicalinteractionbetweendexteroushands and objects
+ comp are dto the realrobothardw are. Also,OKAMI with outvision can achieveamuchhighersuc-
+ cess rate than OKAMI with vision because the noise and uncertainty of perception are abstracted
+ away. Specifically,alargeportionofuncertaintiescome from the partialobservationofobjectpoint
+ clouds,andtheestimationoftheobjectlocationisoff the ground-truthlocationsofobjects,while the
+ successof OKAMIhighlydependson the qualityoftrajectorywarping,whichisdependenton the
+ correctestimationofobjectlocations. Thissimulationresultalsoindicates that the per for manceof
+ OKAMIisexpectedtoimproveifmorepowerfulvisionmodels with higheraccuracy are available.
+ Method Sprinkle-salt Close-the-drawer 
+ OKAMI(w/vision) 82% 84% 
+ OKAMI(w/ovision) 100% 100% 
+ ORION 0% 10% 
+ Table 1: The average success rates (%) across different methods in two tasks, Sprinkle-salt and
+ Close-the-drawer 
+ 
+ B.5 Visuomotor Policy Details 
+ 
+ Wechoose ACT[61]inourexperiments for behavioralcloning,analgorithm that has been shown
+ effective in learning humanoid manipulation policies [67]. Notably, we choose pretrained Di-
+ no V 2 [68, 69] as the visual backbone of a policy. The policy takes a single RGB image and 26-
+ dimensionjointpositionsasinput and outputs the actionof the 26-dimensionabsolutejointposition
+ for the robottoreach. In Table 2,weshow the hyperparametersused for behavioralcloning.
+ 
+ 18 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ KLweight 10 
+ chunksize 60 
+ hiddendimension 512 
+ batch size 45 
+ feed for warddimension 3200 
+ epochs 25000 
+ learning rate 5 e-5 
+ temporalweighting 0.01 
+ Table 2:Thehyperparametersusedin ACT. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Close-the-drawer Sprinkle-salt 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ Figure 7:Thescreenshotsofthestarting and endingframesof the twosimulationtasks,Close-the-drawer
+ and Sprinkle-salt. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 19 
+ 
+ 

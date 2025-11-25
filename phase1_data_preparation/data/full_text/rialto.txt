@@ -1,0 +1,1713 @@
+ 
+ 
+ 
+ 
+ 
+ Reconciling Reality through Simulation: A 
+ 
+ Real-to-Sim-to-Real Approach for Robust 
+ 
+ Manipulation 
+ 
+ 
+ Marcel Torne 1 Anthony Simeonov 1,4 Zechu Li 1,3,4 April Chan 1,4 
+ Tao Chen 1,4 Abhishek Gupta 2∗ Pulkit Agrawal 1,4∗ 
+ 1 Massachusets Institute of Technology 2 University of Washington 3 TU Darmstadt
+ 4 Improbable AI Lab 
+ 
+ 
+ Abstract—Imitation learning methods need significant human data across a massive range of scenes since content creation
+ supervision to learn policies robust to changes in object poses, can be challenging in simulation and data collection can be
+ physical disturbances, and visual distractors. Rein for cement 
+ challenging for the real world, (2) a widely general, robust
+ learning, on the other hand, can explore the environment 
+ policy may be overly conservative, lowering its per for mance
+ autonomously to learn robust behaviors but may require im- 
+ practical amounts of unsafe real-world data collection. To learn on the specific target domains encountered on deployment.
+ per for mant, robust policies without the burden of unsafe real- Alternatively, we suggest that to maximally benefit a specific
+ world data collectionorextensivehumansupervision,wepropose user, it is more critical that the robot achieves high success
+ Rial To, a system for robustifying real-world imitation learning 
+ in their particular home environment, showing robustness
+ policies via rein for cement learning in “digital twin” simulation 
+ to various local disturbances and distractors that might be
+ environmentsconstructedon the fly from smallamountsofreal- 
+ world data. To enable this real-to-sim-to-real pipeline, Rial To encountered in this setting. With this in mind, our goal is to
+ proposes an easy-to-use interface for quickly scanning and develop a robot learning technique that requires minimal hu-
+ constructingdigitaltwinsofreal-worldenvironments.Wealsoin- man effort to syn the size visuomotor manipulation controllers
+ troduceanovel“inversedistillation”procedure for bringingreal- 
+ that are extremely robust for task per for mance in deployment
+ world demonstrations into simulated environments for efficient 
+ environments. The question becomes - how do we acquire
+ fine-tuning, with minimal human intervention and engineering 
+ required.Weevaluate Rial Toacrossavarietyofroboticmanipu- these robust controllers without requiring prohibitive amounts
+ lationproblemsin the realworld,suchasrobustlystackingdishes of effort for data collection or simulation engineering?
+ on a rack, placing books on a shelf, and six other tasks. Rial To A potential technique for data-driven learning of robotic
+ increases (over 67%) in policy robustness without requiring 
+ control policies is to adopt the paradigm of imitation learning
+ extensive human data collection. Project website and code at 
+ (IL), learning from expert demonstration data [58, 56, 25].
+ https://real-to-sim-to-real.github.io/Rial To/. 
+ However, controllers learned via imitation learning tend to
+ I. INTRODUCTION exhibit limited robustness unless a large number of demon-
+ strations are collected. Fur the rmore, imitation learning does
+ Imagine a robot that can de-clutter kitchens by putting 
+ notlearntorecover from mistakesorout-of-distributiondistur-
+ dishesonadishrack.Considerall the environmentalvariations 
+ bancesunlesssuchbehaviors were intentionallydemonstrated.
+ that might be encountered: different configurations of plates 
+ This makes direct imitation learning algorithms unsuitable for
+ or changes in rack positions, a plate unexpectedly slipping in 
+ widespread, robust deployment in real-world scenarios.
+ the gripper during transit, and visual distractions, including 
+ The alternative paradigm of rein for cement learning (RL)
+ clutter and lighting changes. For the robot to be effective, 
+ allows robots to train on self-collected data, reducing the
+ it must robustly solve the task across the various scene and 
+ burden on humans for extensive data collection [31] and
+ object perturbations, without being brittle to transient scene 
+ to discover robust recovery behaviors beyond a set of pre-
+ disturbances.Ourdesiderataisaframework that makesiteasy 
+ collected demonstrations (e.g., re-grasping when an object is
+ for humans to program the robot to achieve a task robustly 
+ dropped, re-aligning when an object moves in the gripper,
+ under the sevariationsordisturbances.Tobeascalablechoice 
+ adjusting to external perturbations, etc. — see examples in
+ for deployment, the framework should not make task-specific 
+ Fig. 1). However, directly per for ming RL in the real world is
+ assumptions and must seamlessly apply to many tasks. 
+ prohibitively slow, often results in unsafe data collection, and
+ To design these types of robust robot controllers, one could 
+ is challenging due to problems like resets and reward specifi-
+ attempt to train policies across a massive range of scenes and 
+ cation[75].Therefore,currently,it’simpracticalinmanycases
+ with highly variable objects [12, 21]. This is hard-pressed 
+ to employ RL for learning robust control policies directly in
+ to provide a scalable solution to robotic learning for two 
+ therealworld.Simulation,ontheo the rhand,offers the ability
+ reasons - (1) it is challenging to actually collect or syn the size 
+ to collect significant amounts of data broadly, cheaply, safely,
+ *Equaladvising and withprivileged information [12,34, 61,40, 1].However,
+ 4202 
+ vo N 
+ 42 
+ ]OR.sc[ 
+ 3 v 94930.3042:vi Xra 
+
+ 
+ 
+ 
+ 
+ 
+ 1 Real-to-sim transfer of the scene 2 Real-to-sim transfer of policies 
+ Point cloud-based 
+ Policy 
+ 
+ 3 D 
+ reconstruction 
+ through API 
+ Articulated USD 
+ Imitation 
+ (Universal Scene Descriptor) 
+ learning 
+ 3 Simulation fine-tuning 
+ RL fine-tuning with sparse Simulation rollout 
+ rewards and demos 
+ 
+ Privileged information 
+ demos in sim 
+ Sim-to-real transfer 
+ Robust to disturbances and distractors in the real world 4
+ 
+ 
+ 
+ 
+ 
+ 
+ New distractor Robot base Perturb closing Policy succeeds 
+ objects moved toaster opening the toaster 
+ 
+ Fig. 1. Rial To system overview. 1) Transfer the real-world scene to the simulator through an easy-to-use API (see Section III-B). 2) Transfer a policy
+ learned from real-worlddemonstrationstocollectasetofdemonstrations with privilegedin for mationinsimulation.Wenote this stepisoptional,and Rial To
+ is compatible with skipping this step and providing demonstrations in simulation (see Section IV-C 2) 3) Use the collected set of demonstrations to bias
+ explorationin the RLfine-tuning with sparserewardsofastate-basedpolicy(see Section III-C)4)Per for mteacher-studentdistillation and deploy the policy
+ intherealworldobtainingrobustbehaviors(see Section III-D). 
+ manually constructing geometrically, visually, and physically engineering, we leverage a set of real-world demonstrations
+ realistic simulation environments for problems like robotic thatbootstrapefficientfine-tuning with rein for cementlearning.
+ manipulation in the home can be time and labor-intensive, These real-world demonstrations help narrow the sim-to-real
+ making it an impractical alternative at scale. gap and increase the per for mance of our policies, as shown in
+ To safely and efficiently learn robust manipulation behav- Section IV-B.However,transferringreal-worlddemonstrations
+ iors, our key insight is to train RL controllers on quickly into simulation is non-trivial because we do not have access
+ constructed simulation scenes. By leveraging a video from to the Lagrangian state of theenvironment (e.g. object poses).
+ the target deployment domain, we can obtain scenes complete We therefore propose a new “inverse-distillation” technique
+ with accurate geometry and articulation that reflect the ap- thatenablestransferringreal-worlddemosinto the simulation.
+ pearance and kinematicsof the realworld.These“in-domain” After using RL in constructed simulation environments to
+ simulation environments can serve as a sandbox to safely robustify the real-world imitation learning policies, the fine-
+ and quickly learn robust policies across various disturbances tuned policies can be transferred back to the real world with
+ and distractors, without requiring expensive exploration in signifi can tlyimprovedsuccessrates and robustnesstotest-time
+ the real world. We show how imitation learning policies disturbances. 
+ trained with small numbers of real-world demonstrations can Overall, our pipeline simultaneously improves the effec-
+ be robustified via large-scale RL fine-tuning in simulation tiveness of both rein for cement and imitation learning. RL in
+ on these constructed simulation environments, using minimal simulationhelpsmakeimitationlearningpoliciesdeployment-
+ amounts of human effort in terms of environment design ready without requiring prohibitive amounts of unsafe, inter-
+ and reward engineering. To remove the burden of reward active data collection in the real world. At the same time,
+ 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ bootstrapping from real-world demonstration data via inverse improve the per for mance of models originally trained with
+ distillation makes the exploration problem tractable for RL imitation learning. RL has exploded in its capacity for fine-
+ fine-tuning in simulation. This minimizes the amount of task- tuning LLMs [49] and image generation models [4], learning
+ specific engineering required by algorithm designers such as rewards from human feedback [14]. In robotics, prior work
+ designingthedenserewardsormanuallydesigning the scenes. has explored techniques such as offline RL [70, 47, 33],
+ Concretely, we propose Rial To, a system for robustifying learning world models [42, 18], and online fine-tuning in the
+ real-worldimitationlearningpolicies with outrequiringsignifi- real world [2, 3, 22, 70]. Expert demonstrations have also
+ canthumaneffort,byconstructingrealisticsimulationanalogs been used to bootstrap exploration and policy learning with
+ for real-world environments on the fly and using these for RL [28, 27, 54, 74]. We similarly combine imitation and RL
+ robust policy learning. Our contributions include: to guide exploration in sparse reward settings. However, our
+ • A simple policy learning pipeline that syn the sizes con- pipeline showcases how demonstrations additionally benefit
+ trollers to perform diverse manipulation tasks in the RL by biasing policies toward physically plausible solutions
+ real world that (i) reduces human effort in constructing that compensate for imperfect physics simulation.
+ environments and specifying rewards, (ii) produces ro- Sim-to-real policy transfer: RL in simulation has been
+ bust policies that transfer to real-world, cluttered scenes, used to syn the size impressive control policies in a variety
+ showing robustness to disturbances and distractors, (iii) of domains such as locomotion [40, 34, 32], dexterous in-
+ requires minimal amounts of expensive and unsafe data handmanipulation[11,12,1,23],anddroneflight[61].Many
+ collection in the real world. simulation-based RL methods leverage some form of domain
+ • A novel algorithm for transferring demonstrations from randomization [65, 51], system identification [26, 63], or
+ the real world to the reconstructed simulation to boot- improved simulator visuals [55, 24] to reduce the simulation-
+ strap efficient rein for cement learning from the low-level to-reality(sim-to-real)domaingap.Priorworkhasalsoshown
+ Lagrangian state for policy fine-tuning. We show that the benefit of “teacher-student” distillation [12, 32, 60, 9],
+ this real-to-sim transfer of human demonstrations both whereinprivileged“teacher”policieslearnedquickly with RL
+ improves efficiency and biases policies toward realistic are distilled into “student” policies that operate on sensor
+ behavior in simulation which effectively transfers back observations. To acquire transferable controllers, we similarly
+ to the real world. leverage GPU-acceleratedsimulation,teacher-studenttraining,
+ • An intuitive graphical interface for quickly scanning anddomainr and omizationacrossparallelenvironments.How-
+ and constructing digital twins of real-world scenes with ever, we address the more challenging scenario of household
+ articulation, separated objects, and accurate geometries. manipulation, which is characterized by richer visual scenes,
+ • We present extensive experimental evaluation showing and minimize the necessary engineering effort by relying on
+ that Rial To produces reactive policies that solve several sparse rewards. We also simplify sim-to-real by training on
+ manipulation tasks in real-world scenes under physical digital twin assets and co-training with real data [67].
+ disturbances and visual distractions. Across eight diverse Real-to-sim transfer of scenes: Designing realistic sim-
+ tasks, our pipeline provides an improvement of 67% ulation environments has been studied from the perspective
+ over baselines in average success rate across scenarios of syn the sizing digital assets that reflect real objects. Prior
+ withvaryingobjectposes,visualdistractors,andphysical work has used tools from 3 D reconstruction [29] and inverse
+ perturbations. graphics [10] for creating digital twins, and such real-to-sim
+ pipelines have been used for both rigid and deformable [62]
+ II. RELATEDWORK 
+ objects. These approaches are all compatible with our system
+ Learning Visuomotor Control from Demonstrations: and could be used to automate real-to-sim scene transfer and
+ Behavior cloning (BC) of expert trajectories can effectively reduce human effort. Our work similarly leverages advance-
+ acquirerobotcontrolpolicies that operatein the realworld[19, ments in 3 D vision [64] for reconstructing object geometry,
+ 13, 72, 6, 20, 39]. While several works have used BC but we also introduce an easy-to-use GUI for building a
+ to learn per for mant policies from small to moderately-sized URDF/USD with accuratearticulations.Fur the rmore,our GUI
+ datasets [13, 72, 39], per for mance tends to drop when the could be used to improve the aforementioned methods by
+ policy must generalize to variations in scene layouts and making it easier to collect a large dataset of human-annotated
+ appearance. Techniques for improving BC often require much articulated scenes. The accuracy of the simulator could be
+ larger-scale data collection[6,57],raisingscalabilityconcerns. improved further combining our GUI with the latest system
+ Other techniques support generalization with intermediate identification research [41, 35].
+ representations [20] and leverage generative models to add Real-to-sim-to-real transfer: Prior work has used
+ visual distractors [71, 38]. These can improve robustness to Ne RF [43] and other 3 D reconstruction techniques to create
+ visual distractors but do not address physical or dynamic realistic scene representations for improving manipulation
+ disturbances, as these require producing actions not present [73], navigation [16, 8] and locomotion [7]. These works,
+ in the data. however, only use the visual component of the syn the tic
+ Fine-tuning Imitation with RL and Improving RL with scene and do not involve any physical interaction with a
+ Demonstrations: Rein for cement learning has been used to reconstructed geometry. As a result, these systems cannot
+
+ 
+ 
+ 
+ 
+ adjust to environmental changes beyond visual distractions. we have verified the approach with a variety of scanning apps
+ For instance, different grasp poses may require different (e.g., Polycam [52] and ARCode [15]) and 3 D reconstruction
+ placements, and a policy cannot discover these novel pipelines [64, 45], each of which convert a set of multi-view
+ behaviors without physically interacting with the environment 2 Dimages(oravideo)intoatextured 3 Dmesh.Therawmesh
+ during training. A limited number of works have learned denoted G, is typically exported as a single globally-unified
+ policies that interact with the reconstructed environments, geometry,whichisunsuitable for directpolicylearning.Scene
+ but they either simplify the reconstructed shapes [37] or are objects are not separated and the kinematics of objects with
+ limited to simple grasp motions [68]. internal joints are not reflected. Physical parameters like mass
+ and friction are also required and unspecified. We therefore
+ III. RIALTO:AREAL-TO-SIM-TO-REALSYSTEM FOR 
+ further process the raw mesh G into a set of separate bod-
+ ROBUSTROBOTICMANIPULATION 
+ ies/links {G }M with kinematic relations K and physical
+ i i=1 
+ A. System Overview 
+ parameters P. 
+ Our goal is to obtain a control policy that maps real-world While there are various automated techniques for automat-
+ sensory observations to robot actions. We only assume access ically segmenting and adding articulations to meshes [29],
+ to a small set of demonstrations (∼ 15) containing (obser- in this work, we take a simple human-centric approach. We
+ vation, action) trajectories collected by an expert, although in offer a simple graphical interface for humans to quickly
+ principle Rial Tocanalsobeusedtorobustifylarge,expressive separate meshes and add articulations (see Fig. 2). Our GUI
+ pretrained model saswell.Ourapproachrobustifiesreal-world allows users to upload their own meshes and drag/drop,
+ imitationlearningpoliciesusingsimulation-based RLtomake reposition, and reorient them in the global scene. Users can
+ learned controllers robust to disturbances and distractors not then separate meshes and add joints between different mesh
+ presentin the demos.Theproposedpipeline,Rial To,achieves elements, allowing objects like drawers, fridges, and cabinets
+ this with four main steps (Fig 1): to be scanned and processed. Importantly, our interface is
+ 1) We construct geometrically, visually, and kinematically lightweight, intuitive, and requires minimal domain-specific
+ accurate simulation environments from real-world image knowledge. We conducted a study (Section VI) evaluating
+ capture. We leverage 3 D reconstruction tools and develop six non-expert users’ experiences with the GUI and found
+ an easy-to-use graphical interface for adding articulations they could scan complex scenes and populate them with a
+ and physical properties. couple of articulated objects in under 15 minutes of active
+ 2) We obtain a set of successful trajectories containing priv- interaction time. Examples of real-world environments with
+ ileged information (such as Lagrangian state, e.g. object their corresponding digital twins are shown in Fig 4 and
+ and joint poses) in simulation. We propose an “inverse Appendix Fig. 16. 
+ distillation” algorithm to transfer a policy learned from The next question is —how do we infer the physics
+ real-worlddemonstrationstocreatea data setoftrajectories parameters that faithfully replicate the real world? While
+ (i.e., demos) in the simulation environment. accuratelyidentifyingphysicalparametersispossible,this can
+ 3) The syn the sized simulation demos bootstrap efficient fine- bechallenging with outconsiderableinteraction[5,69].While
+ tuning with RL in simulation using an easy-to-design adapting to dynamics variations is an important direction for
+ sparse reward function and low-dimensional state space, future work, in this system we set a single default value for
+ with added randomization to make the policy robust to massandfrictionuni for mlyacrossobjects and compensate for
+ environmental variations. thesim-to-realgaptoactualreal-worldvaluesbyconstraining
+ 4) The learned policy is transferred to reality by distilling a the learned policy to be close to a small number of real-world
+ state-based simulation policy into a policy operating from demonstrations as discussed in Section III-C.
+ raw sensor observations available in the real world [9, 12]. This procedure produces a scene S = {{G i }M i=1 ,K,P}
+ During distillation, we also co-trained with the original represented in a USD/URDF file that references the separated
+ real-world demonstrations to capitalize on the combined meshes and their respective geometric (G i }M i=1 ), kinematics
+ benefits of simulation-based robustification and in-domain (K) and physical parameters (P). This environment can sub-
+ real-world data. sequently be used for large-scale policy robustification in
+ The following sections describe each component in detail, simulation. 
+ along with a full system overview in Fig 1. 
+ C. Robustifying Real-World Imitation Learning Policies in
+ B. Real-to-Sim Transfer for Scalable Scene Generation Simulation 
+ The first step of Rial To is to construct geometrically, Given the simulation environment generated in Section
+ visually,andkinematicallyrealisticsimulatedscenes for policy III-B, the next step in Rial To involves learning a robust
+ training. This requires (i) generating accurate textured 3 D policy in simulation that can solve desired tasks from a
+ geometry from real-world images and (ii) specifying articu- wide variety of configurations and environmental conditions.
+ lations and physical parameters. For geometry reconstruction, While this can be done by training policies from scratch in
+ we use existing off-the-shelf 3-D reconstruction techniques. simulation,thisisoftenaprohibitivelyslowprocess,requiring
+ Our pipeline is agnostic to the particular method used, and considerable manual engineering. Instead, we will adopt a
+
+ 
+ 
+ 
+ 
+ 
+ 3 D reconstruction 
+ (Ne RFStudio, ARCode, Scene reconstruction GUI Articulated USD 
+ Polycam) 
+ Upload/Scale/Move scene Upload more objects Cut mesh Add joint
+ 
+ 
+ 
+ 
+ 
+ 
+ Fig. 2. Overview of the real-to-sim pipeline for transfering scenes to the simulator. The first stage consists of scanning the environment, using off-the-
+ shelf tools such as Ne RFStudio, ARCode, or Polycam. Each has its strengths and weaknesses and should be used appropriately (see Appendix XII for
+ recommendations). The second stage consists of uploading the reconstructed scene into Rial To’s GUI where the user can cut the mesh, specify joints, and
+ organize the sceneasdesired.Oncecomplete,thescene can bedownloadedasa USDasset,which can bedirectlyimportedinto the simulator.
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ {a 1 , . e . 1 . , x 1 , e a i : : e a e c ti p o o n s e (e e pose)
+ i a T , e T , x T } x i : object poses 
+ desab-noisi V 
+ ycilop 
+ {a, e, o } D t t t real 
+ o t e t ee pose e t 
+ 3 D 
+ Conv 
+ MLP 
+ Succeeded 
+ PPO with 
+ Failed BC loss 
+ a tʼ 
+ ∩ 
+ Learning from 
+ 1 2 Simulation transfer 3 RL fine-tuning 
+ the real world 
+ Real-world 
+ demos 
+ o 
+ t point Vision-based 
+ cloud 
+ Si R m o u l l l a o t u e t d e t ee policy Sim Sc u e la n t e ed
+ point Scene pose object x ee poses t pose cloud Collect fully
+ simulated trajectory 
+ State-based MLP policy
+ Train with 
+ Privileged information 
+ Supervised 
+ Learning demos a 
+ tʼ 
+ Fig. 3. Inverse distillation & RL fine-tuning. We introduce a novel procedure for going from point cloud-based policies trained from real-world
+ demonstrations D real to a robust privileged state-based policy in simulation. 1) Train a vision-based policy with supervised learning on D real 2) Rollout
+ thevision-basedpolicyon the simulationrenderedpointclouds and collectasetof 15 privilegeddemonstrations with objectposes,D sim 3)Trainarobust
+ state-basedpolicy with RLandasparsereward,addinga BClossfitting D sim tobiasexploration and setaprioronreal-world-transferablepolicies.
+ fine-tuning-based approach, using rein for cement learning in information demonstrations can then be used to instantiate an
+ simulationtofine-tuneapolicyinitialized from asmallnumber efficient RL-based fine-tuning procedure (Section III-C 2) in
+ of expert demonstrations collected in the real world. Since simulation to massively improve policy robustness.
+ training RL directly from visual observations is challenging, 
+ we would ideally like to fine tune simulation policies that 1) Inverse-distillation from Real-to-Sim for Privileged Pol-
+ are based on a privileged Lagrangian state. However, real- icy Transfer: We assume a human provides a small
+ worlddemonstrationsdonot have accessto the low-levelstate number of demonstrations in the real world D real =
+ informationin the environment.Toenable the bootstrappingof {(oi,ai),...,(oi ,ai )}N ,wheretrajectoriescontainobser-
+ 1 1 H H i=1 
+ RLfinetuninginsimulation from aprivilegedstateusingreal- vations o (3 D point clouds) and actions a (delta end-effector
+ world demonstrations, we introduce a novel “inverse distilla- pose). Considering that simulation-based RL fine-tuning is far
+ tion”(Section III-C 1)procedure that isabletotakereal-world moreefficient and per for mantwhenoperating from acompact
+ demonstrations with only raw sensor observations and actions staterepresentation[32,11](see Section V-C)andwewishto
+ and transfer them to simulation demonstrations, complete use real-world human demonstrations to avoid the difficulties
+ with low-level privileged state information. These privileged with running RL from scratch (see Section V-B), we want to
+ transfer our observation-action demonstrations from the real
+
+ 
+ 
+ 
+ 
+ world to simulation in a way that allows for subsequent RL In addition to mitigating issues associated with explo-
+ fine-tuning in simulation from compact state-based represen- ration [46, 54], leveraging the additional imitation learning
+ tations. This presents a challenge because we do not have term in the objective helps bias the policy toward physically
+ an explicit state estimation system that provides a Lagrangian plausible, safe solutions that improve transfer of behaviors to
+ state for the collected demonstrations in the real world. We reality.During this process,we cantrain the policy for robust-
+ insteadintroduceaprocedure,called“inverse-distillation”,for ness by randomizing initial robot/object/goal poses. Appendix
+ converting our real-world set of demonstrations into a set of VIII contains complete details of our training procedure. The
+ trajectories in simulation that are paired with privileged low- result is a robust policy π∗ (a|s) operating from Lagrangian
+ sim 
+ level state information. state that is successful from a wide variety of configurations
+ Given the demonstrations D , we can naturally train a and environmental conditions.
+ real 
+ policy π (a|o) on this dataset via imitation learning. “In- 
+ real 
+ D. Teacher-Student Distillation with Co-Training on Real-
+ verse distillation” involves executing this perception-based 
+ World Data for Sim-to-Real Transfer 
+ learned policy π (a|o) in simulation, based on simu- 
+ real 
+ lated sensor observations o, to collect a dataset D sim = In previous sections, we described a method for efficiently
+ {(oi,ai,si)...,(oi ,ai ,si )}M of successful trajectories learning a robust policy π∗ (a|s) in simulation using privi-
+ 1 1 1 H H H i=1 sim 
+ which contain privileged state information si. The key insight leged state information. However, in the real world, this priv-
+ t 
+ here is that while we do not have access to the Lagrangian ileged information is unavailable. Policy deployment requires
+ state in the real-world demonstrations when a learned real- operating directly from sensory observations (such as point
+ world imitation policy is executed from perceptual inputs in clouds) in the environment. To achieve this, we build on
+ simulation, low-level privileged Lagrangian state information the framework of teacher-student distillation (with interactive
+ cannaturallybecollected from the simulationaswellsince the DAgger labeling)[57, 12] where the privileged information
+ pairing between perceptual observations and Lagrangian state policy π∗ (a|s) serves as a teacher and the perceptual policy
+ sim 
+ is known apriori in simulation. Since the goal is to improve π∗ (a|o) is the student. Since there is inevitable domain shift
+ real 
+ beyond the real-world imitation policy π real (a|o), we can then between simulation and real domains, this training procedure
+ perform RL fine-tuning, incorporating the privileged demon- can be further augmented by co-training the distillation ob-
+ stration dataset D sim into the training process, as discussed in jective with a mix of the original real-world demonstration
+ the following subsection. data D and simulation data drawn from π∗ (a|s) (via the
+ real sim 
+ 2) Rein for cement Learning Fine-tuning in Simulation: DAgger objective [12]). This results in the following co-
+ Given the privileged information dataset D , and the con- training objective for teacher-student policy learning:
+ sim 
+ structed simulation environment the goal is to learn a robust 
+ policy π∗ (a|s) using rein for cement learning. There are two maxα (cid:88) π θ (π teacher (s i )|o i )
+ key chal s l i e m nges in doing so in a scalable way: (1) resolving θ (si,oi,ai)∼τπθ (cid:80) ac π θ (a c |o i )
+ (2) 
+ exploration challenges with minimal reward engineering, and 
+ (2) ensuring the policy learns behaviors that will transfer +β (cid:88) (cid:80) π θ (a i |o i )
+ π (a |o ) 
+ to the real world. ‘ We find that both challenges can be (oi,ai)∈Dreal ac θ c i
+ addressedbyasimpledemonstrationaugmentedrein for cement 
+ Here the first term corresponds to DAgger training in
+ learning procedure [60, 46, 54], using the Lagrangian state- 
+ simulation, while the second term co-trains on real-world
+ based dataset D . To avoid reward engineering, we define a 
+ sim expert data. This allows the policy to take advantage of
+ simple reward function that detects if the scene is in a desired 
+ small amounts of high-quality real-world data to bridge the
+ goalstate(detailedsparserewardfunctionsusedineachtaskin 
+ perceptual gap between simulation and real-world scenes and
+ Appendix VIII).Webuildon the proximalpolicyoptimization 
+ improve generalization compared to only using the data from
+ [59] algorithm with the addition of an imitation learning loss 
+ simulation. We empirically demonstrate (Section III-D) that
+ asfollows(where Aˆ istheestimatorof the advantagefunction 
+ t thissignifi can tlyincreasestheresultingsuccessratein the real
+ at step t [59], and V is the learned value function): 
+ ϕ world.Onapracticalnote,werefer the readerto Appendix IX
+ for additional details on the student-teacher training scheme
+ maxα (cid:88) min( π θ (a t |s t ) Aˆ , thatenablesittobesuccessfulin the proposedproblemsetting.
+ θ,ϕ (st,at,rt)∈τπθold π θold(at|st) t IV. EXPERIMENTALEVALUATION 
+ clip( π θ (a t |s t ) ,1−ϵ,1+ϵ)Aˆ ) Our experiments are designed to answer the following
+ π t questions about Rial To: (a) Does Rial To provide real-world
+ +β 
+ θ 
+ (cid:88) 
+ old(at|st) 
+ (V (s )−Vtarg)2 (1) policiesrobusttovariationsinconfigurations,appearance,and
+ ϕ t t 
+ disturbances? (b) Does co-training policies with real-world
+ (st,V 
+ t 
+ targ)∈τπθold 
+ +γ (cid:88) π θ (a i |s i ) For the sakeof this work,wewillassume that the optimalactions for the
+ (cid:80) π (a |s ) student and teachercoincide,andthere are noin for mationga the ringspecific
+ (si,ai)∈Dsim ac θ c i challengesinducedbypartialobservability[60]
+
+ 
+ 
+ 
+ 
+ Open toaster Plate on rack Book on shelf Mug on shelf Open Drawer Open cabinet
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ htiw 
+ derettul C 
+ 
+ 
+ 
+ 
+ 
+ ksa T 
+ lanigir O 
+ noitalumi S 
+ secnaburtsid 
+ noitazimodna R 
+ Fig.4. Wedepict the six task susedtoevaluate Rial To.Fromtoptobottom,wefirstshowtheoriginalenvironmentwherewecollect the demonstrations,
+ second the simulatedenvironment,third the environmentwherewedo our finalevaluationcontainingclutter and disturbances,andfourth the taskr and omization
+ overvieweachshaded are acorrespondstoanapproximationofhowmuchr and omizationeachobject/robot have.
+ 
+ databenefitreal-worldevaluationper for mance?(c)Isthereal- robot base when possible.
+ to-sim transfer of scenes and policies necessary for training We conduct our experiments on a Franka Panda arm with
+ efficiency and the resulting per for mance? (d) Does Rial To the default parallel jaw gripper, using 6 Do F Cartesian end
+ scale up to more in-the-wild scenes? effector position control. For perceptual inputs, we obtain
+ To answer these questions, we evaluate Rial To in eight 3 D point cloud observations from a single calibrated depth
+ differenttasks,shownin Figure 4 and 8.Theseinclude 6-Do F camera. More details on the hardw are setup can be found in
+ grasping and reorientation of free objects (book on a shelf, Appendix X. All of the results in the real world are evaluated
+ plate on a rack, mug on a shelf) and 6-Do F grasping and using the best policy obtained for each method, we report
+ interacting with articulated objects (drawer and cabinet) on a the average across at least 10 rollouts and the bootstrapped
+ tabletop and opening a toaster, plate on a rack, putting a cup standard deviation. Videos of highlights and evaluation runs
+ in the trash in more uncontrolled scenes. More details on the are available in the website.
+ tasks such as their sparse reward functions and randomization Throughout the next sections, we will evaluate Rial To
+ setups are presented in Appendix VIII. For each task, we against the following set of baselines and ablations: 1) Im-
+ consider three different disturbance levels in increasing order itation learning from 15 and 50 demos (Section IV-A); 2) No
+ of difficulty (see Appendix VIII for more details): co-training on real-world data (Section IV-B); 3) Co-training
+ 1) Randomizing object poses: at the beginning of each on demonstrations in simulation (Section IV-B); 4) Rial To
+ episode we randomize the object and/or robot poses. from simulation demos (Section IV-C 2); 5) Learning from an
+ 2) Adding visual distractors: at the beginning of each untargeted set of simulated assets (Section IV-C 1); 6) Rial To
+ episode we also add visual distractors in a cluttered way. without distractors (Section V-A); 7) Rial To without demos
+ 3) Applying physical disturbances: we apply physical dis- (Section V-B) 
+ turbances throughout the episode rollout. We change 
+ A. Rial To Learns Robust Policies via Real-to-Sim-to-Real
+ the pose of the object being manipulated or the target 
+ location where the object needs to be placed, close the In this section, we aim to underst and whether Rial To
+ drawer/toaster/cabinet being manipulated, and move the can solve complex tasks, showing robustness to variations in
+ 
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 50 100 50 100 50 100 50 100 50 100 50 100 
+ 90 90 90 100 90 85 
+ 30 10 10 10 40 50 
+ 90 70 60 70 90 80 
+ 20 
+ 0 0 0 50 0 
+ 90 60 50 80 90 80 
+ 20 10 
+ 0 0 0 0 
+ Success Rate 
+ eso P 
+ srotcartsi D 
+ secnabrutsi D 
+ noitazimodnar 
+ Kitchen toaster Book on shelf Plate on rack Mug on shelf Open drawer Open cabinet
+ Rial To Imitation learning 
+ Fig.5. Comparisonof Rial Toagainstimitationlearningboth from 15 demonstrations.Rial Toprovidesrobustpoliciesacrosstasks and levelsofdistractions
+ whileimitationlearningseverelysufferswhenaddingdistractors and disturbances. 
+ configurations, disturbances, and distractors. We comp are our Onlyr and omization Distractors Disturbances
+ approachofreal-to-sim-to-real RLfine-tuningagainstapolicy 
+ BC(15 demos) 10±9% 0±0% 0±0% 
+ trainedonlyonreal-worlddemosviast and ardimitationlearn- BC(50 demos) 40±15% 30±16% 20±13%
+ ing (BC). We report the results of running Rial To’s pipeline Rial To(15 demos) 90±9% 70±14% 60±16%
+ starting from 15 demoscollecteddirectlyinsimulationandco- TABLEI 
+ training with 15 real-world demos during the teacher-student RIALTO AND IMITATIONLEARNINGONPLACINGABOOKON THE SHELF.
+ distillation.In Section IV-C 2 weshowacomparisonofrunning 
+ Rial To uniquely on real or sim demos. 
+ morethan the humanef for tfor Rial Toforwhichwecollect 15
+ The results in Figure 5 show Rial To maintains high perfor- demos,in 30 minutes,andbuild the environmentin 15 minutes
+ mance across configuration levels, achieving on average 91% of active time (see Section VI). Although more data improves
+ success across tasks for randomizing object poses, 77% with theper for manceofdirectimitationlearning from 10%to 40%,
+ distractors, and 75% with disturbances. On the other hand, 0% to 30%, and 0% to 20% for the three different levels of
+ the presence of distractors and disturbances severely reduces robustness, the results in Table I show that Rial To achieves
+ the per for mance of pure imitation learning. For instance, approximately 2.5 times higher success rate than pure BC,
+ when only randomizing the object poses, the BC baseline despiteusinglessthanonethird the numberofdemonstrations
+ achieves an average of 25% success rate across tasks. Under and taking less than half of the human supervision’s time.
+ more challenging conditions, the BC baseline drops to 11% 
+ and 5% overall per for mance on average for distractors and B. Impact of Co-Training with Real-World Data
+ disturbances, respectively. 
+ Next, we assess the benefits offered by co-training with
+ Figure 1, 10 and the videos in the website qualitatively real-world demonstrations during teacher-student distillation,
+ show how the resulting policies are robust to many kinds of rather than just purely training policies in simulation. We
+ environment perturbations, including moving the robot, mov- consider the book on shelf, plate on rack, mug on shelf, and
+ ing the manipulated object and target positions, and adding open drawer tasks (the two first being two of the harder
+ visual distractors that cause occlusion and distribution shift. tasks with lower overall per for mance). The results in Fig-
+ The policy rollouts also demonstrate error recovery capabil- ure 6 illustrate that co-training the policy with 15 real-world
+ ities, correcting the robot’s behavior in closed loop when, demonstrations signifi can tly increases real-world per for mance
+ e.g., objects are misaligned or a grasp must be reattempted. on some tasks(3.5 x and 2 x success rate increase for book on
+ This highlights that Rial To provides robustness that does not shelf and plate on rack with disturbances, when comparing
+ emerge by purely learning from demonstrations. co-training on real-world demos against co-training with sim
+ We also comp are Rial To against behavior cloning with 50 demos) while keeping the same per for mance on tasks that
+ demonstrations to show that the problem is not simply one already have asmallsim-to-realgap.Qualitatively,weobserve
+ of slightly more data. Collecting the 50 demonstrations takes theco-trainedpolicyismoreconservative and safertoexecute.
+ a total time of 1 hour and 45 minutes, which is signifi can tly For instance, the policy without co-training usually comes
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ eso P 
+ 
+ 
+ srotcartsi D 
+ 
+ 
+ 
+ 
+ secnabrutsi D 
+ noitazimodnar 
+ 
+ 50 100 50 100 50 100 
+ Plate on rack Book on shelf Open drawer 
+ 80 70 100 
+ 90 90 90 
+ 50 50 100 
+ 50 60 90 
+ 70 70 80 
+ 60 70 90 
+ 30 30 90 
+ 20 50 90 
+ 60 70 80 
+ 50 60 90 
+ 30 30 80 
+ 20 40 90 
+ real demos and sim demos and sim demos and 
+ only sim demos 
+ real co-training real co-training sim co-training 
+ Fig. 6. Comparison between running Rial To on sim vs real data. The 
+ per for manceon the methodsdoingco-training with real-worlddemosishigher 
+ thanusingonlysimulateddemosornoreal-worldco-training,ontheharder 
+ tasks(plateonrack and bookonshelf),andmatches the per for mancein the 
+ easiertasks(opendrawer and mugonshelf).Fur the rmore,starting from real- 
+ worldorsimulateddemosdoesequallywell. 
+ very close to the plate or the book, occasionally causing 
+ it to fall. The policy with co-training data, however, leaves 
+ more space between the hand and the book before grasping, 
+ which is closer to the demonstrated behavior. The observation 
+ that sim co-training performs signifi can tly worse than real- 
+ world co-training, indicates that co-training with real-world 
+ demonstrations is helping in reducing the sim-to-real gap for 
+ both the visual distribution shift between simulated and real 
+ point clouds and the sim-to-real dynamics gap. 
+ C. Is Real-to-Sim Transfer Necessary? 
+ 100 
+ 50 
+ Simulated Real world 
+ Objaverse Target 
+ etar 
+ sseccus 
+ reward 
+ nep O 
+ 1) Real-to-Sim Transfer of Scenes: Instead of reconstruct-
+ ing assets from the target environment, one could train a
+ policy on a diverse set of syn the tic assets and hope the model
+ generalizes to the real-world target scene [12, 21, 66]. While
+ thishasshownpromisingresults for object-levelmanipulation,
+ such as in-hand reorientation [12], it is still an active area of
+ work for scene-level manipulation and rearrangement [21].
+ Moreover, such methods require significant effort in creating
+ a dataset of scenes and objects that enables the learned
+ policies to generalize. Acquiring a controller that can act in
+ many scenes is also a more challenging learning problem,
+ requiringlongerwallclocktime,morecompute,andadditional
+ engineering effort to train a per for mant policy on a larger and
+ more diverse training set. 
+ To probe the benefits of Rial To over such a sim-only train-
+ ing pipeline, we compared the per for mance against a policy
+ trained using only syn the tic assets. Using an amount of time
+ effort roughly comparable to what is required from a single
+ user following our real-to-sim approach (see Section VI), we
+ collected a set of 4 drawers from the Objaverse dataset (see
+ Figure 7). Although this is small compared to the growing
+ size of 3 D object datasets, we found it non-trivial to transfer
+ articulated objects into simulation-ready USDs and we leave
+ it as future work. Given these manually constructed diverse
+ simulation scenes, we then trained a multi-task policy using
+ Rial To from 20 demonstrations to open the 4 drawers. See
+ Appendix IX-C for the minor modifications to incorporate
+ multi-task policy learning to Rial To. 
+ As shown in Figure 7, when evaluating the real target
+ drawer, the policy trained on multiple drawers only achieves
+ a 10% success rate, much lower than the 90% obtained
+ by the policy trained on the target drawer in simulation.
+ This leads us to conclude that to train a generalist agent,
+ considerably more data and effort are needed as compared
+ to the relatively simple real-to-sim procedure we describe
+ for test time specialization. Moreover, this suggests that for
+ Objaverse Drawers Target per for mance on particular deployment environments, targeted
+ generation of simulation environments via real-to-simulation
+ pipelines may be more effective than indiscriminate, diverse
+ procedural scene generation. 
+ 2) Real-to-simtransferofpolicies: Weadditionallywantto
+ underst and the impact of transferring policies from real-world
+ Trained on target (Rial To) Trained on Objaverse demonstrations in comparison to running the pipeline starting
+ withdemoscollecteddirectlyinsimulation.Thishelpsanalyze
+ whether instead of collecting demos both in simulation and
+ in the real world (for the co-training) we can simply collect
+ demos in the real world and do all the training with those.
+ Figure 6 shows the real-world per for mance of policies
+ trained using Rial To when starting the RL fine-tuning step
+ 17 81 90 10 
+ usingreal-worlddemonstrationsasexplainedin III-C 1 against
+ using demonstrations provided directly in simulation. We
+ observe that the per for mance for both cases is very close.
+ Fig.7. Comparisonbetweentraining with Rial Toon the reconstructionof the These results show that Rial To successfully learns policies
+ targetdraweragainsttrainingonasetoff our drawers from Objaverse[17].We 
+ with demonstrations from either source of supervision as long
+ observe, that Rial To on the real-to-sim asset does signifi can tly better (90% 
+ vs 10%) when testing in the real world on the target drawer compared to aswekeepco-training the policies with real-worlddatain the
+ trainingon the setofr and omizeddrawers. teacher-student distillation step. Firstly, this indicates that we
+
+ 
+ 
+ 
+ 
+ Pose Randomization Distractors 
+ 
+ Rial Towithoutdistractortraining 60±15% 30±15% 
+ Rial Towithdistractortraining 100±0% 70±15% 
+ TABLEII 
+ REAL-WORLDPER FOR MANCEOFPOLICIESTRAINED WITH AND WITHOUT 
+ DISTRACTORSON THE TASKOFPLACINGAMUGONASHELF. 
+ do not need to collect both demos in sim and real, but we 
+ can run Rial To uniquely from the demos in the real world. 
+ Fur the rmore, this flexibility is a strength of our pipeline, as 
+ the ease of acquiring different sources of supervision may 
+ varyacrossdeploymentscenarios–i.e.,onecouldusepolicies 
+ pretrained from large-scalereal-world data orobtain data from 
+ a simulation-based crowds our cing platform. 
+ D. Scaling Rial To to In-the-Wild Environments 
+ 
+ Open toaster Cup in trash Dish in rack 
+ 
+ Cup in trash 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 100 
+ 
+ 
+ 50 
+ 
+ 90 30 90 30 50 0 
+ etar 
+ sseccu S 
+ robust policy that succeeds even in visual clutter. We analyze
+ how this affects the final robustness of the learned policy.
+ For the sake of analysis, we consider the per for mance on the
+ mug on the shelf task. The small size of the mug and its
+ resemblance in shape and size to other daily objects make the
+ visual component of this task particularly challenging when
+ other objects are also present. Our findings in Table II show
+ that adding distractors during training increases the success
+ rate from 30%to 70%whentesting the policyinenvironments
+ with distractors. We also observe a per for mance improvement
+ insetups with nodistractorssuggesting that suchtrainingalso
+ supports better sim-to-real policy transfer.
+ B. Comparison to RL from Scratch 
+ We hypo the size two key advantages of incorporating
+ demonstrations in the fine tuning process: (1) aiding explo-
+ ration,and(2)biasing the policytowardbehaviors that transfer
+ welltoreality.Resultsin Table IIIshow that training from PPO
+ from scratch fails (0% success) in three out of five tasks and
+ much poorer per for mance in the other two tasks. On tasks
+ with non-zero success, we observed that the policy exploits
+ simulator inaccuracies and learns behaviors that are unlikely
+ to transfer to reality. (see Appendix Fig. 15). For example,
+ the PPO policy opens the toaster by pushing on the bottom of
+ the toaster, leveraging the slight misplacement of the joint on
+ the toaster. Such behaviors are unsafe and would not transfer
+ to reality, underlining the importance of using demonstrations
+ during policy robustification. 
+ C. RL from Vision 
+ Rial To’s“inversedistillation”proceduretoacompactstate-
+ spaceaddssomemethodologicaloverheadto the systemwhen
+ compared to the possibility of doing RL fine-tuning directly
+ on visual observations. However, as reported in Appendix
+ Fig. 14, on the task of drawer opening, RL from compact
+ states achieves a 96% success rate after 12 hours of wall-
+ clock time, while RL from vision only achieves a 1% success
+ Rial To Imitation learning 
+ rate after 35 hours. Hence, inverse distilling to state space is
+ necessarybecausetraining RLfromvision with sparserewards
+ Fig.8. Wetest Rial Toonuncontrolledandin-the-wildscenes,andweseewe is prohibitively slow, motivating the methodology outlined in
+ cancontinuetosolveavarietyof task smorerobustlythanimitationlearning 
+ Section III-C 1. 
+ techniques. 
+ Inthissection,wescaleup Rial Totomoreuncontrolled and 
+ VI. USERSTUDY 
+ in-the-wild environments. We test Rial To on three different We analyzed the usability of Rial To’s pipeline for bringing
+ tasks:open the microwaveinakitchen(alsoshownin Section real-world scenes to simulation. We ran a user study over
+ IV-A), put a cup in the trash, and bring the plate from 6 people, User 6 being an expert who used the GUI before
+ the sink to the dishrack. We observe that Rial To scales and Users 1-5 never did any work on simulators before. Each
+ up to these more diverse scenes and continues to perform participantwastasked with creatinganarticulatedsceneusing
+ signifi can tlybetterthanst and ardimitationlearningtechniques. the provided GUI. More precisely, their task was to: 1) scan
+ In particular, Rial To brings on average a 57% improvement a big scene, 2) cut one object, 3) scan and upload a smaller
+ upon standard imitation learning, see Fig 8. object, and 4) add a joint to the scene. From Figure 9, we
+ found that the average total time to create a scene was 25
+ V. FUR THE RANALYSIS AND ABLATIONS 
+ minutes and 12 seconds of which only 14 minutes and 40
+ A. Training with Distractors 
+ seconds were active work. We also observed that the expert
+ When per for ming teacher-student distillation we per for med user accomplished the task faster than the rest, and twice as
+ randomization with additionalvisualdistractorstotrainamore fast as the slowest user. This indicates that with practice, our
+
+ 
+ 
+ 
+ 
+ Open Bookon Plateon Mugon Open 
+ toaster shelf rack shelf drawer 
+ RLfromscratch with 0 demos 62±2% 0±0% 2±0% 0±0% 0±0% 
+ RLfine-tuning from 15 realdemos 91±1% 90±1% 81±2% 81±2% 96±1% 
+ RLfine-tuning from 15 simdemos 96±1% 89±1% 82±2% 82±2% 95±1% 
+ TABLEIII 
+ COMPARISONOFTRAININGRLFROMSCRATCHAGAINSTRL FROM REAL AND SIMDEMOS.RLFROMSIM AND REALDEMOSSEEMTOBEEQUIVALENT
+ INMOSTCASES,BUTRL FROM SCRATCHB ARE LYSOLVES THE TASK. 
+ 
+ GUI allows users to become faster at generating scenes. We days of wall-clock time end-to-end to train a policy for each
+ conclude that doing the real-to-simtransferof the scenesusing task, this time bottleneck makes continual learning infeasible
+ the proposed GUI seems to be an intuitive process that is and underst and ing how to obtain policies faster with minimal
+ neither time nor labor-intensive when compared to collecting human supervision would be valuable. We expect with more
+ many demonstrations in the real world. We provide more efficient techniques for learning with point clouds and better
+ details about the study in Appendix XIII. parallelization, this procedure can be sped up signifi can tly.
+ Conclusion: This work presents Rial To, a system for
+ acquiring policies that are robust to environmental varia-
+ User 1 19:46 
+ tions and disturbances on real-world deployment. Our system
+ User 2 16:30 achieves robustness through the complementary strengths of
+ real-world imitation learning and large-scale RL on digital
+ User 3 16:07 
+ twin simulations constructed on the fly. Our results show that
+ User 4 12:27 byimporting 3-Dreconstructionsofrealscenesintosimulation
+ and collecting a small amount of demonstration data, non-
+ User 5 12:17 
+ expertusers can programmanipulationcontrollers that succeed
+ User 6 10:54 under challenging conditions with minimal human effort,
+ showing enhanced levels of robustness and generalization.
+ 0 5 10 15 20 25 30 35 40 
+ Minutes 
+ Scan Processing 
+ Scan Time Joint Time & Uploading Time ACKNOWLEDGMENTS 
+ 2 nd Scan Time Cut Time 10:54 Total Active Time 
+ The authors would like to thank the Improbable AI Lab
+ Fig.9. 3 Dreconstruction GUI’suserstudybreakdowntimes.Onaverageit andthe WEIRDLabmembers for the irvaluablefeedback and
+ takes 14 minutes and 40 secondsofactivetimeor 25 minutes and 12 seconds supportindeveloping this project.Inparticular,wewouldlike
+ oftotaltimetocreateascenethrough our proposedpipeline. 
+ to acknowledge Antonia Bronars and Jacob Berg for helpful
+ suggestions on improving the clarity of the manuscript, and
+ VII. LIMITATIONS AND CONCLUSION Marius Memmel for providing valuable insights on learning
+ frompointcloudsintheearlystagesof the project.Thiswork
+ Limitations: While our useof 3 Dpointcloudsinsteadof 
+ was partly supported by the Sony Research Award, the US
+ RGB enables easier sim-to-real transfer, we require accurate 
+ Government, and Hyundai Motor Company. 
+ depth sensors that can struggle to detect thin, transparent, 
+ and reflective objects. Future work may investigate applying 
+ Rial Tototrainpolicies that operateon RGBimagesor RGBD, Author Contributions 
+ as our framework makes no fundamental assumptions that Marcel Torne conceived the overall project goals, investi-
+ prevent using different sensor modalities. We are also limited gatedhowtoobtainreal-to-simtransferofscenes and policies,
+ to training policies for tasks that can be easily simulated and and robustly do sim-to-real transfer of policies, wrote all the
+ for real-world objects that can be turned into digital assets. code for the policy learning pipeline and Rial To’s GUI for
+ Currently, this is primarily limited to articulated rigid bodies, real-to-sim transfer of scenes, ran simulation and real-world
+ but advancements in simulating and representing deformables experiments, wrote the paper, and was the primary author of
+ should allow our approach to be applied to more challeng- the paper. 
+ ing objects. Even though we show Rial To works on fast Anthony Simeonov helped with setting up the robot hard-
+ controllers, these are still relatively slow to minimize the ware, made technical suggestions on learning policies from
+ sim-to-real gap in dynamics, thereafter there is potential to point clouds, helped with the task of placing the plate on the
+ investigate tasks for which faster controllers are needed. In rack, and actively helped with writing the paper.
+ this work, we consider relatively quasistatic problems, where Zechu Li assisted in the early stage of conceiving the
+ exact identification of physics parameters is not necessary project and helped develop Rial To’s GUI for the real-to-sim
+ for the constructed simulation. This will become important transfer of the scenes.
+ as more complex environments are encountered. Finally, as April Chan led the user study experiments to analyze
+ we explain in Section XIV, Rial To currently takes around 2 Rial To’s GUI. 
+
+ 
+ 
+ 
+ 
+ Tao Chenprovidedvaluableinsights and recommendations via simulation and generative modeling. In Towards
+ on sim-to-real transfer. Generalist Robots: Learning Paradigms for Scalable
+ Abhishek Gupta was involved in conceiving the goals Skill Acquisition@ Co RL 2023, 2023.
+ of the project, assisted with finding the scope of the paper, [11] Tao Chen, Jie Xu, and Pulkit Agrawal. A system for
+ suggested baselines and ablations, played an active role in general in-hand object re-orientation. In Conference on
+ writing the paper and co-advised the project. Robot Learning, pages 297–307. PMLR, 2022.
+ Pulkit Agrawal suggested the idea of doing real-to-sim [12] Tao Chen,Megha Tippur,Siyang Wu,Vikash Kumar,Ed-
+ transfer of scenes, was involved in conceiving the goals of ward Adelson, and Pulkit Agrawal. Visual dexterity: In-
+ the project, suggested baselines and ablations, helped edit the hand reorientation of novel and complex object shapes.
+ paper, and co-advised the project. Science Robotics, 8(84):eadc 9244, 2023.
+ [13] Cheng Chi, Siyuan Feng, Yilun Du, Zhenjia Xu, Eric
+ REFERENCES 
+ Cousineau, Benjamin Burchfiel, and Shuran Song. Dif-
+ [1] Open AI: Marcin Andrychowicz, Bowen Baker, Maciek fusion policy: Visuomotor policy learning via action
+ Chociej, Rafal Jozefowicz, Bob Mc Grew, Jakub Pa- diffusion. ar Xiv preprint ar Xiv:2303.04137, 2023.
+ chocki, Arthur Petron, Matthias Plappert, Glenn Powell, [14] Paul FChristiano,Jan Leike,Tom Brown,Miljan Martic,
+ Alex Ray, et al. Learning dexterous in-hand manipula- Shane Legg, and Dario Amodei. Deep rein for cement
+ tion. The International Journalof Robotics Research,39 learning from human preferences. Advances in neural
+ (1):3–20, 2020. information processing systems, 30, 2017.
+ [2] Philip J Ball, Laura Smith, Ilya Kostrikov, and Sergey [15] AR Code. Ar code. https://ar-code.com/, 2022.
+ Levine. Efficient online rein for cement learning with [16] Matt Deitke, Rose Hendrix, Ali Farhadi, Kiana Ehsani,
+ offline data. ar Xiv preprint ar Xiv:2302.02948, 2023. and Aniruddha Kembhavi. Phone 2 proc: Bringing robust
+ [3] Max Balsells,Marcel Torne,Zihan Wang,Samedh Desai, robots into our chaotic world. In Proceedings of the
+ Pulkit Agrawal, and Abhishek Gupta. Autonomous IEEE/CVF Conference on Computer Vision and Pattern
+ roboticrein for cementlearning with asynchronoushuman Recognition, pages 9665–9675, 2023.
+ feedback. ar Xiv preprint ar Xiv:2310.20608, 2023. [17] Matt Deitke, Dustin Schwenk, Jordi Salvador, Luca
+ [4] Kevin Black, Michael Janner, Yilun Du, Ilya Kostrikov, Weihs, Oscar Michel, Eli Vander Bilt, Ludwig Schmidt,
+ and Sergey Levine. Training diffusion models with re- Kiana Ehsani, Aniruddha Kembhavi, and Ali Farhadi.
+ inforcement learning. ar Xiv preprint ar Xiv:2305.13301, Objaverse: A universe of annotated 3 d objects. In
+ 2023. Proceedings of the IEEE/CVF Conference on Computer
+ [5] Jeannette Bohg, Karol Hausman, Bharath Sankaran, Vision and Pattern Recognition, pages 13142–13153,
+ Oliver Brock, Danica Kragic, Stefan Schaal, and Gau- 2023. 
+ rav S Sukhatme. Interactive perception: Leveraging [18] Yunhai Feng, Nicklas Hansen, Ziyan Xiong, Chan-
+ action in perception and perception in action. IEEE dramouli Rajagopalan, and Xiaolong Wang. fine tuning
+ Transactions on Robotics, 33(6):1273–1291, 2017. offline world models in the real world. ar Xiv preprint
+ [6] Anthony Brohan, Noah Brown, Justice Carbajal, Yev- ar Xiv:2310.16029, 2023.
+ gen Chebotar, Joseph Dabis, Chelsea Finn, Keerthana [19] Pete Florence, Corey Lynch, Andy Zeng, Oscar A
+ Gopalakrishnan, Karol Hausman, Alex Herzog, Jasmine Ramirez, Ayzaan Wahid, Laura Downs, Adrian Wong,
+ Hsu, et al. Rt-1: Robotics trans for mer for real-world Johnny Lee, Igor Mordatch, and Jonathan Tompson.
+ control at scale. ar Xiv preprint ar Xiv:2212.06817, 2022. Implicit behavioral cloning. In Conference on Robot
+ [7] Arunkumar Byravan,Jan Humplik,Leonard Hasenclever, Learning, pages 158–168. PMLR, 2022.
+ Arthur Brussee, Francesco Nori, Tuomas Haarnoja, Ben [20] Peter Florence, Lucas Manuelli, and Russ Tedrake. Self-
+ Moran, Steven Bohez, Fereshteh Sadeghi, Bojan Vuja- supervised correspondence in visuomotor policy learn-
+ tovic,etal. Nerf 2 real:Sim 2 realtransferofvision-guided ing. IEEE Robotics and Automation Letters, 5(2):492–
+ bipedal motion skills using neural radiance fields. In 499, 2019. 
+ 2023 IEEE International Conference on Robotics and [21] Ran Gong, Jiangyong Huang, Yizhou Zhao, Haoran
+ Automation (ICRA), pages 9362–9369. IEEE, 2023. Geng, Xiaofeng Gao, Qingyang Wu, Wensi Ai, Zi-
+ [8] Matthew Chang, Theophile Gervet, Mukul Khanna, Sri- heng Zhou, Demetri Terzopoulos, Song-Chun Zhu, et al.
+ ram Yenamandra,Dhruv Shah,So Yeon Min,Kavit Shah, Arnold: A benchmark for language-grounded task learn-
+ Chris Paxton, Saurabh Gupta, Dhruv Batra, et al. Goat: ing with continuous states in realistic 3 d scenes. ar Xiv
+ Gotoanything. ar Xivpreprintar Xiv:2311.06430,2023. preprint ar Xiv:2304.04321, 2023.
+ [9] Dian Chen, Brady Zhou, Vladlen Koltun, and Philipp [22] Abhishek Gupta,Justin Yu,Tony ZZhao,Vikash Kumar,
+ Kra¨henbu¨hl. Learning by cheating. In Conference on Aaron Rovinsky,Kelvin Xu,Thomas Devlin,and Sergey
+ Robot Learning, pages 66–75. PMLR, 2020. Levine. Reset-free rein for cement learning via multi-
+ [10] Qiuyu Chen, Marius Memmel, Alex Fang, Aaron Wals- tasklearning:Learningdexterousmanipulationbehaviors
+ man, Dieter Fox, and Abhishek Gupta. Urd for mer: without human intervention. In 2021 IEEE International
+ Constructinginteractiverealisticscenes from realimages Conference on Robotics and Automation (ICRA), pages
+
+ 
+ 
+ 
+ 
+ 6664–6671. IEEE, 2021. Laskey, and Ken Goldberg. Planar robot casting with
+ [23] Ankur Handa, Arthur Allshire, Viktor Makoviychuk, real 2 sim 2 realself-supervisedlearning,2022. URLhttps:
+ Aleksei Petrenko, Ritvik Singh, Jingzhou Liu, Denys //arxiv.org/abs/2111.04814.
+ Makoviichuk, Karl Van Wyk, Alexander Zhurkevich, [36] Yixin Lin, Austin S. Wang, Giovanni Sutanto, Ak-
+ Balakumar Sundaralingam, et al. Dextreme: Transfer shara Rai, and Franziska Meier. Polymetis. https:
+ of agile in-hand manipulation from simulation to reality. //facebookresearch.github.io/fairo/polymetis/, 2021.
+ In 2023 IEEE International Conference on Robotics and [37] Naijun Liu, Yinghao Cai, Tao Lu, Rui Wang, and Shuo
+ Automation (ICRA), pages 5977–5984. IEEE, 2023. Wang. Real–sim–real transfer for real-world robot con-
+ [24] Daniel Ho, Kanishka Rao, Zhuo Xu, Eric Jang, Mohi trol policy learning with deep rein for cement learning.
+ Khansari, and Yunfei Bai. Retinagan: An object-aware Applied Sciences, 10(5):1555, 2020.
+ approach to sim-to-real transfer. In 2021 IEEE Interna- [38] Zhao Mandi, Homanga Bharadhwaj, Vincent Moens,
+ tional Conference on Robotics and Automation (ICRA), Shuran Song, Aravind Rajeswaran, and Vikash Ku-
+ pages 10920–10926. IEEE, 2021. mar. Cacti: A framework for scalable multi-task
+ [25] Ahmed Hussein, Mohamed Medhat Gaber, Eyad Elyan, multi-scene visual imitation learning. ar Xiv preprint
+ and Chrisina Jayne. Imitation learning: A survey of ar Xiv:2212.05711, 2022.
+ learning methods. ACM Computing Surveys (CSUR), 50 [39] Ajay Mandlekar, Danfei Xu, Josiah Wong, Soroush
+ (2):1–35, 2017. Nasiriany, Chen Wang, Rohun Kulkarni, Li Fei-Fei,
+ [26] Jemin Hwangbo,Joonho Lee,Alexey Dosovitskiy,Dario Silvio Savarese, Yuke Zhu, and Roberto Mart´ın-Mart´ın.
+ Bellicoso, Vassilios Tsounis, Vladlen Koltun, and Marco What matters in learning from offline human demon-
+ Hutter. Learning agile and dynamic motor skills for strations for robot manipulation. ar Xiv preprint
+ legged robots. Science Robotics, 4(26):eaau 5872, 2019. ar Xiv:2108.03298, 2021.
+ [27] Stephen James and Andrew J Davison. Q-attention: [40] Gabriel BMargolis,Ge Yang,Kartik Paigwar,Tao Chen,
+ Enabling efficient learning for vision-based robotic ma- and Pulkit Agrawal. Rapidlocomotionviarein for cement
+ nipulation. IEEE Robotics and Automation Letters, 7(2): learning. ar Xiv preprint ar Xiv:2205.02824, 2022.
+ 1612–1619, 2022. [41] Marius Memmel, Andrew Wagenmaker, Chuning Zhu,
+ [28] Stephen James, Kentaro Wada, Tristan Laidlow, and Patrick Yin, Dieter Fox, and Abhishek Gupta. Asid:
+ Andrew J Davison. Coarse-to-fine q-attention: Efficient Active exploration for system identification in robotic
+ learning for visual robotic manipulation via discretisa- manipulation. ar Xiv preprint ar Xiv:2404.12308, 2024.
+ tion. In Proceedings of the IEEE/CVF Conference on [42] Russell Mendonca, Shikhar Bahl, and Deepak Pathak.
+ Computer Vision and Pattern Recognition,pages 13739– Structured world models from human videos. ar Xiv
+ 13748, 2022. preprint ar Xiv:2308.10901, 2023. 
+ [29] Zhenyu Jiang, Cheng-Chun Hsu, and Yuke Zhu. Ditto: [43] Ben Mildenhall, Pratul P Srinivasan, Matthew Tancik,
+ Building digital twins of articulated objects from inter- Jonathan T Barron, Ravi Ramamoorthi, and Ren Ng.
+ action. In Proceedings of the IEEE/CVF Conference on Nerf: Representing scenes as neural radiance fields for
+ Computer Vision and Pattern Recognition, pages 5616– view syn the sis. Communications of the ACM, 65(1):99–
+ 5626, 2022. 106, 2021. 
+ [30] Michael Kazhdan,Matthew Bolitho,and Hugues Hoppe. [44] Mayank Mittal, Calvin Yu, Qinxi Yu, Jingzhou Liu,
+ Poisson surface reconstruction. In Proceedings of the Nikita Rudin,David Hoeller,Jia Lin Yuan,Ritvik Singh,
+ fourth Eurographicssymposiumon Geometryprocessing, Yunrong Guo, Hammad Mazhar, et al. Orbit: A unified
+ volume 7, 2006. simulationframework for interactiverobotlearningenvi-
+ [31] Jens Kober,JAndrew Bagnell,and Jan Peters.Reinforce- ronments. IEEE Robotics and Automation Letters, 2023.
+ ment learning in robotics: A survey. The International [45] Thomas Mu¨ller, Alex Evans, Christoph Schied, and
+ Journal of Robotics Research, 32(11):1238–1274, 2013. Alexander Keller. Instant neural graphics primitives
+ [32] Ashish Kumar, Zipeng Fu, Deepak Pathak, and Jitendra with a multiresolution hash encoding. ACM Trans.
+ Malik. Rma: Rapid motor adaptation for legged robots. Graph., 41(4):102:1–102:15, July 2022. doi: 10.
+ ar Xiv preprint ar Xiv:2107.04034, 2021. 1145/3528223.3530127. URL https://doi.org/10.1145/
+ [33] Aviral Kumar, Aurick Zhou, George Tucker, and Sergey 3528223.3530127. 
+ Levine. Conservativeq-learningforofflinerein for cement [46] Ashvin Nair, Bob Mc Grew, Marcin Andrychowicz, Wo-
+ learning. Advances in Neural Information Processing jciech Zaremba, and Pieter Abbeel. Overcoming ex-
+ Systems, 33:1179–1191, 2020. ploration in rein for cement learning with demonstrations.
+ [34] Joonho Lee, Jemin Hwangbo, Lorenz Wellhausen, In 2018 IEEE international conference on robotics and
+ Vladlen Koltun,and Marco Hutter.Learningquadrupedal automation (ICRA), pages 6292–6299. IEEE, 2018.
+ locomotion over challenging terrain. Science robotics, 5 [47] Ashvin Nair, Abhishek Gupta, Murtaza Dalal, and
+ (47):eabc 5986, 2020. Sergey Levine. Awac: Accelerating online reinforce-
+ [35] Vincent Lim, Huang Huang, Lawrence Yunliang Chen, ment learning with offline datasets. ar Xiv preprint
+ Jonathan Wang,Jeffrey Ichnowski,Daniel Seita,Michael ar Xiv:2006.09359, 2020. 
+
+ 
+ 
+ 
+ 
+ [48] NVIDIA. Nvidia isaac-sim. Machine Learning, pages 31077–31093. PMLR, 2023.
+ https://developer.nvidia.com/isaac-sim, May 2022. [61] Yunlong Song, Angel Romero, Matthias Mu¨ller, Vladlen
+ [49] Long Ouyang, Jeffrey Wu, Xu Jiang, Diogo Almeida, Koltun, and Davide Scaramuzza. Reaching the limit
+ Carroll Wainwright, Pamela Mishkin, Chong Zhang, in autonomous racing: Optimal control versus reinforce-
+ Sandhini Agarwal, Katarina Slama, Alex Ray, et al. ment learning. Science Robotics, 8(82):eadg 1462, 2023.
+ Training language models to follow instructions with [62] Priya Sund are san, Rika Antonova, and Jeannette Bohgl.
+ human feedback. Advances in Neural Information Pro- Diffcloud: Real-to-sim from point clouds with differen-
+ cessing Systems, 35:27730–27744, 2022. tiablesimulation and renderingofde for mableobjects. In
+ [50] Songyou Peng, Michael Niemeyer, Lars Mescheder, 2022 IEEE/RSJ International Conference on Intelligent
+ Marc Pollefeys, and Andreas Geiger. Convolutional Robots and Systems (IROS), pages 10828–10835. IEEE,
+ occupancy networks. In Computer Vision–ECCV 2020: 2022. 
+ 16 th European Conference,Glasgow,UK,August 23–28, [63] Jie Tan, Tingnan Zhang, Erwin Coumans, Atil Iscen,
+ 2020,Proceedings,Part III 16,pages 523–540.Springer, Yunfei Bai, Danijar Hafner, Steven Bohez, and Vincent
+ 2020. Vanhoucke. Sim-to-real: Learning agile locomotion for
+ [51] Xue Bin Peng, Marcin Andrychowicz, Wojciech quadruped robots. ar Xiv preprint ar Xiv:1804.10332,
+ Zaremba, and Pieter Abbeel. Sim-to-real transfer of 2018. 
+ robotic control with dynamics randomization. In 2018 [64] Matthew Tancik, Ethan Weber, Evonne Ng, Ruilong Li,
+ IEEE international conference on robotics and automa- Brent Yi, Terrance Wang, Alexander Kristoffersen, Jake
+ tion (ICRA), pages 3803–3810. IEEE, 2018. Austin, Kamyar Salahi, Abhik Ahuja, et al. Nerfs-
+ [52] Polycam. Polycam. https://poly.cam, 2020. tudio: A modular framework for neural radiance field
+ [53] Antonin Raffin, Ashley Hill, Adam Gleave, Anssi development. In ACM SIGGRAPH 2023 Conference
+ Kanervisto, Maximilian Ernestus, and Noah Dormann. Proceedings, pages 1–12, 2023.
+ Stable-baselines 3: Reliable rein for cement learning im- [65] Josh Tobin, Rachel Fong, Alex Ray, Jonas Schneider,
+ plementations. Journal of Machine Learning Research, Wojciech Zaremba, and Pieter Abbeel. Domain ran-
+ 22(268):1–8, 2021. URL http://jmlr.org/papers/v 22/ domization for transferring deep neural networks from
+ 20-1364.html. simulation to the real world. In 2017 IEEE/RSJ in-
+ [54] Aravind Rajeswaran, Vikash Kumar, Abhishek Gupta, ternational conference on intelligent robots and systems
+ Giulia Vezzani, John Schulman, Emanuel Todorov, and (IROS), pages 23–30. IEEE, 2017.
+ Sergey Levine. Learning complex dexterous manipula- [66] Lirui Wang, Yiyang Ling, Zhecheng Yuan, Mohit Shrid-
+ tion with deep rein for cement learning and demonstra- har,Chen Bao,Yuzhe Qin,Bailin Wang,Huazhe Xu,and
+ tions. ar Xiv preprint ar Xiv:1709.10087, 2017. Xiaolong Wang. Gensim: Generating robotic simulation
+ [55] Kanishka Rao, Chris Harris, Alex Irpan, Sergey Levine, tasks via large language models. In The Twelfth Interna-
+ Julian Ibarz,and Mohi Khansari.Rl-cyclegan:Reinforce- tional Conference on Learning Representations, 2023.
+ ment learning aware simulation-to-real. In Proceedings [67] Lirui Wang,Jialiang Zhao,Yilun Du,Edward HAdelson,
+ of the IEEE/CVF Conference on Computer Vision and and Russ Tedrake. Poco: Policy composition from
+ Pattern Recognition, pages 11157–11166, 2020. and for heterogeneous robot learning. ar Xiv preprint
+ [56] Nathan Ratliff, J Andrew Bagnell, and Siddhartha S ar Xiv:2402.02511, 2024.
+ Srinivasa. Imitation learning for locomotion and manip- [68] Luobin Wang,Runlin Guo,Quan Vuong,Yuzhe Qin,Hao
+ ulation. In 20077 th IEEE-RASInternational Conference Su, and Henrik Christensen. A real 2 sim 2 real method for
+ on Humanoid Robots, pages 392–397. IEEE, 2007. robustobjectgrasping with neuralsurfacereconstruction.
+ [57] Ste´phane Ross, Geoffrey Gordon, and Drew Bagnell. A In 2023 IEEE 19 th International Conferenceon Automa-
+ reduction of imitation learning and structured prediction tion Science and Engineering (CASE), pages 1–8. IEEE,
+ to no-regret online learning. In Proceedings of the 2023. 
+ fourteenth international conference on artificial intelli- [69] Zhenjia Xu, Jiajun Wu, Andy Zeng, Joshua B Tenen-
+ gence and statistics, pages 627–635. JMLR Workshop baum, and Shuran Song. Densephysnet: Learning dense
+ and Conference Proceedings, 2011. physical object representations via multi-step dynamic
+ [58] Stefan Schaal, Auke Ijspeert, and Aude Billard. Compu- interactions. ar Xiv preprint ar Xiv:1906.03853, 2019.
+ tationalapproachestomotorlearningbyimitation.Philo- [70] Jingyun Yang, Max Sobol Mark, Brandon Vu, Archit
+ sophical Transactions of the Royal Society of London. Sharma, Jeannette Bohg, and Chelsea Finn. Robot fine-
+ Series B:Biological Sciences,358(1431):537–547,2003. tuning made easy: Pre-training rewards and policies for
+ [59] John Schulman, Filip Wolski, Prafulla Dhariwal, Alec autonomous real-world rein for cement learning. ar Xiv
+ Radford,and Oleg Klimov. Proximalpolicyoptimization preprint ar Xiv:2310.15145, 2023.
+ algorithms. ar Xiv preprint ar Xiv:1707.06347, 2017. [71] Tianhe Yu, Ted Xiao, Austin Stone, Jonathan Tompson,
+ [60] Idan Shenfeld,Zhang-Wei Hong,Aviv Tamar,and Pulkit Anthony Brohan, Su Wang, Jaspiar Singh, Clayton Tan,
+ Agrawal. Tgrl: An algorithm for teacher guided re- Jodilyn Peralta,Brian Ichter,etal. Scalingrobotlearning
+ inforcement learning. In International Conference on with semantically imagined experience. ar Xiv preprint
+
+ 
+ 
+ 
+ 
+ ar Xiv:2302.11550, 2023. 
+ [72] Tony ZZhao,Vikash Kumar,Sergey Levine,and Chelsea 
+ Finn. Learning fine-grained bimanual manipulation with 
+ low-cost hardw are. ar Xiv preprint ar Xiv:2304.13705, 
+ 2023. 
+ [73] Allan Zhou, Moo Jin Kim, Lirui Wang, Pete Florence, 
+ and Chelsea Finn. Nerf in the palm of your hand: 
+ Correctiveaugmentation for roboticsvianovel-viewsyn- 
+ thesis. In Proceedings of the IEEE/CVF Conference on 
+ Computer Vision and Pattern Recognition,pages 17907– 
+ 17917, 2023. 
+ [74] Henry Zhu, Abhishek Gupta, Aravind Rajeswaran, 
+ Sergey Levine, and Vikash Kumar. Dexterous ma- 
+ nipulation with deep rein for cement learning: Efficient, 
+ general, and low-cost. In 2019 International Conference 
+ on Robotics and Automation (ICRA), pages 3651–3657. 
+ IEEE, 2019. 
+ [75] Henry Zhu, Justin Yu, Abhishek Gupta, Dhruv Shah, 
+ Kristian Hartikainen, Avi Singh, Vikash Kumar, and 
+ Sergey Levine. The ingredients of real-world robotic re- 
+ inforcement learning. ar Xiv preprint ar Xiv:2004.12570, 
+ 2020. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+ 
+ 
+ 
+ 
+ Next, we provide additional details of our work. More • Cupintrash:success=||cup site−trash site|| 2 <0.07
+ concretely: && condition(gripper open) 
+ 
+ • Task Details VIII: provides more details on the tasks A. Simulation details
+ used to evaluate Rial To and the baselines. 
+ For simulating each one of the tasks, we use the latest sim-
+ • Implementation Details IX: provides more detailed in- 
+ ulator from NVIDIA, Isaac Sim [48]. Fur the rmore, to develop
+ formation on the exact hyperparameters such as network 
+ our code we were inspired by the Orbit code base [44], one of
+ architectures, point cloud processing, and dataset sizes 
+ the first publicly available codebases that run Rein for cement
+ using in Rial To. 
+ Learning and Robot Learning algorithms on Isaac Sim.
+ • Further Analysis XI: we provide further details on 
+ Regarding the simulation parameters of the environments,
+ Rial To, more concretely on running RL from vision, RL 
+ as mentioned in the text, we set default values in our GUI
+ from scratch and on the sim-to-real gap. 
+ and these are the same that are used across the environments.
+ • Hardw are Setup X: Details on the robot hardw are and 
+ In more detail, we use convex decomposition with 64 hull
+ cameras used for the experiments. 
+ vertices and 32 convex hulls as the collision mesh for all
+ • GUI for Real-to-Sim Transfer of Scenes XII: We 
+ objects. These values could vary in some environments, but
+ provide further details on the GUI that we proposed 
+ wehavefound the yareingeneralagooddefaultvalue.There
+ together with advice on which scanning methods to use 
+ is one exception, the dish on the rack task, where the rack
+ for each scenario. 
+ needs to be simulated very precisely, in that case, we used
+ • GUI User Study XIII: We explain how we ran the User 
+ SDF mesh decomposition with 256 resolution which returns
+ Study together with visualizations of the scanned scenes. 
+ high-fidelity collision meshes. Note that all these options can
+ • Compute Res our ces XIV:Wegivedetailson the compute 
+ be changed from our GUI. Regarding the physics parameters,
+ used to run the experiments. 
+ we set the dynamic and static frictions of the objects to be
+ VIII. TASKDETAILS 0.5, the joint frictions to be 0.1, and the mass of the objects
+ to be 0.41 kg. Note thatin many ofthe tasks, wealso leverage
+ In this section of the appendix, we describe additional 
+ setting fixed joints on the objects, to make sure these won’t
+ details about each task. Across tasks, the state space consists 
+ move, for example, on the shelf or kitchen.
+ of a concatenation of all of the poses of the objects present in 
+ the scenes together with the states of the joints and the state IX. IMPLEMENTATIONDETAILS
+ of the robot. The action space consists of a discretized end- A. Network architectures
+ effectordeltaposeofdimension 14.Moreconcretely,wehave 
+ 1) State-based policy: As described in Section III-C 2, we
+ 6 actions for the delta position, which moves ±0.03 meters 
+ fine-tune a state-based policy with privileged information in
+ in each axis, 6 more actions for rotating ±0.2 radians in each 
+ the simulator. This policy is a simple Multi-Layer Perceptron
+ axis, and 2 final actions for opening and closing the gripper. 
+ (MLP)withtwolayersofsize 256 each.Thistakesasinput the
+ Asweexplainin Section III-B,wedefineasuccessfunction 
+ privileged state from the simulator and outputs a Categorical
+ that will be used for selecting successful trajectories in the 
+ distribution of size 14 encoding the probabilities for sampling
+ inverse distillation procedure and as a sparse reward in the 
+ each discrete end-effector action. For our PPO with BC loss
+ RL fine-tuning phase. Next, we specify which are the success 
+ implementation, we build on top of the Stable Baselines 3
+ functions for each of the tasks: 
+ repository [53]. The network for the value function shares the
+ • Kitchen Toaster: success= first layer with the actor. See Table VI for more details.
+ toaster joint>0.65 && condition(gripper open) 2) Point cloud policy: For both the inverse distillation pro-
+ • Open Drawer: success= cedure(Section III-C 1)and the lastteacher-studentdistillation
+ drawer joint>0.1 && condition(gripper open) steps (Section III-D) we train a policy that takes as input
+ • Open Cabinet: success= the point cloud observation together with the state of the
+ cabinet joint>0.1 && condition(gripper open) robot (end-effector pose and state) and outputs a Categorical
+ • Plate on the rack: success= distribution of size 14 encoding the probabilities for each
+ ||plate site − rack site|| < 0.2 && rack y axis · action. The network architecture consists of an encoder of the
+ 2 
+ plate z axis>0.9 && condition(gripper open) pointclouds that mapstoanembeddingofsize 128.Then this
+ • Book on shelf: success= embeddingisconcatenatedtothestateof the robot(size 9)and
+ ||book site−shelf site|| <0.12 ispassedthroughan MLPofsize 256,256.Regarding the point
+ 2 
+ && condition(gripper open) cloud encoder, we use the same volumetric 3 D point cloud
+ • Mug on shelf: success= encoderproposedin Convolutional Occupancy Networks[50],
+ ||mug site − shelf site|| < 0.12 && mug z axis · consisting of a local point net followed by a 3 D U-Net which
+ 2 
+ shelf z axis>0.95 && condition(gripper open) outputsadensevoxelgridoffeatures.Thesefeatures are then
+ • Plate on the rack in the kitchen: success= pooled with both a max pooling layer and an average pooling
+ ||plate site − rack site|| < 0.2 && rack y axis · layer and the resulting two vectors are concatenated to obtain
+ 2 
+ plate z axis>0.9 && condition(gripper open) the final point cloud encoding of size 128.
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ move the mug 
+ move the robot around back down close back the cabinet 
+ perturbe the book 
+ pose after pick 
+ 
+ 
+ 
+ 
+ 
+ move the mug 
+ close back the drawer back down 
+ Fig.10. Overviewof the disturbances that Rial Toisrobusttoin the differenttasks that weevaluatediton.
+ 
+ Task USDName Episode Randomized Position Position Orientation Orientation
+ length 
+ Parameters Object Ids Min(x,y,z) Max(x,y,z) Min(z-axis) Max(z-axis)
+ Kitchentoaster kitchentoaster 3.usd 130 [267] [0.3,-0.2,- [0.7,0.1,0.2] [-0.1] [0.1]
+ 0.2] 
+ Plateonrack dishinrackv 3.usd 150 [278, [-0.4,- [0,0.25,0] [-0.52,0] [0.52,0]
+ [270,287]] 0.035,0] 
+ Mugonshelf mug and shelf 2.usd 150 [267,263] [[-0.3,0,0], [[0.25,0.3,0.07], [-0.52,-0.54] [0.52,0.54]
+ [-0.1,0.25,0]] [0.4,0.4,0]] 
+ Bookonshelf booknshelve.usd 130 [277, [[-0.25,- [[0.15,0.28,0], [-0.52,0] [0.52,0]
+ [268,272]] 0.12,0], [0.15,0.15,0]] 
+ [-0.15,- 
+ 0.05,0]] 
+ Opencabinet cabinet.usd 90 [268] [-0.5,- [0,0.3,-0.1] [-0.52] [0.52]
+ 0.1,0.1] 
+ Opendrawer drawerbiggerhandle.usd 80 [268] [-0.26,-0.07,- [0.16,0.27,0] -0.5 0.5
+ 0.05] 
+ Cupintrash cupntrash.usd 90 [263,266] [[[-0.2,-0.3, [[[0.2,0.1, [0,0] [0,0]
+ -0.2],[-0.2,- 0.2], 
+ 0.12,0]]] [0.2,0.2,0]]] 
+ Plateonrack from kitchen dishsinklab.usd 110 [[263,278, [[[-0.25,-0.1, [[[0.1,0.2, [0,-0.3,0] [0,0.3,0]
+ 270]] -0.1], 0.1], 
+ [-0.1,0.05,0], [0.1,0.15,0], 
+ [-0.2,0,0]]] [0,0,0]]] 
+ TABLEIV 
+ SPECIFICPARAMETERS FOR EACHONEOF THE TASKS. 
+ B. Teacher-student distillation mix 15000 trajectories rendering full point clouds (where all
+ faces of the objects are visible, which is obtained through
+ Given the state-based policy π (a|s) learned in the sim- 
+ sim directly sampling points from the mesh, as proposed in [12]),
+ ulator, we wish to distill it into a policy π∗ (a|o) that takes 
+ sim 5000 trajectories rendered from a camera viewpoint that is
+ the point cloud observation and outputs the action. We take 
+ approximately the same position as the camera in the real
+ thest and ardteacher-studentdistillationapproach[32,12].The 
+ world, a set of 2000 trajectories also generated from the same
+ first step consists of doing imitation learning on a set of 
+ camera viewpoint in sim but adding distractor objects (see
+ trajectories given by the expert policy π (a|s) rollout. This 
+ sim Figure 12), finally, we mix the 15 real-world trajectories. The
+ set of trajectories needs to be care fully designed to build an 
+ four different splits in the dataset are sampled equally, with
+ implicit curriculum so that we can learn the student policy 
+ 1/4 probability each. 
+ successfully. When designing this dataset of trajectories, we 
+
+ 
+ 
+ 
+ 
+ Task Position(x,y,z) Rotation(quat) Crop Min Crop Max Size 
+ Parameters Camera Camera Camera Camera Image 
+ Kitchentoaster [0.0,-0.37,0.68] [0.82,0.34,-0.20,-0.41] [-0.8,-0.8,-0.8] [0.8,0.8,0.8] (640,480)
+ Plateonrack [0.95,-0.4,0.68] [0.78,0.36,0.21,0.46] [-0.3,-0.6,0.02] [0.9,0.6,1] (640,480)
+ Mugonshelf [0.95,-0.4,0.68] [0.78,0.36,0.21,0.46] [-0.3,-0.6,0.02] [0.9,0.6,1] (640,480)
+ Bookonshelf [0.95,-0.4,0.68] [0.78,0.36,0.21,0.46] [-0.3,-0.6,0.02] [0.9,0.6,1] (640,480)
+ Opencabinet [0.95,-0.4,0.68] [0.78,0.36,0.21,0.46] [-0.3,-0.6,0.02] [0.9,0.6,1] (640,480)
+ Opendrawer [0.95,-0.4,0.68] [0.78,0.36,0.21,0.46] [-0.3,-0.6,0.02] [0.9,0.6,1] (640,480)
+ Cupintrash [0.0,-0.37,0.68] [0.82,0.34,-0.20,-0.41] [-1,-1,-1] [1,1,1] (640,480)
+ Plateonrack from kitchen [0.0,-0.37,0.68] [0.82,0.34,-0.20,-0.41] [-0.8,-0.8,-0.8] [0.8,0.8,0.8] (640,480)
+ TABLEV 
+ CAMERAPARAMETERS FOR EACH TASK. 
+ MLPlayers PPOn steps PPObatchsize PPOBCbatchsize PPOBCweight Gradient Clipping
+ 
+ 256,256 episodelength 31257 32 0.1 5 
+ TABLEVI 
+ STATE-BASEDPOLICYTRAININGPARAMETERS.THERESTOFTHEPARAMETERS ARE THE DEFAULTASDESCRIBEDINSTABLE BASE LINES 3[53].
+ 
+ 
+ Simulated Scenes 
+ 
+ 
+ 
+ 
+ Mug on shelf Kitchen - toaster Dish track 
+ 
+ Fig.12. Distractorobjectsusedtogetarobustpolicytovisualdistractors
+ intheteacher-studentdistillationstep III-D.
+ 
+ D. Imitation Learning Baseline 
+ Cabinet Book on shelf Drawer 
+ For the imitation learning baseline, we collect 15 (unless
+ otherwise specified) real-world demonstrations using a key-
+ Fig. 11. Overview of the scenes generated using our GUI and used for 
+ evaluating Rial To. board interface. We preprocess the point clouds in the same
+ manner as for the teacher-student distillation training (see
+ Section IX-B. We complete the point cloud sampling points
+ After this firstdistillationstep,weper for mastepof DAgger from the arm mesh leveraging the joints from the real robot.
+ [57], where we roll out the policy π∗ (a|o) and relabel the We also add the same randomization: jitter, dropout, and
+ sim 
+ actions with π (a|s). In this second and last step, we mix translation. 
+ sim 
+ the DAgger data set with the trajectories with distractorsinsim 1) Imitation learning with new assets: We implemented an
+ and the real-world trajectories and sample trajectories. Again additional base linewhereweaddedpointcloudssampled from
+ each dataset is sampled equally with 1/3 probability each. different object meshes (see Figure 12) into the real-world
+ Finally,thedetails for generatingandr and omizing the point point cloud to make the policy more robust to distractors.
+ clouds are available in Table VII and were largely inspired However, no improvement in the robustness of this baseline
+ by [12]. The parameters for training the point cloud-based was found as seen in Figure IX. We hypo the size that this is
+ network are available in VIII. the case because the added meshes into the point cloud do
+ not bring any occlusions which is one of the main challenges
+ when adding distractors in point clouds. 
+ C. Simulated Assets Baseline Details 
+ To implement the baseline with multiple simulation assets 
+ X. HARDW ARE SETUP 
+ we had to incorporate two modifications for enabling the Our experiments are run on two different Panda Franka
+ multi-task policy learning: 1) at each episode we select a arms. One is, the Panda Franka arm 2, which is mounted
+ drawer randomly from the set of drawers 2) we expand the on a fixed table, we run the book on the shelf, mug on the
+ observationspaceof the state-basedpolicytoinclude the index shelf, dish on the rack, open the cabinet, and open the drawer
+ of the drawer selected to open. there. Then we also ran part of our experiments, on a Panda
+
+ 
+ 
+ 
+ 
+ Totalpcd Sample Arm Dropout Jitter Jitter Sample Object Pcd Pcd Grid 
+ points Points(#) ratio ratio noise Meshes Points Normalization Scale Size 
+ 6000 3000 [0.1,0.3] 0.3 N(0,0.01) 1000 [0,0,0] 0.625(toaster) 32 x 32 x 32
+ (toaster) 1(others) 
+ [0.35,0,0.4] 
+ (others) 
+ TABLEVII 
+ POINTCLOUDGENERATIONANDR AND OMIZATIONPARAMETERS. 
+ 
+ MLPlayers lr Optimizer Batch Size Nbfullpcdtraj Nbsimulatedpcd Nbsimulatedpcd Nbrealtraj
+ traj traj(distractors) 
+ 256,256 0.0003 Adam W 32-64 15000 5000 1000 15 
+ TABLEVIII 
+ POINTCLOUDTEACHER-STUDENTDISTILLATIONPARAMETERS. 
+ 
+ 
+ Pose Distractors Disturbances used for compact state policies. Rendering point clouds in
+ randomization 
+ simulation is also approximately 10 x slower than running the
+ IL 40±15% 50±17% 10±9% pipeline without any rendering. When adding these factors
+ ILwithdistractors 50±17% 20±13% 10±9% up, RL from vision becomes much slower and practically
+ TABLEIX infeasible given our setup with sparse rewards.
+ COMPARISONOF THE PLAINIMITATIONLEARNING BASE LINE(IL) 
+ AGAINSTADDING NEW DISTRACTORS(ILWITHDISTRACTORS)ONTHE 
+ TASKOF OPEN ING THE DRAWER.NOIMPROVEMENTISOBSERVED. 1 
+ R D e 4 a 3 l 5 sense Franka Research 3 R D e 4 a 5 l 5 sense 0.8 
+ 0.6 
+ Franka Emika Panda 
+ 0.4 
+ 0.2 
+ 0 
+ Mobile table Fixed table 0 5 10 15 20 25 30 35 
+ Wall Time (hours) 
+ Fig. 13. Overview of the hardw are setup used for evaluating Rial To. left: 
+ used for the kitchentoaster task,right:used for thebookon the shelf,mug 
+ ontheshelf,dishon the rack,opencabinet,and open drawertasks. 
+ Frankaarm 3,mountedonamobiletable,moreconcretely,the 
+ open toaster in the kitchen was the task run on this arm. The 
+ communication between the higher and lower level controller 
+ of the arm is done through Polymetis [36]. 
+ We mount one calibrated camera per setup to extract the 
+ depth maps that will be passed to our vision policies. More 
+ concretely we use the Intel depth Realsense camera D 455 on 
+ the first setup and the Intel depth Realsense camera D 435 on 
+ the second setup. See Figure 13 for more details on the robot 
+ setup. 
+ XI. FUR THE RANALYSIS 
+ A. RL from vision 
+ Part of the inefficiency of running RL from vision comes 
+ from the increased memory required to compute the policy 
+ loss for vision-based RL – on the same GPU, the batch size 
+ for vision-based policies is 100 x smaller than the batch size 
+ oita R 
+ sseccu S 
+ 96% 
+ RL from states 
+ RL from vision 
+ 1% 
+ 12 
+ Fig. 14. Wall clock time comparison of running PPO from vision against
+ fromcompactstates. 
+ B. RL from Scratch 
+ In Figure 15, we qualitatively observe the phenomena that
+ we mention in III-C 2, where the policy trained from scratch,
+ without demos, exploits the model’s inaccuracies. In this
+ specific case, we observe that the policy leverages the slightly
+ incorrectlyplacedjointto open the microwaveinanunnatural
+ way that wouldn’t transfer to the real world.
+ C. RL from different amounts of real-world data
+ In this section, we analyze further how many real-world
+ demonstrations are needed to successfully fine-tune policies
+ with RL in simulation. We start with 0,5,10,15 real-world
+ demonstrations and inverse-distill the policy by collecting 15
+ simtrajectories from thisreal-worldtrainedpolicy.Weobserve
+ intable Xthat for the task ofplacingabookon the shelf,there
+ is a step function where the PPO has a 0% success rate until
+ 15 demos are used.Thereasonis that with lessthan 15 demos
+
+ 
+ 
+ 
+ 
+ Open Mug 
+ drawer onshelf 
+ Imitationlearning 40±17% 10±9% 
+ Rial To 90±9% 100±0% 
+ Rial Tomulti task 90±9% 80±15% 
+ TABLEXII 
+ time COMPARISONOFTRAININGRIALTOONMULTIPLE TASK SAGAINST
+ SINGLE-TASKRIALTO.NOIMPROVEMENTISOBSERVED.
+ Fig.15. Visualizationofarolloutof the finalpolicylearned with RLwithout 
+ demos and achievinga 62%accuracyon open ing the toasterinsimulation.We 
+ observe the resulting policy that learns without demos exploits the model’s 1) Train separate state-based single-task policies per task
+ inaccuracies,thereafterit will nottransferto the realworld. 
+ 2) Collect trajectories from each one of the tasks with the
+ state-based policies 
+ Bookon Open 
+ 3) Distill these trajectories into a single multi-task policy
+ shelf drawer 
+ conditioned with the task-id 
+ RLfine-tuning from 0 realdemos 0±0% 0±0% 
+ 4) Run multiple iterations of DAgger on each task sequen-
+ RLfine-tuning from 5 realdemos 0±0% 89±1% 
+ RLfine-tuning from 10 realdemos 0±0% 96±1% tially to obtain a final multi-task policy
+ RLfine-tuning from 15 realdemos 90±2% 96±1% We evaluate this policy in the real world on two of the
+ TABLEX tasks and observein Table XII that inopening the drawer,the
+ COMPARISONOFTRAININGRL FROM DIFFERENTAMOUNTSOF per for mance of multi-task Rial To matches single-task (90%
+ REAL-WORLDDEMOS. 
+ success). However, the per for mance slightly decreases on the
+ mug on the shelf task (from 100% on single-task to 80% on
+ thereal-worldpolicydoesnottransferto the simulationhence multi-task). Never the less, the per for mance is still above the
+ no sim demos can be collected during the inverse distillation imitation learning baseline (40% for the drawer and 10% for
+ procedure. Thereafter the RL fine-tuned policy starts from the mug on the shelf). We did not tune any hyperparameters,
+ scratchwhenusing<15 real-worlddemos.Ontheo the rside, andwekept the samenetworksizethatwe used for the Rial To
+ for the easier task of opening a drawer, we observe this step experiments. We should be able to bring the per for mance of
+ functionearlier,whereat>5 demoswe cando RLfine-tuning the mug on the shelf task to match the single-task policy with
+ from demos and obtain successful policies. some hyperparameter tuning. 
+ We showed that Rial To can be easily adapted to train multi-
+ D. Mixing Rial To with syn the tic data 
+ task policies. We hypo the size that we need to train in more
+ Werun Rial Tocombiningthe data from thesyn the ticassets environments to obtain multi-task generalization.
+ experiment (see Figure 7) together with the simulated target 
+ F. Sim-to-real gap 
+ environment data and study whether we get any per for mance 
+ gain by combining these two sources of data on the task of We analyze and propose an explanation for the observed
+ opening the drawer. We observe in Table XI that there is no sim-to-realgapin Table XIII,whereweshow the per for mance
+ clear improvement when combining the simulated assets with of the final point cloud-based policy in both simulation and
+ the target asset. One reason could be that more syn the tic data therealworld.Weobserve that ingeneral,thesim-to-realgap
+ is needed to observe an increase in per for mance. The other doesnotseemtobepresent.Insomecasessuchas for the mug
+ hypo the sis is that learning only on the target environment onshelf task,weobserve that the per for manceinsimulationis
+ (Rial To) is enough and the 10% left to reach 100% success worsethantheper for mancein the realworld.Themainreason
+ rate in the real world comes from the sim-to-real gap. for this disparityis that wewanttomake the simulationharder
+ than the real-world environment to make sure that we will be
+ E. Rial To Multi-Task able to recover a good robust policy in the real world.
+ We propose a multi-task version of Rial To. We train multi- 
+ XII. GUI FOR REAL-TO-SIMTRANSFEROFSCENES 
+ task Rial Toon the tasksof open ingadrawer,puttingamugon 
+ the shelf, cup in the trash, and dish on the rack environments. In the main text and video, we provide an overview of
+ Theproposedmulti-task Rial Toprocedureis the following: the features and capabilities of our GUI. Additional valuable
+ features include the ability to populate the scene with assets
+ from object datasets such as Objaverse [17]. This allows for
+ Pose Distractors randomizingsurroundingclutter and supportingpolicytraining
+ randomization that generalizes to distractor objects (see Section V-A).
+ Rial To 90±9% 90±9% 1) 3 D reconstruction softw are used: We mainly used 3
+ Rial To+syn the ticassets 90±9% 80±13% different methods/apps for obtaining the 3 D meshes from
+ videos: 
+ TABLEXI 
+ COMPARISONOFUSINGRIALTO WITH ADDEDSYN THE TICASSETS 1) Polycam [52] is used to scan larger scenes, such as
+ AGAINSTST AND ARDRIALTOONTHE TASK OFOPENING THE DRAWERIN 
+ the kitchen. Polycam makes effective use of the built-in
+ THEREALWORLD.NOIMPROVEMENTISOBSERVED. 
+
+ 
+ 
+ 
+ 
+ Kitchen Bookon Plateon Mugon Open Open 
+ toaster shelf rack shelf drawer cabinet 
+ Per for manceinsimulation 90±4% 84±5% 80±6% 72±6% 95±3% 92±4% 
+ Per for mancein the realworld 90±9% 90±9% 90±9% 100±0% 90±9% 85±8% 
+ TABLEXIII 
+ COMPARISONOFPER FOR MANCEINSIMULATION(TOP)AND THE REALWORLD(BOTTOM).
+ 
+ 
+ i Phone depth sensor which helps extract realistic surface User Study Scanned Scenes
+ geometry for large uniform flat surface (e.g., a kitchen 
+ counter). However, we find it struggles with fine-grained 
+ details. Polycam outputs a GLTF file, which we convert 
+ directly to a USD for loading into Isaac Sim using an 
+ online conversion tool. 
+ 2) AR Code [15] is used to extract high-quality meshes for 
+ single objects that can be viewed by images covering 
+ thefull 360 degreessurrounding the object(e.g.,cabinet, 
+ mug,microwave,drawer).While ARCodeleadstomore 
+ Phone cabin Printer room Table desk 
+ accurate geometry than Polycam for singulated objects, Bathroom 1 Kitchen Bathroom 2
+ we still find it struggles on objects with very thin parts. 
+ AR Code directly outputs a USD file that can be loaded 
+ into Isaac Sim. 
+ 3) Ne RFStudio [64] is used to capture objects that re- 
+ quire signifi can tly more detail to represent the geometry 
+ faithfully. For example, AR Code failed to capture the 
+ thin metal structures on the dish rack, whereas Ne RFs 
+ are capable of representing these challenging geometric 
+ parts. We use the default “nerfacto” model and training 
+ parameters. This method trains a relatively small model Added Joint Added Object Cut Object
+ on a single desktop GPU in about 10 minutes. After 
+ training converges, we use the Ne RFStudio tools for Fig. 16. Overview of the scenes assembled by the Users during the user
+ extractinga 3 Dpointcloud and obtainingatexturedmesh study,see Section VI. 
+ with Poisson Surface Reconstruction[30].Thisoutputsan 
+ OBJfile,whichweconvertintoa USDbyfirstconverting 
+ from OBJ to GLTF, and then converting from GLTF into 
+ the GLB file into the provided GUI, and the time required to
+ USD(withbothfileconversionsper for med with anonline 
+ complete these steps was recorded as “Scan Processing and
+ conversion tool). 
+ Uploading Time.” Because the uploaded mesh was created
+ using ones can, allobjects inthe scene are connected, andthe
+ XIII. GUIUSERSTUDY 
+ userisunabletomoveasingleitem with outshifting the entire
+ To test the functionality and versatility of the real-to-sim background.Thus,inordertocreateamorerealisticscene,the
+ generationpipeline,weranauserstudyoversixpeople,where participant was asked to use the GUI to cut an object out of
+ each participant was tasked with creating an articulated scene the scene, allowing this item to be manipulated independently
+ using the provided GUI. Every individual was given the same of the background. The time it took for the user to cut this
+ set of instructions that would guide them through the process object from the original mesh was regarded as “Cut Time.”
+ ofconstructingausable and accuratescene.Atthestartofeach In an attempt to further the realistic nature of this scene, the
+ trial,theparticipantwasinstructedtodownload Polycam[52], participantwas the ninstructedtospecifyjointparameters and
+ which uses a mobile device’s Li DAR to generate 3 D models. create a fixed joint that would allow an object in the scene
+ The user then selected a location and captured their scene by to rotate about a specific point. For instance, a fixed joint at
+ taking a sequence of images. The time required to complete a door would allow the door to rotate about its hinge and
+ this step was recorded as “Scan Time.” Once the images were generate an accurate simulation of door movement. The time
+ captured,Polycamneededtoprocess the picturestotransform required to create a fixed joint in the scene was recorded as
+ the scene into a three-dimensional mesh. Once the mesh had “Joint Time.” Lastly, to demonstrate the full capabilities of
+ been generated, the participant was then instructed to upload the GUI, the participant was asked to add another object to
+ thearticulated USDtoacomputer and convert this fileinto the their current scene. They were instructed to download another
+ GLB for mat(requiredby our GUI).Finally,theuseruploaded 3 D scanning application, AR Code [15], which was used to
+
+ 
+ 
+ 
+ 
+ Scan Process+ Cut Joint 2 nd Scan Process+ Totaltime Totalactive 
+ Upload 1 st Scan Upload 2 nd time 
+ (idle) Scan(idle) 
+ User 1 2:25 5:41 4:15 4:56 8:10 10:45 36:12 19:46 
+ User 2 6:30 12:57 3:32 3:51 2:37 4:19 33:46 16:30 
+ User 3 3:52 5:52 4:35 4:14 3:26 4:15 26:14 16:07 
+ User 4 2:34 2:06 2:48 1:41 5:14 4:33 19:06 12:27 
+ User 5 1:32 2:33 4:43 1:28 4:34 3:50 18:40 12:17 
+ User 6 2:30 3:52 2:08 1:17 4:59 2:26 17:12 10:54 
+ TABLEXIV 
+ DETAILEDTIMESPENTBYEACHUSERIN THE USERSTUDY,SEESECTIONVI. 
+ 
+ create the three-dimensional mesh of the additional object. processed, uploaded, and converted more quickly. However,
+ The time required to generate this mesh was recorded as their speed did reduce the quality of their backgrounds, since
+ “Scan Time (2).” Then the participant again converted their thedetailsinboths can sarenotaspreciseas the others.Thus,
+ mesh to GLB format and uploaded this file to the same GUI. it seems User 3 completed the tasks quickly with the most
+ Once uploaded, the object was placed in a realistic position accurate scan. 
+ within the scene, and the time elapsed during this step was User 6 had previous experience with the real-to-sim
+ addedto the“Scan Processing and Uploading Time”category. pipeline, so they were able to use this expertise to quickly
+ Through this user study, we found that it took an average complete the tasks. The only abnormality with User 6’s trial
+ of 14.67 active minutes (excluding the “Scan Processing and was their longer Scan Time for object 2. They had trouble
+ Uploading Time”category)tocreateascene that includedone with the “AR code” app during this trial, resulting in a longer
+ cutobject,onefixedjoint,andoneadditionalobject.However, Scan Time (2). 
+ it is important to note that User 6 had previous experience 
+ A. Scaling laws of the Rial To GUI 
+ using this GUI,whileallo the rusershadnoexperience.Thus, 
+ if we disregard theresults of User 6, we find the average time 
+ to create a scene to be 15.42 active minutes, which is not 
+ total active time=t 
+ scanscene 
+ a significant difference. As a result, the real-to-sim transfer 
+ +t ·N 
+ using the provided GUI seems to be an intuitive process that scanobject objects (3)
+ is neither time nor labor-intensive. +t cutobject ·N cutobjects 
+ User 1 took the longest time to complete this series of +t addjoint ·N joints
+ tasks mostly due to their extensive upload period. Because 
+ We derive a relation to express the total active time needed
+ User 1 scanned their environment for a lengthy period, their 
+ to create a scene with respect to the number of joints and
+ articulated USDfilewaslargerthanallo the rusers.Asaresult, 
+ objects there are in the scene. The total active time to create
+ it took longer for them to upload their file to a computer and 
+ a scene increases linearly in complexity with the number of
+ convert this fileto GLB for mat.Theabnormalsizeof User 1’s 
+ objects and joints present in the scene, as seen in Relation 3.
+ file coupled with their difficulty operating the file conversion 
+ We define N as the number of scanned objects that we
+ objects 
+ website led to a lengthy Scan Processing and Upload Time, 
+ want to add, N as the number of objects that we want
+ cutobjects 
+ which led to the slowest overall per for mance. 
+ to extract from the scanned scene, N as the number of
+ joints 
+ User 2 was the onlyuserwhowassentinstructionsdigitally 
+ joints the scene has. Taking the average times from our user
+ and completed the tasks remotely. An individual experienced study (see Table XIV) we find t =4:50, t =
+ scanobject scanscene 
+ with the real-to-sim pipeline was present for all other trials. 3 : 14, t = 2 : 54, t = 3 : 40. Note that these
+ addjoint cutobject 
+ Thus,thismay have contributedto User 2’slongercompletion 
+ valuesareon the conservativesidesinceonlyoneuserwasan
+ time,astheirquestionshadtobeans were dremotely.However, 
+ expert,and with increasedexpertise,thesecoefficientsbecome
+ User 2 did not have trouble with any particular section of the 
+ smaller. 
+ pipelinebutra the rtookalongertimetocompleteeachsection. 
+ User 3’s experience with the real-to-sim pipeline went 
+ smoothly,asthere were noobviousdifficultieswhiles can ning, 
+ uploading, or using the GUI. They followed the instructions XIV. COMPUTERES OUR CES
+ quickly and precisely, resulting in a better completion time We run all of our experiments on an NVIDIA Ge Force
+ than Users 1 and 2. RTX 2080 or an NVIDIA Ge Force RTX 3090. The first step
+ Users 4 and 5 completed all tasks in the pipeline more of learning a vision policy from the real-world demos and
+ quickly than User 3 because the background they chose was collecting a set of 15 demonstrations in simulation takes an
+ smaller with fewer details. Thus, they were able to scan their average of 7 hours. The next step of RL fine-tuning from
+ scenes faster, generating a smaller file that was able to be demonstrationstakesonaverage 20 hourstoconverge.Finally,
+
+ 
+ 
+ 
+ 
+ the teacher-student distillation step takes 24 hours between 
+ collecting the trajectories, distilling into the vision policy, and 
+ running the last step of DAgger. This adds up to a total of 2 
+ days and 3 hoursonaveragetotrainapolicy for agiven task. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 

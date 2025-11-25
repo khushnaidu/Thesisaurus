@@ -1,7 +1,12 @@
 """
 Phase 1.3: Database Population
-Takes the extracted CSV data and puts it into a SQLite database
-Author: Student working on NLP project for robotics paper analysis
+Creates SQLite database from extracted CSV data
+
+Usage:
+    python 2_populate_database.py [csv_path] [db_path]
+    
+    csv_path: Input CSV file (default: ../outputs/extracted_info.csv)
+    db_path: Output database file (default: ../outputs/papers.db)
 """
 
 import sqlite3
@@ -9,17 +14,12 @@ import csv
 import sys
 from pathlib import Path
 
-# TODO: maybe switch to PostgreSQL later if we need more features?
-# SQLite is good enough for now though
 
 def create_database(db_path="papers.db"):
-    """
-    Create the database and all the tables we need
-    This took me forever to get the schema right lol
-    """
+    """Create the database schema with all necessary tables"""
     print(f"Creating database at: {db_path}")
     
-    # Delete old database if it exists (fresh start)
+    # Delete old database if it exists
     if Path(db_path).exists():
         print("  → Found old database, deleting it...")
         Path(db_path).unlink()
@@ -27,13 +27,12 @@ def create_database(db_path="papers.db"):
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
-    # Main papers table - stores all the paper metadata
+    # Main papers table
     cursor.execute("""
         CREATE TABLE papers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             paper_id TEXT UNIQUE NOT NULL,
             title TEXT,
-            authors TEXT,
             year INTEGER,
             venue TEXT,
             training_data_size TEXT,
@@ -55,7 +54,7 @@ def create_database(db_path="papers.db"):
         )
     """)
     
-    # Datasets table - many-to-many relationship with papers
+    # Datasets table - many-to-many with papers
     cursor.execute("""
         CREATE TABLE datasets (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -90,12 +89,12 @@ def create_database(db_path="papers.db"):
         )
     """)
     
-    # Hardware table (sensors, grippers, etc)
+    # Hardware table (sensors, grippers, GPUs)
     cursor.execute("""
         CREATE TABLE hardware (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT UNIQUE NOT NULL,
-            type TEXT  -- 'robot' for sensors/grippers, 'compute' for GPUs
+            type TEXT  -- 'robot' or 'compute'
         )
     """)
     
@@ -135,8 +134,7 @@ def create_database(db_path="papers.db"):
         )
     """)
     
-    # Create some indexes for faster queries
-    # learned this is important from database class
+    # Create indexes for faster queries
     cursor.execute("CREATE INDEX idx_paper_id ON papers(paper_id)")
     cursor.execute("CREATE INDEX idx_dataset_name ON datasets(name)")
     cursor.execute("CREATE INDEX idx_robot_name ON robots(name)")
@@ -147,26 +145,22 @@ def create_database(db_path="papers.db"):
 
 
 def insert_paper_data(conn, row):
-    """
-    Insert a single paper's data into the database
-    row is a dict from the CSV
-    """
+    """Insert a single paper's data into the database"""
     cursor = conn.cursor()
     
     # Insert main paper info
     cursor.execute("""
         INSERT INTO papers (
-            paper_id, title, authors, year, venue,
+            paper_id, title, year, venue,
             training_data_size, model_name, model_architecture,
             model_size, vision_encoder, base_model,
             optimizer, learning_rate, batch_size, epochs,
             augmentations, pretrained_weights, simulation_env,
             ml_framework, success_rate
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         row['paper_id'],
         row['title'],
-        row['authors'],
         int(row['year']) if row['year'] else None,
         row['venue'] or None,
         row['training_data_size'] or None,
@@ -192,12 +186,9 @@ def insert_paper_data(conn, row):
     if row['training_datasets']:
         datasets = [d.strip() for d in row['training_datasets'].split(';') if d.strip()]
         for dataset in datasets:
-            # Insert dataset if not exists
             cursor.execute("INSERT OR IGNORE INTO datasets (name) VALUES (?)", (dataset,))
-            # Get dataset id
             cursor.execute("SELECT id FROM datasets WHERE name = ?", (dataset,))
             dataset_id = cursor.fetchone()[0]
-            # Link paper to dataset
             cursor.execute(
                 "INSERT INTO paper_datasets (paper_id, dataset_id, dataset_type) VALUES (?, ?, ?)",
                 (paper_id, dataset_id, 'training')
@@ -276,12 +267,10 @@ def insert_paper_data(conn, row):
 
 
 def populate_from_csv(csv_path, db_path="papers.db"):
-    """
-    Main function to read CSV and populate the database
-    """
-    print(f"\n{'='*60}")
+    """Main function to read CSV and populate the database"""
+    print("\n" + "="*60)
     print("Phase 1.3: Populating Database from CSV")
-    print(f"{'='*60}\n")
+    print("="*60 + "\n")
     
     # Create database
     conn = create_database(db_path)
@@ -308,14 +297,13 @@ def populate_from_csv(csv_path, db_path="papers.db"):
             print(f"  ✗ ERROR: {e}")
             continue
     
-    # Print some stats
-    print(f"\n{'='*60}")
-    print("Database populated successfully! 🎉")
-    print(f"{'='*60}\n")
+    # Print statistics
+    print("\n" + "="*60)
+    print("Database populated successfully!")
+    print("="*60 + "\n")
     
     cursor = conn.cursor()
     
-    # Count stuff
     cursor.execute("SELECT COUNT(*) FROM papers")
     paper_count = cursor.fetchone()[0]
     
@@ -331,16 +319,15 @@ def populate_from_csv(csv_path, db_path="papers.db"):
     cursor.execute("SELECT COUNT(*) FROM baselines")
     baseline_count = cursor.fetchone()[0]
     
-    print(f"📊 Database Statistics:")
+    print("📊 Database Statistics:")
     print(f"  • Papers: {paper_count}")
     print(f"  • Unique datasets: {dataset_count}")
     print(f"  • Robot platforms: {robot_count}")
     print(f"  • Compute hardware types: {compute_hw_count}")
     print(f"  • Baseline models: {baseline_count}")
     
-    # Show some example queries
-    print(f"\n💡 Example queries you can run:")
-    print(f"  - Most common datasets:")
+    # Show example queries
+    print("\n💡 Example - Most common datasets:")
     cursor.execute("""
         SELECT d.name, COUNT(*) as count 
         FROM datasets d
@@ -349,27 +336,17 @@ def populate_from_csv(csv_path, db_path="papers.db"):
         ORDER BY count DESC
         LIMIT 5
     """)
-    print("    ", cursor.fetchall())
-    
-    print(f"\n  - Papers with model sizes:")
-    cursor.execute("SELECT paper_id, model_name, model_size FROM papers WHERE model_size IS NOT NULL")
-    print("    ", cursor.fetchall())
+    for row in cursor.fetchall():
+        print(f"    {row[0]}: {row[1]} papers")
     
     conn.close()
     print(f"\n✓ Database saved to: {db_path}")
-    print("\nYou can now query it with: sqlite3 {db_path}")
 
 
 if __name__ == "__main__":
-    # Default paths
-    csv_file = "extracted_info.csv"
-    db_file = "papers.db"
-    
-    # Allow command line args
-    if len(sys.argv) > 1:
-        csv_file = sys.argv[1]
-    if len(sys.argv) > 2:
-        db_file = sys.argv[2]
+    # Parse command line arguments
+    csv_file = sys.argv[1] if len(sys.argv) > 1 else "../outputs/extracted_info.csv"
+    db_file = sys.argv[2] if len(sys.argv) > 2 else "../outputs/papers.db"
     
     populate_from_csv(csv_file, db_file)
 

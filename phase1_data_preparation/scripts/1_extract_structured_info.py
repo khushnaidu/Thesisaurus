@@ -1,12 +1,18 @@
 """
 Phase 1.2: Structured Information Extraction
-Extracts datasets, models, hardware, hyperparameters, and limitations from processed papers
+Extracts datasets, models, hardware, hyperparameters from processed papers
+
+Usage:
+    python 1_extract_structured_info.py [data_dir] [output_csv]
+    
+    data_dir: Directory containing full_text/ and metadata.json (default: ../data)
+    output_csv: Output CSV file path (default: ../outputs/extracted_info.csv)
 """
 
 import re
 import csv
 import json
-from typing import Dict, List, Optional, Tuple, Set
+from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -16,23 +22,22 @@ class ExtractedInfo:
     """Structured information extracted from a paper"""
     paper_id: str
     title: str
-    authors: str
     year: Optional[int]
     venue: Optional[str]
     # Data-related
     training_datasets: List[str] = field(default_factory=list)
-    training_data_size: Optional[str] = None  # e.g., "970k episodes", "130k demos"
+    training_data_size: Optional[str] = None
     evaluation_datasets: List[str] = field(default_factory=list)
     # Robot/Hardware
     robot_platforms: List[str] = field(default_factory=list)
-    robot_hardware: List[str] = field(default_factory=list)  # sensors, grippers
-    compute_hardware: List[str] = field(default_factory=list)  # GPUs, TPUs
+    robot_hardware: List[str] = field(default_factory=list)
+    compute_hardware: List[str] = field(default_factory=list)
     # Model architecture
-    model_name: Optional[str] = None  # e.g., "RT-1", "OpenVLA"
-    model_architecture: Optional[str] = None  # e.g., "Transformer", "Diffusion Policy"
-    model_size: Optional[str] = None  # e.g., "7B", "35M parameters"
-    vision_encoder: Optional[str] = None  # e.g., "DINOv2", "EfficientNet"
-    base_model: Optional[str] = None  # e.g., "Llama 2", "ViT"
+    model_name: Optional[str] = None
+    model_architecture: Optional[str] = None
+    model_size: Optional[str] = None
+    vision_encoder: Optional[str] = None
+    base_model: Optional[str] = None
     # Training details
     optimizer: Optional[str] = None
     learning_rate: Optional[str] = None
@@ -41,26 +46,21 @@ class ExtractedInfo:
     augmentations: Optional[str] = None
     pretrained_weights: Optional[str] = None
     # Frameworks/Simulation
-    simulation_env: Optional[str] = None  # e.g., "Isaac Sim", "MuJoCo"
-    ml_framework: Optional[str] = None  # PyTorch, JAX
+    simulation_env: Optional[str] = None
+    ml_framework: Optional[str] = None
     # Evaluation
     tasks_evaluated: List[str] = field(default_factory=list)
-    success_rate: Optional[str] = None  # overall metric if reported
+    success_rate: Optional[str] = None
     baselines_compared: List[str] = field(default_factory=list)
     
     def to_dict(self) -> Dict:
         """Convert to dictionary with lists as comma-separated strings"""
-        # Clean up authors field (remove excessive commas/spaces)
-        authors_clean = re.sub(r'\s*,\s*,\s*', ', ', self.authors)
-        authors_clean = re.sub(r'\s+', ' ', authors_clean).strip()
-        
         return {
             'paper_id': self.paper_id,
             'title': self.title,
-            'authors': authors_clean,
             'year': self.year if self.year else '',
             'venue': self.venue or '',
-            'training_datasets': '; '.join(self.training_datasets),  # Use ; instead of ,
+            'training_datasets': '; '.join(self.training_datasets),
             'training_data_size': self.training_data_size or '',
             'evaluation_datasets': '; '.join(self.evaluation_datasets),
             'robot_platforms': '; '.join(self.robot_platforms),
@@ -79,14 +79,14 @@ class ExtractedInfo:
             'pretrained_weights': self.pretrained_weights or '',
             'simulation_env': self.simulation_env or '',
             'ml_framework': self.ml_framework or '',
-            'tasks_evaluated': '; '.join(self.tasks_evaluated[:5]),  # Top 5
+            'tasks_evaluated': '; '.join(self.tasks_evaluated[:5]),
             'success_rate': self.success_rate or '',
             'baselines_compared': '; '.join(self.baselines_compared),
         }
 
 
 class StructuredExtractor:
-    """Extract structured information from research paper text."""
+    """Extract structured information from research paper text using regex patterns."""
     
     def __init__(self):
         # Training/Evaluation Datasets
@@ -122,7 +122,7 @@ class StructuredExtractor:
             (r'\bMobile[-\s]?Aloha\b', 'Mobile Aloha'),
         ]
         
-        # Compute Hardware (GPUs/TPUs)
+        # Compute Hardware
         self.compute_patterns = [
             (r'\bA100\b', 'A100'),
             (r'\bA6000\b', 'A6000'),
@@ -194,49 +194,38 @@ class StructuredExtractor:
     
     def extract_from_text(self, text: str, metadata: Dict) -> ExtractedInfo:
         """Extract structured information from paper text."""
-        # Clean up authors field - handle cases where it may have partial titles
-        authors = metadata.get('authors', 'Unknown')
-        if not authors or len(authors.strip()) == 0:
-            authors = 'Unknown'
-        
         info = ExtractedInfo(
             paper_id=metadata['paper_id'],
             title=metadata['title'],
-            authors=authors,
             year=metadata.get('year'),
             venue=metadata.get('venue')
         )
         
-        # Extract datasets (both training and evaluation)
+        # Extract datasets
         all_datasets = self._extract_patterns(text, self.dataset_patterns)
-        info.training_datasets = all_datasets  # Could be refined
+        info.training_datasets = all_datasets
         info.evaluation_datasets = all_datasets
         
-        # Extract model name from title
+        # Extract model info
         info.model_name = self._extract_model_name(metadata['title'], text)
-        
-        # Extract data size
         info.training_data_size = self._extract_data_size(text)
-        
-        # Extract robot platforms
-        info.robot_platforms = self._extract_patterns(text, self.robot_patterns)
+        info.model_size = self._extract_model_size(text)
         
         # Extract hardware
+        info.robot_platforms = self._extract_patterns(text, self.robot_patterns)
         info.robot_hardware = self._extract_patterns(text, self.robot_hardware_patterns)
         info.compute_hardware = self._extract_patterns(text, self.compute_patterns)
         
-        # Extract model architecture info
+        # Extract model architecture details
         info.model_architecture = self._extract_patterns(text, self.model_patterns)
         info.model_architecture = info.model_architecture[0] if info.model_architecture else None
-        info.model_size = self._extract_model_size(text)
         info.vision_encoder = self._extract_patterns(text, self.vision_encoder_patterns)
         info.vision_encoder = ', '.join(info.vision_encoder) if info.vision_encoder else None
         
-        # Base model
         llm_match = re.search(r'(Llama\s*2?\s*\d+B|GPT[-\s]?\d|T5)', text, re.IGNORECASE)
         info.base_model = llm_match.group(1) if llm_match else None
         
-        # Extract training details  
+        # Extract training details
         info.optimizer = self._extract_optimizer(text)
         info.learning_rate = self._extract_learning_rate(text)
         info.batch_size = self._extract_batch_size(text)
@@ -250,13 +239,9 @@ class StructuredExtractor:
         frameworks = self._extract_patterns(text, self.framework_patterns)
         info.ml_framework = ', '.join(frameworks) if frameworks else None
         
-        # Extract evaluation tasks
+        # Extract evaluation details
         info.tasks_evaluated = self._extract_tasks(text)
-        
-        # Extract success rate
         info.success_rate = self._extract_success_rate(text)
-        
-        # Extract baselines
         info.baselines_compared = self._extract_patterns(text, self.vla_patterns)
         
         return info
@@ -271,110 +256,69 @@ class StructuredExtractor:
     
     def _extract_model_name(self, title: str, text: str) -> Optional[str]:
         """Extract the model name from title or text"""
-        # Common VLA model names
         models = ['RT-1', 'RT-2', 'RT-X', 'OpenVLA', 'Octo', 'ReBot', 'PaLM-E', 
                   'ACT', 'Aloha', 'VIMA', 'RoboCat', 'Gato']
         for model in models:
             if re.search(rf'\b{re.escape(model)}\b', title, re.IGNORECASE):
                 return model
-        # Check first 1000 chars if not in title
         for model in models:
             if re.search(rf'\b{re.escape(model)}\b', text[:1000], re.IGNORECASE):
                 return model
         return None
     
     def _extract_data_size(self, text: str) -> Optional[str]:
-        """Extract training data size (e.g., '970k episodes', '130k demos')"""
+        """Extract training data size"""
         patterns = [
             r'(\d+)\s*[kK]\s+(?:real-world\s+)?(?:robot\s+)?(?:manipulation\s+)?(?:episodes|demonstrations?|demos|trajectories)',
             r'(\d+)\s*[mM]\s+(?:real-world\s+)?(?:robot\s+)?(?:manipulation\s+)?(?:episodes|demonstrations?|demos|trajectories)',
-            r'(\d+[kKmM])\s+(?:robot\s+)?(?:episodes|demonstrations?|demos|trajectories)',
-            r'(\d+,\d+)\s+(?:robot\s+)?(?:episodes|demonstrations?|demos|trajectories)',
-            r'(?:trained on|dataset of|consisting of)\s+(\d+)\s*[kKmM]?\s+(?:episodes|demos)',
         ]
         for pattern in patterns:
             match = re.search(pattern, text[:5000], re.IGNORECASE)
             if match:
                 num = match.group(1)
-                # Normalize format: ensure we have k or M suffix
                 matched_text = match.group(0).lower()
-                if ' k ' in matched_text or 'k ' in matched_text:
+                if 'k ' in matched_text or 'k' in num.lower():
                     return f"{num}k episodes"
-                elif ' m ' in matched_text or 'm ' in matched_text:
+                elif 'm ' in matched_text or 'm' in num.lower():
                     return f"{num}M episodes"
-                elif 'k' in num.lower() or 'm' in num.lower():
-                    return f"{num} episodes"
-                else:
-                    return f"{num} episodes"
         return None
     
     def _extract_model_size(self, text: str) -> Optional[str]:
-        """Extract model size (e.g., '7B', '35M parameters')"""
+        """Extract model size (e.g., '7B parameters')"""
         patterns = [
-            r'(\d+(?:\.\d+)?)\s*B[-\s]parameter',  # "7 B-parameter" or "7B-parameter"
-            r'(\d+(?:\.\d+)?)\s*M[-\s]parameter',  # "35 M-parameter" or "35M-parameter"
-            r'(\d+)\s*[Bb]illion\s+parameters?',    # "7 billion parameters"
-            r'(\d+)\s*[Mm]illion\s+parameters?',    # "35 million parameters"
-            r'(\d+(?:\.\d+)?)\s*B\s+(?:model|parameters?)',  # "7B model" or "7B parameters"
-            r'(\d+(?:\.\d+)?)\s*M\s+(?:model|parameters?)',  # "35M model" or "35M parameters"
+            r'(\d+(?:\.\d+)?)\s*B[-\s]parameter',
+            r'(\d+(?:\.\d+)?)\s*[Bb]illion\s+parameters?',
+            r'(\d+(?:\.\d+)?)\s*B\s+(?:model|parameters?)',
         ]
         for pattern in patterns:
             match = re.search(pattern, text[:3000], re.IGNORECASE)
             if match:
-                size = match.group(1)
-                # Add suffix based on pattern
-                if 'billion' in match.group(0).lower() or ' B' in match.group(0) or 'B-' in match.group(0):
-                    return size + 'B'
-                elif 'million' in match.group(0).lower() or ' M' in match.group(0) or 'M-' in match.group(0):
-                    return size + 'M'
+                return match.group(1) + 'B'
         return None
     
     def _extract_tasks(self, text: str) -> List[str]:
-        """Extract number of evaluation tasks"""
-        # Look for "X tasks" or "X different tasks" mentions
+        """Extract evaluation tasks"""
         patterns = [
             r'(\d+)\s+(?:evaluation\s+)?tasks',
             r'evaluated\s+on\s+(\d+)\s+tasks',
-            r'(\d+)\s+manipulation\s+tasks',
         ]
         for pattern in patterns:
             match = re.search(pattern, text[:5000], re.IGNORECASE)
             if match:
                 return [f"{match.group(1)} tasks"]
-        
-        # Look for specific task names in evaluation section
-        eval_section = text[text.lower().find('evaluation'):text.lower().find('evaluation')+3000] if 'evaluation' in text.lower() else ''
-        if eval_section:
-            # Find quoted task names like "pick apple", "place cup"
-            quoted_tasks = re.findall(r'"([^"]{10,50})"', eval_section)
-            if quoted_tasks:
-                # Clean and limit to reasonable task descriptions
-                clean_tasks = [t.strip() for t in quoted_tasks if 10 < len(t) < 50]
-                return clean_tasks[:5]  # Top 5
-        
         return []
     
     def _extract_success_rate(self, text: str) -> Optional[str]:
-        """Extract overall success rate if mentioned"""
+        """Extract overall success rate"""
         patterns = [
-            r'by\s+([\d.]+)%\s+(?:absolute\s+)?success',  # "by 16.5% absolute success"
-            r'([\d.]+)%\s+(?:absolute\s+)?success\s+rate',  # "16.5% absolute success rate"
-            r'success\s+rate[s]?\s+of\s+([\d.]+)%',  # "success rate of 16.5%"
-            r'achiev(?:es?|ing)\s+(?:at\s+least\s+)?([\d.]+)%',  # "achieving 90%"
-            r'([\d.]+)%\s+success',  # "16.5% success"
+            r'success\s+rate[s]?\s+of\s+([\d.]+)%',
+            r'achiev(?:es?|ing)\s+(?:at\s+least\s+)?([\d.]+)%',
         ]
-        # Look in abstract and results sections
-        abstract_end = min(2000, len(text))
-        results_start = text.lower().find('results')
-        search_text = text[:abstract_end]
-        if results_start > 0:
-            search_text += text[results_start:results_start+3000]
-        
+        search_text = text[:2000]
         for pattern in patterns:
             match = re.search(pattern, search_text, re.IGNORECASE)
             if match:
                 rate = match.group(1)
-                # Only return if it's a reasonable success rate (0-100)
                 try:
                     if 0 <= float(rate) <= 100:
                         return rate + '%'
@@ -387,14 +331,9 @@ class StructuredExtractor:
         patterns = [
             r'learning\s+rate(?:\s+of)?\s*[=:]\s*([\d.e\-]+)',
             r'\blr\s*[=:]\s*([\d.e\-]+)',
-            r'(?:initial|base)\s+learning\s+rate[:\s]+([\d.e\-]+)',
-            r'with\s+a\s+learning\s+rate\s+of\s+([\d.e\-]+)',
         ]
-        
-        # Search in methods/training section first
         train_section = text.lower().find('training')
         search_text = text[train_section:train_section+5000] if train_section > 0 else text[:10000]
-        
         for pattern in patterns:
             match = re.search(pattern, search_text, re.IGNORECASE)
             if match:
@@ -403,17 +342,9 @@ class StructuredExtractor:
     
     def _extract_optimizer(self, text: str) -> Optional[str]:
         """Extract optimizer"""
-        # Search in training/methods section
+        patterns = [r'\b(AdamW)\b', r'\b(Adam)\b', r'\b(SGD)\b', r'\b(RMSprop)\b']
         train_section = text.lower().find('training')
         search_text = text[train_section:train_section+5000] if train_section > 0 else text[:10000]
-        
-        patterns = [
-            r'\b(AdamW)\b',  # Check AdamW first (more specific)
-            r'\b(Adam)\b',
-            r'\b(SGD)\b',
-            r'\b(RMSprop)\b',
-            r'\b(LAMB)\b',
-        ]
         for pattern in patterns:
             match = re.search(pattern, search_text, re.IGNORECASE)
             if match:
@@ -422,83 +353,54 @@ class StructuredExtractor:
     
     def _extract_batch_size(self, text: str) -> Optional[str]:
         """Extract batch size"""
-        # Search in training section
+        pattern = r'batch\s+size(?:\s+of)?\s*[=:]\s*(\d+)'
         train_section = text.lower().find('training')
         search_text = text[train_section:train_section+5000] if train_section > 0 else text[:10000]
-        
-        patterns = [
-            r'batch\s+size(?:\s+of)?\s*[=:]\s*(\d+)',
-            r'mini[-\s]?batch\s+size[:\s]*(\d+)',
-            r'with\s+(?:a\s+)?batch\s+size\s+of\s+(\d+)',
-        ]
-        for pattern in patterns:
-            match = re.search(pattern, search_text, re.IGNORECASE)
-            if match:
-                return match.group(1)
-        return None
+        match = re.search(pattern, search_text, re.IGNORECASE)
+        return match.group(1) if match else None
     
     def _extract_epochs(self, text: str) -> Optional[str]:
         """Extract epochs"""
+        pattern = r'(?:for|trained\s+for|over)\s+(\d+)\s+epochs'
         train_section = text.lower().find('training')
         search_text = text[train_section:train_section+5000] if train_section > 0 else text[:10000]
-        
-        patterns = [
-            r'(?:for|trained\s+for|over)\s+(\d+)\s+epochs',
-            r'epochs\s*[=:]\s*(\d+)',
-            r'(\d+)\s+training\s+epochs',
-        ]
-        for pattern in patterns:
-            match = re.search(pattern, search_text, re.IGNORECASE)
-            if match:
-                return match.group(1)
-        return None
+        match = re.search(pattern, search_text, re.IGNORECASE)
+        return match.group(1) if match else None
     
     def _extract_augmentations(self, text: str) -> Optional[str]:
         """Extract data augmentation techniques"""
-        aug_keywords = [
-            'random crop', 'center crop', 'flip', 'horizontal flip', 
-            'rotation', 'color jitter', 'random erase', 'mixup', 'cutout',
-            'random shift', 'augmentation'
-        ]
+        aug_keywords = ['random crop', 'center crop', 'flip', 'rotation', 'color jitter']
         found = []
-        search_text = text[:15000]  # Search more text
         for keyword in aug_keywords:
-            if re.search(rf'\b{re.escape(keyword)}\b', search_text, re.IGNORECASE):
+            if re.search(rf'\b{re.escape(keyword)}\b', text[:15000], re.IGNORECASE):
                 found.append(keyword.title())
         return ', '.join(found[:5]) if found else None
     
     def _extract_pretrained(self, text: str) -> Optional[str]:
         """Extract pretrained weights info"""
-        patterns = [
-            r'pretrained\s+on\s+(ImageNet|COCO|[\w\s-]+?)(?:\s|,|\.|;)',
-            r'initialized\s+(?:from|with)\s+([\w\s-]+?)(?:\s+weights|\s+model)',
-            r'fine-tun(?:e|ed|ing)\s+([\w\s-]+?)(?:\s+model|\s+weights)',
-        ]
-        for pattern in patterns:
-            match = re.search(pattern, text[:5000], re.IGNORECASE)
-            if match:
-                result = match.group(1).strip()
-                # Clean up common artifacts
-                result = re.sub(r'\s+', ' ', result)
-                if len(result) < 50:  # Reasonable length
-                    return result
+        pattern = r'pretrained\s+on\s+(ImageNet|COCO|[\w\s-]+?)(?:\s|,|\.|;)'
+        match = re.search(pattern, text[:5000], re.IGNORECASE)
+        if match:
+            result = match.group(1).strip()
+            if len(result) < 50:
+                return result
         return None
     
-    def batch_extract(self, processed_papers_dir: str, output_csv: str = "extracted_info.csv") -> List[ExtractedInfo]:
+    def batch_extract(self, data_dir: str, output_csv: str) -> List[ExtractedInfo]:
         """
         Extract information from all processed papers and save to CSV.
         
         Args:
-            processed_papers_dir: Directory containing processed papers
+            data_dir: Directory containing full_text/ and metadata.json
             output_csv: Output CSV file path
             
         Returns:
             List of ExtractedInfo objects
         """
-        papers_path = Path(processed_papers_dir)
+        data_path = Path(data_dir)
         
         # Load metadata
-        metadata_file = papers_path / "metadata.json"
+        metadata_file = data_path / "metadata.json"
         if not metadata_file.exists():
             print(f"Error: {metadata_file} not found")
             return []
@@ -507,7 +409,7 @@ class StructuredExtractor:
             metadata_list = json.load(f)
         
         # Process each paper
-        fulltext_dir = papers_path / "full_text"
+        fulltext_dir = data_path / "full_text"
         all_info = []
         
         print(f"Extracting structured information from {len(metadata_list)} papers...")
@@ -529,15 +431,16 @@ class StructuredExtractor:
             info = self.extract_from_text(full_text, meta_dict)
             all_info.append(info)
             
-            print(f"  ✓ Model: {info.model_name or 'N/A'} ({info.model_size or 'N/A'})")
+            print(f"  ✓ Model: {info.model_name or 'N/A'}")
             print(f"  ✓ Datasets: {', '.join(info.training_datasets[:3]) if info.training_datasets else 'None'}")
-            print(f"  ✓ Robots: {', '.join(info.robot_platforms) if info.robot_platforms else 'None'}")
         
-        # Save to CSV with proper quoting
+        # Save to CSV
         output_path = Path(output_csv)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
         with open(output_path, 'w', newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=[
-                'paper_id', 'title', 'authors', 'year', 'venue',
+                'paper_id', 'title', 'year', 'venue',
                 'training_datasets', 'training_data_size', 'evaluation_datasets',
                 'robot_platforms', 'robot_hardware', 'compute_hardware',
                 'model_name', 'model_architecture', 'model_size', 
@@ -546,25 +449,15 @@ class StructuredExtractor:
                 'augmentations', 'pretrained_weights',
                 'simulation_env', 'ml_framework',
                 'tasks_evaluated', 'success_rate', 'baselines_compared'
-            ], quoting=csv.QUOTE_ALL)  # Quote all fields to handle commas/special chars
+            ], quoting=csv.QUOTE_ALL)
             writer.writeheader()
             for info in all_info:
                 writer.writerow(info.to_dict())
         
         print(f"\n{'='*60}")
-        print(f"✓ Extraction complete!")
-        print(f"✓ Processed {len(all_info)} papers")
+        print(f"✓ Extraction complete! Processed {len(all_info)} papers")
         print(f"✓ CSV saved to: {output_path}")
-        
-        # Print summary statistics
-        total_datasets = sum(len(info.training_datasets) for info in all_info)
-        total_robots = sum(len(info.robot_platforms) for info in all_info)
-        papers_with_size = sum(1 for info in all_info if info.model_size)
-        print(f"\n📊 Summary:")
-        print(f"  - Total datasets mentioned: {total_datasets}")
-        print(f"  - Total robot platforms: {total_robots}")
-        print(f"  - Papers with model size: {papers_with_size}")
-        print(f"  - Papers with success rates: {sum(1 for info in all_info if info.success_rate)}")
+        print(f"{'='*60}\n")
         
         return all_info
 
@@ -572,12 +465,14 @@ class StructuredExtractor:
 if __name__ == "__main__":
     import sys
     
-    print(f"Phase 1.2: Structured Information Extraction")
-    print(f"{'='*60}\n")
+    print("Phase 1.2: Structured Information Extraction")
+    print("="*60 + "\n")
     
-    processed_dir = sys.argv[1] if len(sys.argv) > 1 else "./processed_papers"
-    output_csv = sys.argv[2] if len(sys.argv) > 2 else "extracted_info.csv"
+    # Parse command line arguments
+    data_dir = sys.argv[1] if len(sys.argv) > 1 else "../data"
+    output_csv = sys.argv[2] if len(sys.argv) > 2 else "../outputs/extracted_info.csv"
     
+    # Run extraction
     extractor = StructuredExtractor()
-    extractor.batch_extract(processed_dir, output_csv)
+    extractor.batch_extract(data_dir, output_csv)
 

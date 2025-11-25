@@ -1,0 +1,24 @@
+# Phase 1: Data Preparation Pipeline Requirements
+
+# Core dependencies with fully compatible versions
+numpy==1.24.3
+sentence-transformers==2.5.1
+transformers==4.37.2
+torch>=2.0.0
+huggingface-hub>=0.20.0
+faiss-cpu==1.7.4
+
+# Python standard library (no install needed):
+# - sqlite3 (built-in)
+# - csv (built-in)
+# - json (built-in)
+# - re (built-in)
+# - pathlib (built-in)
+
+# Note: These versions are tested and compatible with Python 3.10+
+# sentence-transformers 2.5.1 works with newer huggingface_hub versions
+
+# Optional: For GPU acceleration (only if needed)
+# faiss-gpu==1.7.4  # Uncomment if you have CUDA available
+# torch with CUDA: pip install torch --index-url https://download.pytorch.org/whl/cu118
+
