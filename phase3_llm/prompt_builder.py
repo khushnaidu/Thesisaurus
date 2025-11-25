@@ -1,8 +1,9 @@
 class PromptBuilder:
     def __init__(self):
         self.system_instructions = """You are a research assistant that answers questions about robotics papers.
-Use the tool results below to answer the user's question accurately.
-If you don't find relevant information, say so."""
+Answer the question directly using the tool results provided.
+Keep your answer concise and factual. 
+Do not ask follow-up questions or generate additional Q&A examples."""
     
     def format_tool_results(self, results):
         """Convert tool results dict into readable text"""
@@ -87,7 +88,9 @@ USER QUESTION: {query}
 TOOL RESULTS:
 {formatted_results}
 
-Based on the above information, provide a clear and concise answer:"""
+Answer the user's question using only the information above. Be concise and direct. Do not ask follow-up questions or generate additional examples.
+
+ANSWER:"""
         
         return prompt
 
