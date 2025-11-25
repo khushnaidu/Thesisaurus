@@ -10,8 +10,8 @@ class QueryPlanner:
             'hardware': ['hardware', 'robot', 'gpu', 'sensor', 'gripper', 'compute'],
             'year': ['year', 'when', 'published', 'recent'],
             'paper_details': ['paper', 'tell me about', 'details', 'what is'],
-            'semantic': ['how', 'explain', 'compare', 'strategy', 'method', 'approach'],
-            'arxiv': ['find', 'search for', 'arxiv', 'recent papers', 'new papers'],
+            'semantic': ['how', 'explain', 'compare', 'strategy', 'method', 'approach', 'similar'],
+            'arxiv': ['find', 'search for', 'arxiv', 'recent papers', 'new papers', 'web', 'look up', 'search web', 'online'],
         }
     
     def analyze_query(self, query):
