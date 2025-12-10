@@ -49,9 +49,14 @@ class ResearchAssistant:
                 reasoning = line.replace('REASONING:', '').strip()
             elif line.startswith('TOOLS:'):
                 raw = line.replace('TOOLS:', '').strip()
-                tools = [t.strip() for t in raw.split(',') if t.strip()]
+                # extract known tool names even if llm added extra text
+                for chunk in raw.split(','):
+                    chunk = chunk.strip().lower()
+                    for known in self.tool_types.keys():
+                        if known in chunk:
+                            tools.append(known)
+                            break
 
-        # fallback if it didnt parse right
         if not tools:
             tools = ['semantic_search']
         return {'tools': tools, 'reasoning': reasoning}

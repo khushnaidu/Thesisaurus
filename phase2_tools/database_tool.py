@@ -19,7 +19,7 @@ class DatabaseTool:
         conn.close()
         return rows
 
-    def get_all_datasets(self):
+    def get_all_datasets(self, **kwargs):
         sql = """
             SELECT d.name, COUNT(DISTINCT pd.paper_id) as paper_count
             FROM datasets d
@@ -29,7 +29,7 @@ class DatabaseTool:
         res = self._query(sql)
         return {"success": True, "count": len(res), "datasets": res}
 
-    def get_all_vision_models(self):
+    def get_all_vision_models(self, **kwargs):
         sql = """
             SELECT vision_encoder, COUNT(*) as paper_count
             FROM papers WHERE vision_encoder IS NOT NULL
@@ -38,7 +38,7 @@ class DatabaseTool:
         res = self._query(sql)
         return {"success": True, "count": len(res), "vision_models": res}
 
-    def get_training_setups(self):
+    def get_training_setups(self, **kwargs):
         sql = """
             SELECT paper_id, title, optimizer, learning_rate, batch_size, epochs, augmentations, pretrained_weights
             FROM papers
@@ -47,7 +47,7 @@ class DatabaseTool:
         res = self._query(sql)
         return {"success": True, "count": len(res), "training_setups": res}
 
-    def get_all_hardware(self):
+    def get_all_hardware(self, **kwargs):
         sql = """
             SELECT h.name, h.type, COUNT(DISTINCT ph.paper_id) as paper_count
             FROM hardware h
@@ -57,7 +57,7 @@ class DatabaseTool:
         res = self._query(sql)
         return {"success": True, "count": len(res), "hardware": res}
 
-    def get_papers_by_year(self):
+    def get_papers_by_year(self, **kwargs):
         sql = "SELECT paper_id, title, year, venue FROM papers ORDER BY year DESC, title"
         res = self._query(sql)
         return {"success": True, "count": len(res), "papers": res}
@@ -79,7 +79,7 @@ class DatabaseTool:
         res = self._query(sql, (f"%{dataset_name}%",))
         return {"success": True, "count": len(res), "papers": res}
 
-    def get_database_overview(self):
+    def get_database_overview(self, **kwargs):
         stats = {}
         stats['total_papers'] = self._query("SELECT COUNT(*) as c FROM papers")[0]['c']
         stats['total_datasets'] = self._query("SELECT COUNT(*) as c FROM datasets")[0]['c']

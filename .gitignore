@@ -28,6 +28,8 @@ ENV/
 *.tmp
 *.bak
 *~
+.env
+test_local.py
 
 # Keep phase1_data_preparation as-is
 !phase1_data_preparation/.gitignore

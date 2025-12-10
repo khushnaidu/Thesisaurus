@@ -33,16 +33,22 @@ Do not ask follow-up questions or generate additional Q&A examples."""
     def build_planning_prompt(self, query):
         # prompt chaining step 1 - let llm decide tools
         tools = "\n".join([f"- {t['name']}: {t['desc']}" for t in self.tool_catalog])
-        return f"""you are a research assistant with these tools:
+        return f"""pick tools to answer this query.
+
+available tools:
 {tools}
 
 query: {query}
 
-think about what the user needs and pick tools.
+respond in EXACTLY this format (no extra text):
+REASONING: one short sentence
+TOOLS: tool_name1, tool_name2
 
-respond like this:
-REASONING: <why you picked these>
-TOOLS: <comma separated tool names>"""
+example response:
+REASONING: user wants dataset info
+TOOLS: get_all_datasets
+
+your response:"""
 
     def format_tool_results(self, results):
         out = ""
