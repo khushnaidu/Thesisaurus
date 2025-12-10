@@ -1,8 +1,0 @@
-# Core dependencies with fully compatible versions
-numpy==1.24.3
-sentence-transformers==2.5.1
-transformers==4.37.2
-torch>=2.0.0
-huggingface-hub>=0.20.0
-faiss-cpu==1.7.4
-
