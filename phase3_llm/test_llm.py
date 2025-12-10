@@ -24,5 +24,5 @@ for i, prompt in enumerate(test_prompts, 1):
     print("Answer:", llm.generate(prompt, max_tokens=100))
     print("-"*60)
 
-print("\n✓ All tests passed!")
+print("\nall tests passed!")
 

@@ -38,7 +38,7 @@ class LLMWrapper:
             torch_dtype=torch.float16
         )
         
-        print(f"✓ Model loaded successfully")
+        print(f"model loaded successfully")
     
     def generate(self, prompt, max_tokens=512, temperature=0.7):
         """Generate text from prompt"""
