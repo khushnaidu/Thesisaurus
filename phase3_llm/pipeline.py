@@ -41,25 +41,24 @@ class ResearchAssistant:
         }
 
     def parse_llm_plan(self, resp):
-        # pull out the tools from llm response
+        # pull out tools, enforce max 4, no duplicates
         tools = []
-        reasoning = ""
         for line in resp.strip().split('\n'):
-            if line.startswith('REASONING:'):
-                reasoning = line.replace('REASONING:', '').strip()
-            elif line.startswith('TOOLS:'):
-                raw = line.replace('TOOLS:', '').strip()
-                # extract known tool names even if llm added extra text
+            if line.upper().startswith('TOOLS:'):
+                raw = line.split(':', 1)[1].strip()
                 for chunk in raw.split(','):
                     chunk = chunk.strip().lower()
                     for known in self.tool_types.keys():
-                        if known in chunk:
+                        if known in chunk and known not in tools:
                             tools.append(known)
                             break
+                    if len(tools) >= 4:
+                        break
+                break
 
         if not tools:
             tools = ['semantic_search']
-        return {'tools': tools, 'reasoning': reasoning}
+        return {'tools': tools[:4]}
 
     def parse_reflection(self, resp):
         issues = ""
@@ -72,14 +71,16 @@ class ResearchAssistant:
         return {'passed': 'PASS' in verdict.upper(), 'issues': issues}
 
     def parse_decomposition(self, resp):
-        # pull out the sub-questions
+        # pull out sub-questions, max 2, must be actual questions
         steps = []
         for line in resp.strip().split('\n'):
-            for prefix in ['STEP1:', 'STEP2:', 'STEP3:']:
-                if line.startswith(prefix):
-                    q = line.replace(prefix, '').strip()
-                    if q.lower() != 'none' and q:
-                        steps.append(q)
+            if line.upper().startswith('STEP1:') or line.upper().startswith('STEP2:'):
+                q = line.split(':', 1)[1].strip()
+                # must be a question (ends with ?) and not "none"
+                if q and q.endswith('?') and 'none' not in q.lower():
+                    steps.append(q)
+                if len(steps) >= 2:
+                    break
         return steps
 
     def answer_with_chaining(self, query):
@@ -167,13 +168,12 @@ class ResearchAssistant:
                     'pattern': pattern
                 }
 
-        # prompt chaining - let llm pick the tools
+        # let llm pick the tools
         if self.use_chaining:
             plan_prompt = self.prompt_builder.build_planning_prompt(query)
-            plan_resp = self.llm.generate(plan_prompt, max_tokens=150)
+            plan_resp = self.llm.generate(plan_prompt, max_tokens=100)
             parsed = self.parse_llm_plan(plan_resp)
-            print(f"\n[chain] reasoning: {parsed['reasoning']}")
-            print(f"[chain] picked: {parsed['tools']}")
+            print(f"\n[tools] picked: {parsed['tools']}")
 
             plan = {'tools': [{'name': t, 'params': {'query': query}} for t in parsed['tools']]}
             tool_names = parsed['tools']

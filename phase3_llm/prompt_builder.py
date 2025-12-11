@@ -1,105 +1,105 @@
 class PromptBuilder:
     def __init__(self):
-        self.sys_prompt = """You are a research assistant that answers questions about robotics papers.
-Answer the question directly using the tool results provided.
-Keep your answer concise and factual.
-Do not ask follow-up questions or generate additional Q&A examples."""
+        # generic system prompt - llm discovers corpus through tools
+        self.sys_prompt = """you are a research assistant that answers questions about academic papers.
+use only the tool results provided to answer questions.
+cite paper ids when possible.
+be concise and factual.
+if info isn't in the tool results, say so."""
 
-        # tools the llm can pick from
+        # tool descriptions - what they do, not what data exists
         self.tool_catalog = [
-            {"name": "get_all_datasets", "desc": "list all datasets with usage counts"},
-            {"name": "get_all_vision_models",
-                "desc": "list vision models used in papers"},
-            {"name": "get_training_setups",
-                "desc": "get optimizer, lr, batch size etc"},
-            {"name": "get_all_hardware", "desc": "list robots and hardware"},
+            {"name": "get_all_datasets", "desc": "list datasets mentioned in papers with usage counts"},
+            {"name": "get_all_vision_models", "desc": "list vision encoders used across papers"},
+            {"name": "get_training_setups", "desc": "get training configs from papers"},
+            {"name": "get_all_hardware", "desc": "list hardware and sensors mentioned in papers"},
             {"name": "semantic_search", "desc": "search paper content by meaning"},
-            {"name": "search_arxiv", "desc": "search arxiv for papers"},
+            {"name": "search_arxiv", "desc": "search arxiv for external papers not in the corpus"},
         ]
 
     def get_meta_policy(self, query):
-        # meta prompting - different policies for different query types
         q = query.lower()
 
         if any(w in q for w in ['compare', 'vs', 'difference', 'versus']):
-            return "comparison mode: present side by side, highlight differences"
-        elif any(w in q for w in ['list', 'all', 'what are', 'which']):
-            return "list mode: be thorough, use bullet points"
+            return "comparison: list similarities and differences clearly"
+        elif any(w in q for w in ['list', 'all', 'what are', 'which', 'compile']):
+            return "list: use bullet points, include paper citations"
         elif any(w in q for w in ['how', 'why', 'explain', 'what is']):
-            return "explanation mode: explain clearly, cite papers"
+            return "explain: be clear and cite sources"
         elif any(w in q for w in ['summarize', 'overview', 'brief']):
-            return "summary mode: keep it short, main points only"
+            return "summarize: keep it short, key points only"
         else:
-            return "default: answer directly from sources"
+            return "default: answer directly with citations"
 
     def build_decomposition_prompt(self, query):
-        # break query into sub-questions
-        return f"""break this question into 2-3 simpler sub-questions.
-each one should build on the previous answer.
+        return f"""break this question into exactly 2 simpler sub-questions.
 
 query: {query}
 
-respond in this format:
-STEP1: <first question to get initial info>
-STEP2: <follow-up using step 1>
-STEP3: <final question, or "none" if not needed>
+rules:
+- output EXACTLY 2 questions, no more
+- each must end with ?
+- first question gathers basic info
+- second question builds on the first
+- do NOT include answers, only questions
+
+format:
+STEP1: <first question>
+STEP2: <follow-up question>
 
 example:
-query: what are the best datasets for robot manipulation and which papers use them?
-STEP1: what datasets are used for robot manipulation?
-STEP2: which papers use these datasets?
-STEP3: what methods made those papers effective?
+query: what datasets are popular and which papers use CLIP?
+STEP1: what are the most common datasets?
+STEP2: which papers use the CLIP vision model?
 
 your response:"""
 
     def build_substep_prompt(self, step_query, prev_answers, tool_results):
-        # answer one sub-question with context from earlier steps
         formatted = self.format_tool_results(tool_results)
         prev = ""
         if prev_answers:
-            prev = "\nprevious findings:\n"
+            prev = "\ncontext from previous steps:\n"
             for i, ans in enumerate(prev_answers, 1):
-                prev += f"step {i}: {ans}\n"
+                prev += f"- {ans}\n"
 
         return f"""{self.sys_prompt}
 {prev}
-current question: {step_query}
+question: {step_query}
 
-tool results:
+data:
 {formatted}
 
-answer briefly (2-3 sentences):"""
+answer in 2-3 sentences, cite paper ids:"""
 
     def build_synthesis_prompt(self, original_query, step_answers):
-        # combine sub-answers into final response
         steps = "\n".join([f"- {ans}" for ans in step_answers])
         return f"""{self.sys_prompt}
 
 original question: {original_query}
 
-findings:
+research findings:
 {steps}
 
-combine these into a clear final answer:"""
+write a clear, complete answer combining the findings above.
+keep it concise (3-5 sentences), cite papers when relevant:"""
 
     def build_planning_prompt(self, query):
-        # tool selection - let llm decide tools for a query
-        tools = "\n".join(
-            [f"- {t['name']}: {t['desc']}" for t in self.tool_catalog])
+        tools = "\n".join([f"- {t['name']}: {t['desc']}" for t in self.tool_catalog])
         return f"""pick tools to answer this query.
 
-available tools:
+tools:
 {tools}
 
 query: {query}
 
-respond in EXACTLY this format (no extra text):
-REASONING: one short sentence
-TOOLS: tool_name1, tool_name2, ...
+rules:
+- pick 1-4 tools (no duplicates)
+- use semantic_search for specific topics
+- use get_all_* tools for listing/counting
+- use search_arxiv only for external papers
 
-example response:
-REASONING: user wants dataset info
-TOOLS: get_all_datasets
+respond exactly:
+TOOLS: tool1, tool2
 
 your response:"""
 
@@ -120,14 +120,14 @@ your response:"""
                 out += self._fmt_hardware(res['hardware'])
             elif 'results' in res:
                 out += self._fmt_search(res['results'])
-            elif 'paper' in res:
-                out += self._fmt_paper(res['paper'])
+            elif 'papers' in res:
+                out += self._fmt_arxiv(res['papers'])
             else:
-                out += str(res)
+                out += str(res)[:500]
         return out
 
     def _fmt_datasets(self, datasets):
-        txt = "Datasets:\n"
+        txt = ""
         for d in datasets[:10]:
             name = d.get('name') or d.get('dataset_name', '?')
             cnt = d.get('paper_count', 0)
@@ -135,7 +135,7 @@ your response:"""
         return txt
 
     def _fmt_models(self, models):
-        txt = "Vision models:\n"
+        txt = ""
         for m in models[:10]:
             name = m.get('model_name') or m.get('vision_encoder', '?')
             cnt = m.get('paper_count', 0)
@@ -143,39 +143,42 @@ your response:"""
         return txt
 
     def _fmt_training(self, setups):
-        txt = "Training configs:\n"
+        txt = ""
         for s in setups[:5]:
-            txt += f"\n{s.get('paper_id')}:\n"
-            if s.get('optimizer'):
-                txt += f"  opt: {s['optimizer']}\n"
-            if s.get('learning_rate'):
-                txt += f"  lr: {s['learning_rate']}\n"
-            if s.get('batch_size'):
-                txt += f"  batch: {s['batch_size']}\n"
+            paper = s.get('paper_id', '?')
+            parts = []
+            if s.get('optimizer'): parts.append(f"opt={s['optimizer']}")
+            if s.get('learning_rate'): parts.append(f"lr={s['learning_rate']}")
+            if s.get('batch_size'): parts.append(f"batch={s['batch_size']}")
+            if parts:
+                txt += f"- [{paper}]: {', '.join(parts)}\n"
+        if not txt:
+            txt = "(no training configs available)\n"
         return txt
 
     def _fmt_hardware(self, hw):
-        txt = "Hardware:\n"
+        txt = ""
         for h in hw[:10]:
-            name = h.get('hardware_name') or h.get('robot_platform', '?')
-            cnt = h.get('paper_count', 0)
-            txt += f"- {name}: {cnt} papers\n"
+            name = h.get('name') or h.get('hardware_name', '?')
+            htype = h.get('type', '')
+            txt += f"- {name} ({htype})\n"
+        if not txt:
+            txt = "(limited hardware data)\n"
         return txt
 
     def _fmt_search(self, results):
-        txt = "Search results:\n"
+        txt = ""
         for i, r in enumerate(results[:5], 1):
             paper = r.get('paper_id', '?')
-            content = r.get('text', r.get('content', ''))[:300]
-            txt += f"\n{i}. [{paper}]: {content}...\n"
+            content = r.get('text', r.get('content', ''))[:250]
+            txt += f"\n[{paper}]: {content}...\n"
         return txt
 
-    def _fmt_paper(self, p):
-        txt = f"Paper: {p.get('title', p.get('paper_id'))}\n"
-        if 'year' in p:
-            txt += f"Year: {p['year']}\n"
-        if 'abstract' in p:
-            txt += f"Abstract: {p['abstract'][:300]}...\n"
+    def _fmt_arxiv(self, papers):
+        txt = "(external arxiv results)\n"
+        for p in papers[:3]:
+            title = p.get('title', '?')[:60]
+            txt += f"- {title}...\n"
         return txt
 
     def build_prompt(self, query, tool_results):
@@ -184,34 +187,35 @@ your response:"""
 
         return f"""{self.sys_prompt}
 
-policy: {policy}
+response style: {policy}
 
 question: {query}
 
-tool results:
+data from tools:
 {formatted}
 
-answer using only the info above. follow the policy.
+answer the question using only the data above.
+cite paper ids in brackets like [rt1] or [openvla].
+if data is missing, say what's not available.
 
 answer:"""
 
     def build_reflection_prompt(self, query, answer, tool_results):
-        # self reflection - check answer quality
         formatted = self.format_tool_results(tool_results)
-        return f"""check this answer for issues.
+        return f"""check if this answer is accurate.
 
 question: {query}
 
-answer: {answer}
+answer given: {answer}
 
-sources:
+source data:
 {formatted}
 
 check:
 1. does it answer the question?
-2. are claims backed by sources?
-3. anything made up?
+2. are claims supported by the source data?
+3. any hallucinated facts not in sources?
 
-respond:
-ISSUES: <problems or "none">
-VERDICT: <PASS or FAIL>"""
+respond exactly:
+ISSUES: <list problems, or "none">
+VERDICT: PASS or FAIL"""
