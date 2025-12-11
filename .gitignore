@@ -18,6 +18,7 @@ ENV/
 *.swp
 *.swo
 .DS_Store
+.history/
 
 # Jupyter
 .ipynb_checkpoints/
@@ -30,6 +31,8 @@ ENV/
 *~
 .env
 test_local.py
+core_demo.py
+test_20_queries.py
 
 # Keep phase1_data_preparation as-is
 !phase1_data_preparation/.gitignore

@@ -8,8 +8,10 @@ Do not ask follow-up questions or generate additional Q&A examples."""
         # tools the llm can pick from
         self.tool_catalog = [
             {"name": "get_all_datasets", "desc": "list all datasets with usage counts"},
-            {"name": "get_all_vision_models", "desc": "list vision models used in papers"},
-            {"name": "get_training_setups", "desc": "get optimizer, lr, batch size etc"},
+            {"name": "get_all_vision_models",
+                "desc": "list vision models used in papers"},
+            {"name": "get_training_setups",
+                "desc": "get optimizer, lr, batch size etc"},
             {"name": "get_all_hardware", "desc": "list robots and hardware"},
             {"name": "semantic_search", "desc": "search paper content by meaning"},
             {"name": "search_arxiv", "desc": "search arxiv for papers"},
@@ -30,9 +32,60 @@ Do not ask follow-up questions or generate additional Q&A examples."""
         else:
             return "default: answer directly from sources"
 
+    def build_decomposition_prompt(self, query):
+        # break query into sub-questions
+        return f"""break this question into 2-3 simpler sub-questions.
+each one should build on the previous answer.
+
+query: {query}
+
+respond in this format:
+STEP1: <first question to get initial info>
+STEP2: <follow-up using step 1>
+STEP3: <final question, or "none" if not needed>
+
+example:
+query: what are the best datasets for robot manipulation and which papers use them?
+STEP1: what datasets are used for robot manipulation?
+STEP2: which papers use these datasets?
+STEP3: what methods made those papers effective?
+
+your response:"""
+
+    def build_substep_prompt(self, step_query, prev_answers, tool_results):
+        # answer one sub-question with context from earlier steps
+        formatted = self.format_tool_results(tool_results)
+        prev = ""
+        if prev_answers:
+            prev = "\nprevious findings:\n"
+            for i, ans in enumerate(prev_answers, 1):
+                prev += f"step {i}: {ans}\n"
+
+        return f"""{self.sys_prompt}
+{prev}
+current question: {step_query}
+
+tool results:
+{formatted}
+
+answer briefly (2-3 sentences):"""
+
+    def build_synthesis_prompt(self, original_query, step_answers):
+        # combine sub-answers into final response
+        steps = "\n".join([f"- {ans}" for ans in step_answers])
+        return f"""{self.sys_prompt}
+
+original question: {original_query}
+
+findings:
+{steps}
+
+combine these into a clear final answer:"""
+
     def build_planning_prompt(self, query):
-        # prompt chaining step 1 - let llm decide tools
-        tools = "\n".join([f"- {t['name']}: {t['desc']}" for t in self.tool_catalog])
+        # tool selection - let llm decide tools for a query
+        tools = "\n".join(
+            [f"- {t['name']}: {t['desc']}" for t in self.tool_catalog])
         return f"""pick tools to answer this query.
 
 available tools:
@@ -42,7 +95,7 @@ query: {query}
 
 respond in EXACTLY this format (no extra text):
 REASONING: one short sentence
-TOOLS: tool_name1, tool_name2
+TOOLS: tool_name1, tool_name2, ...
 
 example response:
 REASONING: user wants dataset info
@@ -93,9 +146,12 @@ your response:"""
         txt = "Training configs:\n"
         for s in setups[:5]:
             txt += f"\n{s.get('paper_id')}:\n"
-            if s.get('optimizer'): txt += f"  opt: {s['optimizer']}\n"
-            if s.get('learning_rate'): txt += f"  lr: {s['learning_rate']}\n"
-            if s.get('batch_size'): txt += f"  batch: {s['batch_size']}\n"
+            if s.get('optimizer'):
+                txt += f"  opt: {s['optimizer']}\n"
+            if s.get('learning_rate'):
+                txt += f"  lr: {s['learning_rate']}\n"
+            if s.get('batch_size'):
+                txt += f"  batch: {s['batch_size']}\n"
         return txt
 
     def _fmt_hardware(self, hw):
@@ -116,8 +172,10 @@ your response:"""
 
     def _fmt_paper(self, p):
         txt = f"Paper: {p.get('title', p.get('paper_id'))}\n"
-        if 'year' in p: txt += f"Year: {p['year']}\n"
-        if 'abstract' in p: txt += f"Abstract: {p['abstract'][:300]}...\n"
+        if 'year' in p:
+            txt += f"Year: {p['year']}\n"
+        if 'abstract' in p:
+            txt += f"Abstract: {p['abstract'][:300]}...\n"
         return txt
 
     def build_prompt(self, query, tool_results):

@@ -71,6 +71,85 @@ class ResearchAssistant:
                 verdict = line.replace('VERDICT:', '').strip()
         return {'passed': 'PASS' in verdict.upper(), 'issues': issues}
 
+    def parse_decomposition(self, resp):
+        # pull out the sub-questions
+        steps = []
+        for line in resp.strip().split('\n'):
+            for prefix in ['STEP1:', 'STEP2:', 'STEP3:']:
+                if line.startswith(prefix):
+                    q = line.replace(prefix, '').strip()
+                    if q.lower() != 'none' and q:
+                        steps.append(q)
+        return steps
+
+    def answer_with_chaining(self, query):
+        # full chain: break down query -> answer each part -> combine
+        print(f"\n{'='*60}")
+        print(f"prompt chaining: {query}")
+        print('='*60)
+
+        if self.use_guard:
+            safe, _ = self.guard.check(query)
+            if not safe:
+                return {'query': query, 'answer': "blocked", 'blocked': True}
+
+        # break the query into smaller questions
+        print("\n[step 1] breaking down query...")
+        decomp_prompt = self.prompt_builder.build_decomposition_prompt(query)
+        decomp_resp = self.llm.generate(decomp_prompt, max_tokens=200)
+        sub_qs = self.parse_decomposition(decomp_resp)
+
+        if not sub_qs:
+            sub_qs = [query]
+
+        print(f"got {len(sub_qs)} sub-questions:")
+        for i, sq in enumerate(sub_qs, 1):
+            print(f"  {i}. {sq}")
+
+        # answer each one, using previous answers as context
+        answers = []
+        tools_used = []
+
+        for i, sq in enumerate(sub_qs, 1):
+            print(f"\n[step {i+1}] answering: {sq[:50]}...")
+
+            # figure out what tools to use
+            plan_prompt = self.prompt_builder.build_planning_prompt(sq)
+            plan_resp = self.llm.generate(plan_prompt, max_tokens=150)
+            parsed = self.parse_llm_plan(plan_resp)
+            print(f"  tools: {parsed['tools']}")
+
+            # run em
+            plan = {'tools': [{'name': t, 'params': {'query': sq}} for t in parsed['tools']]}
+            results = self.planner.execute_plan(plan, self.registry)
+            tools_used.extend(parsed['tools'])
+
+            # get answer with context from previous steps
+            step_prompt = self.prompt_builder.build_substep_prompt(sq, answers, results)
+            ans = self.llm.generate(step_prompt, max_tokens=200)
+            answers.append(ans)
+            print(f"  got: {ans[:80]}...")
+
+        # put it all together
+        print(f"\n[final] combining answers...")
+        synth_prompt = self.prompt_builder.build_synthesis_prompt(query, answers)
+        final = self.llm.generate(synth_prompt, max_tokens=300)
+
+        print(f"\n{'='*60}")
+        print("final answer:")
+        print('='*60)
+        print(final)
+        print('='*60 + '\n')
+
+        return {
+            'query': query,
+            'sub_questions': sub_qs,
+            'step_answers': answers,
+            'answer': final,
+            'tools_used': list(set(tools_used)),
+            'chain_length': len(sub_qs) + 2
+        }
+
     def answer(self, query):
         print(f"\n{'='*60}")
         print(f"query: {query}")
