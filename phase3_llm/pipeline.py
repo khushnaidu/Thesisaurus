@@ -39,8 +39,33 @@ class ResearchAssistant:
             'search_recent_papers': 'Web',
         }
 
-    def parse_llm_plan(self, resp):
-        # pull out tools, enforce max 4, no duplicates
+    def suggest_tools_by_keywords(self, query):
+        q = query.lower()
+        tools = []
+
+        # dataset keywords
+        if any(w in q for w in ['dataset', 'data set', 'benchmark', 'evaluation data']):
+            tools.append('get_all_datasets')
+
+        # vision model keywords
+        if any(w in q for w in ['vision model', 'vision encoder', 'clip', 'dino', 'resnet', 'vit']):
+            tools.append('get_all_vision_models')
+
+        # robot keywords
+        if any(w in q for w in ['robot', 'platform', 'franka', 'widowx', 'aloha']):
+            tools.append('get_all_robots')
+
+        # hardware keywords
+        if any(w in q for w in ['hardware', 'gpu', 'sensor', 'a100', 'realsense']):
+            tools.append('get_all_hardware')
+
+        # always add semantic_search for context
+        if 'semantic_search' not in tools:
+            tools.append('semantic_search')
+
+        return tools[:4]
+
+    def parse_llm_plan(self, resp, query=None):
         tools = []
         for line in resp.strip().split('\n'):
             if line.upper().startswith('TOOLS:'):
@@ -54,6 +79,12 @@ class ResearchAssistant:
                     if len(tools) >= 4:
                         break
                 break
+
+        # if llm only picked semantic_search, try keyword fallback
+        if (not tools or tools == ['semantic_search']) and query:
+            keyword_tools = self.suggest_tools_by_keywords(query)
+            if keyword_tools != ['semantic_search']:
+                tools = keyword_tools
 
         if not tools:
             tools = ['semantic_search']
@@ -116,7 +147,7 @@ class ResearchAssistant:
             # figure out what tools to use
             plan_prompt = self.prompt_builder.build_planning_prompt(sq)
             plan_resp = self.llm.generate(plan_prompt, max_tokens=150)
-            parsed = self.parse_llm_plan(plan_resp)
+            parsed = self.parse_llm_plan(plan_resp, sq)
             print(f"  tools: {parsed['tools']}")
 
             # run em
@@ -171,7 +202,7 @@ class ResearchAssistant:
         if self.use_chaining:
             plan_prompt = self.prompt_builder.build_planning_prompt(query)
             plan_resp = self.llm.generate(plan_prompt, max_tokens=100)
-            parsed = self.parse_llm_plan(plan_resp)
+            parsed = self.parse_llm_plan(plan_resp, query)
             print(f"\n[tools] picked: {parsed['tools']}")
 
             plan = {'tools': [{'name': t, 'params': {'query': query}} for t in parsed['tools']]}

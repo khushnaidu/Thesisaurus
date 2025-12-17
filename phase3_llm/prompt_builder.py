@@ -84,23 +84,24 @@ keep it concise (3-5 sentences), cite papers when relevant:"""
 
     def build_planning_prompt(self, query):
         tools = "\n".join([f"- {t['name']}: {t['desc']}" for t in self.tool_catalog])
-        return f"""pick tools to answer this query.
+        return f"""pick tools for this query.
 
 tools:
 {tools}
 
 query: {query}
 
-rules:
-- pick 1-4 tools (no duplicates)
-- use semantic_search for specific topics
-- use get_all_* tools for listing/counting
-- use search_arxiv only for external papers
+examples:
+- "list all datasets" -> TOOLS: get_all_datasets
+- "what vision models are used" -> TOOLS: get_all_vision_models
+- "compare RT-1 and OpenVLA" -> TOOLS: semantic_search
+- "what robots are mentioned" -> TOOLS: get_all_robots
+- "hardware used" -> TOOLS: get_all_hardware
+- "how does X work" -> TOOLS: semantic_search
+- "find papers about X" -> TOOLS: semantic_search
 
-respond exactly:
-TOOLS: tool1, tool2
-
-your response:"""
+respond with ONLY one line:
+TOOLS: tool1, tool2"""
 
     def format_tool_results(self, results):
         out = ""
