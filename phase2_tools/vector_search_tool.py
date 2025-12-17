@@ -42,6 +42,7 @@ class VectorSearchTool:
                 c = self.chunks[idx]
                 results.append({
                     "paper_id": c['paper_id'],
+                    "section": c.get('section', 'unknown'),
                     "text": c['text'],
                     "score": float(dist),
                     "chunk_id": c['chunk_id']
@@ -74,6 +75,7 @@ class VectorSearchTool:
                 c = self.chunks[orig_idx]
                 results.append({
                     "paper_id": c['paper_id'],
+                    "section": c.get('section', 'unknown'),
                     "text": c['text'],
                     "score": float(dists[idx]),
                     "chunk_id": c['chunk_id']

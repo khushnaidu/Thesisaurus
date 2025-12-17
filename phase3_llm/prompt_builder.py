@@ -170,8 +170,10 @@ your response:"""
         txt = ""
         for i, r in enumerate(results[:5], 1):
             paper = r.get('paper_id', '?')
+            section = r.get('section', '')
+            section_tag = f" ({section})" if section and section != 'unknown' else ""
             content = r.get('text', r.get('content', ''))[:250]
-            txt += f"\n[{paper}]: {content}...\n"
+            txt += f"\n[{paper}{section_tag}]: {content}...\n"
         return txt
 
     def _fmt_arxiv(self, papers):
