@@ -1,322 +1,197 @@
+"""
+simplified db population - reads from clean pymupdf text
+"""
+
+import re
+import json
 import sqlite3
-import csv
-import sys
 from pathlib import Path
 
 
-def create_database(db_path="papers.db"):
-    print(f"creating db at: {db_path}")
+DATASET_PATTERNS = [
+    (r'\bOpen[-\s]?X[-\s]?Embodiment\b', 'Open-X Embodiment'),
+    (r'\bBridge[-\s]?Data(?:\s+V2)?\b', 'BridgeData V2'),
+    (r'\bDROID\b', 'DROID'),
+    (r'\bFranka[-\s]?Kitchen\b', 'Franka Kitchen'),
+    (r'\bMetaWorld\b', 'MetaWorld'),
+    (r'\bRLBench\b', 'RLBench'),
+    (r'\bCALVIN\b', 'CALVIN'),
+    (r'\bRoboMimic\b', 'RoboMimic'),
+    (r'\bLanguage[-\s]?Table\b', 'Language-Table'),
+    (r'\bManiSkill\b', 'ManiSkill'),
+    (r'\bEgo4D\b', 'Ego4D'),
+    (r'\bSimpler[-\s]?Env\b', 'SimplerEnv'),
+    (r'\bRoboSuite\b', 'RoboSuite'),
+    (r'\bLibero\b', 'Libero'),
+    (r'\bRoboNet\b', 'RoboNet'),
+]
 
+VISION_PATTERNS = [
+    (r'\bDINOv2\b', 'DINOv2'),
+    (r'\bDINO\b', 'DINO'),
+    (r'\bSigLIP\b', 'SigLIP'),
+    (r'\bCLIP\b', 'CLIP'),
+    (r'\bEfficientNet\b', 'EfficientNet'),
+    (r'\bResNet[-\s]?\d*\b', 'ResNet'),
+    (r'\bViT[-\s]?[BLS]?\b', 'ViT'),
+]
+
+ROBOT_PATTERNS = [
+    (r'\bFranka[-\s]?(?:Emika[-\s]?)?Panda\b', 'Franka Panda'),
+    (r'\bWidowX\b', 'WidowX'),
+    (r'\bGoogle Robot\b', 'Google Robot'),
+    (r'\bUnitree[-\s]?H1\b', 'Unitree H1'),
+    (r'\bUR5e?\b', 'UR5'),
+    (r'\bKinova\b', 'Kinova'),
+    (r'\bxArm\b', 'xArm'),
+    (r'\bAloha\b', 'Aloha'),
+    (r'\bMobile[-\s]?Aloha\b', 'Mobile Aloha'),
+    (r'\bSawyer\b', 'Sawyer'),
+    (r'\bFetch\b', 'Fetch'),
+]
+
+HARDWARE_PATTERNS = [
+    (r'\bA100\b', 'A100', 'gpu'),
+    (r'\bH100\b', 'H100', 'gpu'),
+    (r'\bV100\b', 'V100', 'gpu'),
+    (r'\bRTX[-\s]?4090\b', 'RTX 4090', 'gpu'),
+    (r'\bRTX[-\s]?3090\b', 'RTX 3090', 'gpu'),
+    (r'\bTPU\b', 'TPU', 'gpu'),
+    (r'\bRealSense\b', 'RealSense', 'sensor'),
+    (r'\bZED\b', 'ZED', 'sensor'),
+    (r'\bKinect\b', 'Kinect', 'sensor'),
+]
+
+
+def find_matches(text, patterns):
+    found = set()
+    for item in patterns:
+        pattern, name = item[0], item[1]
+        if re.search(pattern, text, re.IGNORECASE):
+            found.add(name)
+    return list(found)
+
+
+def extract_year(text, meta):
+    if meta.get('year'):
+        return meta['year']
+    m = re.search(r'arXiv:(\d{2})\d{2}\.\d+', text)
+    if m:
+        return 2000 + int(m.group(1))
+    m = re.search(r'\b(202[0-5])\b', text[:3000])
+    return int(m.group(1)) if m else None
+
+
+def create_db(db_path):
     if Path(db_path).exists():
-        print("  found old db, deleting...")
         Path(db_path).unlink()
 
     conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
+    c = conn.cursor()
 
-    cursor.execute("""
+    c.execute("""
         CREATE TABLE papers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            paper_id TEXT UNIQUE NOT NULL,
+            paper_id TEXT PRIMARY KEY,
             title TEXT,
             year INTEGER,
             venue TEXT,
-            training_data_size TEXT,
-            model_name TEXT,
-            model_architecture TEXT,
-            model_size TEXT,
             vision_encoder TEXT,
-            base_model TEXT,
-            optimizer TEXT,
-            learning_rate TEXT,
-            batch_size TEXT,
-            epochs TEXT,
-            augmentations TEXT,
-            pretrained_weights TEXT,
-            simulation_env TEXT,
-            ml_framework TEXT,
-            success_rate TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            model_name TEXT
         )
     """)
 
-    cursor.execute("""
-        CREATE TABLE datasets (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE NOT NULL
-        )
-    """)
-
-    cursor.execute("""
-        CREATE TABLE paper_datasets (
-            paper_id TEXT,
-            dataset_id INTEGER,
-            dataset_type TEXT,
-            FOREIGN KEY (paper_id) REFERENCES papers(paper_id),
-            FOREIGN KEY (dataset_id) REFERENCES datasets(id)
-        )
-    """)
-
-    cursor.execute("""
-        CREATE TABLE robots (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE NOT NULL
-        )
-    """)
-
-    cursor.execute("""
-        CREATE TABLE paper_robots (
-            paper_id TEXT,
-            robot_id INTEGER,
-            FOREIGN KEY (paper_id) REFERENCES papers(paper_id),
-            FOREIGN KEY (robot_id) REFERENCES robots(id)
-        )
-    """)
-
-    cursor.execute("""
-        CREATE TABLE hardware (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE NOT NULL,
-            type TEXT
-        )
-    """)
-
-    cursor.execute("""
-        CREATE TABLE paper_hardware (
-            paper_id TEXT,
-            hardware_id INTEGER,
-            FOREIGN KEY (paper_id) REFERENCES papers(paper_id),
-            FOREIGN KEY (hardware_id) REFERENCES hardware(id)
-        )
-    """)
-
-    cursor.execute("""
-        CREATE TABLE baselines (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE NOT NULL
-        )
-    """)
-
-    cursor.execute("""
-        CREATE TABLE paper_baselines (
-            paper_id TEXT,
-            baseline_id INTEGER,
-            FOREIGN KEY (paper_id) REFERENCES papers(paper_id),
-            FOREIGN KEY (baseline_id) REFERENCES baselines(id)
-        )
-    """)
-
-    cursor.execute("""
-        CREATE TABLE tasks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            paper_id TEXT,
-            task_description TEXT,
-            FOREIGN KEY (paper_id) REFERENCES papers(paper_id)
-        )
-    """)
-
-    cursor.execute("CREATE INDEX idx_paper_id ON papers(paper_id)")
-    cursor.execute("CREATE INDEX idx_dataset_name ON datasets(name)")
-    cursor.execute("CREATE INDEX idx_robot_name ON robots(name)")
+    c.execute("CREATE TABLE datasets (id INTEGER PRIMARY KEY, name TEXT UNIQUE)")
+    c.execute("CREATE TABLE paper_datasets (paper_id TEXT, dataset_id INTEGER)")
+    c.execute("CREATE TABLE robots (id INTEGER PRIMARY KEY, name TEXT UNIQUE)")
+    c.execute("CREATE TABLE paper_robots (paper_id TEXT, robot_id INTEGER)")
+    c.execute("CREATE TABLE hardware (id INTEGER PRIMARY KEY, name TEXT UNIQUE, type TEXT)")
+    c.execute("CREATE TABLE paper_hardware (paper_id TEXT, hardware_id INTEGER)")
 
     conn.commit()
-    print("  schema created")
     return conn
 
 
-def insert_paper_data(conn, row):
-    cursor = conn.cursor()
+def populate(data_dir, db_path):
+    data_path = Path(data_dir)
 
-    cursor.execute("""
-        INSERT INTO papers (
-            paper_id, title, year, venue,
-            training_data_size, model_name, model_architecture,
-            model_size, vision_encoder, base_model,
-            optimizer, learning_rate, batch_size, epochs,
-            augmentations, pretrained_weights, simulation_env,
-            ml_framework, success_rate
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        row['paper_id'],
-        row['title'],
-        int(row['year']) if row['year'] else None,
-        row['venue'] or None,
-        row['training_data_size'] or None,
-        row['model_name'] or None,
-        row['model_architecture'] or None,
-        row['model_size'] or None,
-        row['vision_encoder'] or None,
-        row['base_model'] or None,
-        row['optimizer'] or None,
-        row['learning_rate'] or None,
-        row['batch_size'] or None,
-        row['epochs'] or None,
-        row['augmentations'] or None,
-        row['pretrained_weights'] or None,
-        row['simulation_env'] or None,
-        row['ml_framework'] or None,
-        row['success_rate'] or None
-    ))
+    with open(data_path / "metadata.json") as f:
+        metadata_list = json.load(f)
 
-    paper_id = row['paper_id']
+    print(f"found {len(metadata_list)} papers")
 
-    # training datasets
-    if row['training_datasets']:
-        datasets = [d.strip() for d in row['training_datasets'].split(';') if d.strip()]
-        for dataset in datasets:
-            cursor.execute("INSERT OR IGNORE INTO datasets (name) VALUES (?)", (dataset,))
-            cursor.execute("SELECT id FROM datasets WHERE name = ?", (dataset,))
-            dataset_id = cursor.fetchone()[0]
-            cursor.execute(
-                "INSERT INTO paper_datasets (paper_id, dataset_id, dataset_type) VALUES (?, ?, ?)",
-                (paper_id, dataset_id, 'training')
-            )
+    conn = create_db(db_path)
+    c = conn.cursor()
 
-    # eval datasets
-    if row['evaluation_datasets']:
-        datasets = [d.strip() for d in row['evaluation_datasets'].split(';') if d.strip()]
-        for dataset in datasets:
-            cursor.execute("INSERT OR IGNORE INTO datasets (name) VALUES (?)", (dataset,))
-            cursor.execute("SELECT id FROM datasets WHERE name = ?", (dataset,))
-            dataset_id = cursor.fetchone()[0]
-            cursor.execute(
-                "INSERT INTO paper_datasets (paper_id, dataset_id, dataset_type) VALUES (?, ?, ?)",
-                (paper_id, dataset_id, 'evaluation')
-            )
+    datasets_cache = {}
+    robots_cache = {}
+    hardware_cache = {}
 
-    # robots
-    if row['robot_platforms']:
-        robots = [r.strip() for r in row['robot_platforms'].split(';') if r.strip()]
-        for robot in robots:
-            cursor.execute("INSERT OR IGNORE INTO robots (name) VALUES (?)", (robot,))
-            cursor.execute("SELECT id FROM robots WHERE name = ?", (robot,))
-            robot_id = cursor.fetchone()[0]
-            cursor.execute(
-                "INSERT INTO paper_robots (paper_id, robot_id) VALUES (?, ?)",
-                (paper_id, robot_id)
-            )
+    for meta in metadata_list:
+        paper_id = meta['paper_id']
+        print(f"  {paper_id}")
 
-    # robot hardware
-    if row['robot_hardware']:
-        hardware_items = [h.strip() for h in row['robot_hardware'].split(';') if h.strip()]
-        for hw in hardware_items:
-            cursor.execute("INSERT OR IGNORE INTO hardware (name, type) VALUES (?, ?)", (hw, 'robot'))
-            cursor.execute("SELECT id FROM hardware WHERE name = ?", (hw,))
-            hw_id = cursor.fetchone()[0]
-            cursor.execute(
-                "INSERT INTO paper_hardware (paper_id, hardware_id) VALUES (?, ?)",
-                (paper_id, hw_id)
-            )
+        text_file = data_path / "full_text" / f"{paper_id}.txt"
+        if not text_file.exists():
+            continue
 
-    # compute hardware
-    if row['compute_hardware']:
-        hardware_items = [h.strip() for h in row['compute_hardware'].split(';') if h.strip()]
-        for hw in hardware_items:
-            cursor.execute("INSERT OR IGNORE INTO hardware (name, type) VALUES (?, ?)", (hw, 'compute'))
-            cursor.execute("SELECT id FROM hardware WHERE name = ?", (hw,))
-            hw_id = cursor.fetchone()[0]
-            cursor.execute(
-                "INSERT INTO paper_hardware (paper_id, hardware_id) VALUES (?, ?)",
-                (paper_id, hw_id)
-            )
+        text = text_file.read_text()
 
-    # baselines
-    if row['baselines_compared']:
-        baselines = [b.strip() for b in row['baselines_compared'].split(';') if b.strip()]
-        for baseline in baselines:
-            cursor.execute("INSERT OR IGNORE INTO baselines (name) VALUES (?)", (baseline,))
-            cursor.execute("SELECT id FROM baselines WHERE name = ?", (baseline,))
-            baseline_id = cursor.fetchone()[0]
-            cursor.execute(
-                "INSERT INTO paper_baselines (paper_id, baseline_id) VALUES (?, ?)",
-                (paper_id, baseline_id)
-            )
+        vision = find_matches(text, VISION_PATTERNS)
+        datasets = find_matches(text, DATASET_PATTERNS)
+        robots = find_matches(text, ROBOT_PATTERNS)
+        hardware = [(p[1], p[2]) for p in HARDWARE_PATTERNS if re.search(p[0], text, re.IGNORECASE)]
 
-    # tasks
-    if row['tasks_evaluated']:
-        tasks = [t.strip() for t in row['tasks_evaluated'].split(';') if t.strip()]
-        for task in tasks:
-            cursor.execute(
-                "INSERT INTO tasks (paper_id, task_description) VALUES (?, ?)",
-                (paper_id, task)
-            )
+        year = extract_year(text, meta)
+        title = meta.get('title', '')[:200]
+
+        model_name = None
+        models = ['RT-1', 'RT-2', 'OpenVLA', 'Octo', 'EgoMimic', 'DexCap', 'OKAMI', 'Habitat', 'ReBot']
+        for m in models:
+            if m.lower().replace('-', '') in paper_id.lower():
+                model_name = m
+                break
+
+        c.execute("INSERT OR REPLACE INTO papers VALUES (?,?,?,?,?,?)",
+                  (paper_id, title, year, meta.get('venue'), ', '.join(vision), model_name))
+
+        for ds in datasets:
+            if ds not in datasets_cache:
+                c.execute("INSERT OR IGNORE INTO datasets (name) VALUES (?)", (ds,))
+                c.execute("SELECT id FROM datasets WHERE name=?", (ds,))
+                datasets_cache[ds] = c.fetchone()[0]
+            c.execute("INSERT INTO paper_datasets VALUES (?,?)", (paper_id, datasets_cache[ds]))
+
+        for r in robots:
+            if r not in robots_cache:
+                c.execute("INSERT OR IGNORE INTO robots (name) VALUES (?)", (r,))
+                c.execute("SELECT id FROM robots WHERE name=?", (r,))
+                robots_cache[r] = c.fetchone()[0]
+            c.execute("INSERT INTO paper_robots VALUES (?,?)", (paper_id, robots_cache[r]))
+
+        for hw_name, hw_type in hardware:
+            if hw_name not in hardware_cache:
+                c.execute("INSERT OR IGNORE INTO hardware (name,type) VALUES (?,?)", (hw_name, hw_type))
+                c.execute("SELECT id FROM hardware WHERE name=?", (hw_name,))
+                hardware_cache[hw_name] = c.fetchone()[0]
+            c.execute("INSERT INTO paper_hardware VALUES (?,?)", (paper_id, hardware_cache[hw_name]))
 
     conn.commit()
 
-
-def populate_from_csv(csv_path, db_path="papers.db"):
-    print("\n" + "="*50)
-    print("phase 1.3: populating database")
-    print("="*50 + "\n")
-
-    conn = create_database(db_path)
-
-    csv_file = Path(csv_path)
-    if not csv_file.exists():
-        print(f"error: csv not found: {csv_path}")
-        return
-
-    print(f"reading csv: {csv_path}")
-    with open(csv_file, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        papers = list(reader)
-
-    print(f"found {len(papers)} papers\n")
-
-    for i, paper in enumerate(papers, 1):
-        print(f"[{i}/{len(papers)}] {paper['paper_id']}")
-        try:
-            insert_paper_data(conn, paper)
-        except Exception as e:
-            print(f"  error: {e}")
-            continue
-
-    print("\n" + "="*50)
-    print("database populated!")
-    print("="*50 + "\n")
-
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT COUNT(*) FROM papers")
-    paper_count = cursor.fetchone()[0]
-
-    cursor.execute("SELECT COUNT(*) FROM datasets")
-    dataset_count = cursor.fetchone()[0]
-
-    cursor.execute("SELECT COUNT(*) FROM robots")
-    robot_count = cursor.fetchone()[0]
-
-    cursor.execute("SELECT COUNT(*) FROM hardware WHERE type='compute'")
-    compute_hw_count = cursor.fetchone()[0]
-
-    cursor.execute("SELECT COUNT(*) FROM baselines")
-    baseline_count = cursor.fetchone()[0]
-
-    print("db stats:")
-    print(f"  papers: {paper_count}")
-    print(f"  datasets: {dataset_count}")
-    print(f"  robots: {robot_count}")
-    print(f"  compute hw: {compute_hw_count}")
-    print(f"  baselines: {baseline_count}")
-
-    print("\nmost common datasets:")
-    cursor.execute("""
-        SELECT d.name, COUNT(*) as count
-        FROM datasets d
-        JOIN paper_datasets pd ON d.id = pd.dataset_id
-        GROUP BY d.name
-        ORDER BY count DESC
-        LIMIT 5
-    """)
-    for row in cursor.fetchall():
-        print(f"  {row[0]}: {row[1]} papers")
+    c.execute("SELECT COUNT(*) FROM papers")
+    print(f"\ndone: {c.fetchone()[0]} papers")
+    c.execute("SELECT COUNT(*) FROM datasets")
+    print(f"  {c.fetchone()[0]} datasets")
+    c.execute("SELECT COUNT(*) FROM robots")
+    print(f"  {c.fetchone()[0]} robots")
 
     conn.close()
-    print(f"\ndb saved to: {db_path}")
 
 
 if __name__ == "__main__":
-    csv_file = sys.argv[1] if len(sys.argv) > 1 else "../outputs/extracted_info.csv"
-    db_file = sys.argv[2] if len(sys.argv) > 2 else "../outputs/papers.db"
+    import sys
+    data_dir = sys.argv[1] if len(sys.argv) > 1 else "../data"
+    db_path = sys.argv[2] if len(sys.argv) > 2 else "../outputs/papers.db"
 
-    populate_from_csv(csv_file, db_file)
+    print("populating database")
+    print("=" * 40)
+    populate(data_dir, db_path)

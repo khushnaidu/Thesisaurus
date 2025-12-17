@@ -21,11 +21,10 @@ class ResearchAssistant:
         self.use_reflection = True
         self.use_guard = True
 
-        # just a quick lookup for tool types
         self.tool_types = {
             'get_all_datasets': 'Database',
             'get_all_vision_models': 'Database',
-            'get_training_setups': 'Database',
+            'get_all_robots': 'Database',
             'get_all_hardware': 'Database',
             'get_papers_by_year': 'Database',
             'get_paper_metadata': 'Database',

@@ -30,22 +30,27 @@ class DatabaseTool:
         return {"success": True, "count": len(res), "datasets": res}
 
     def get_all_vision_models(self, **kwargs):
-        sql = """
-            SELECT vision_encoder, COUNT(*) as paper_count
-            FROM papers WHERE vision_encoder IS NOT NULL
-            GROUP BY vision_encoder ORDER BY paper_count DESC
-        """
-        res = self._query(sql)
+        rows = self._query("SELECT paper_id, vision_encoder FROM papers WHERE vision_encoder != ''")
+
+        counts = {}
+        for row in rows:
+            for v in row['vision_encoder'].split(', '):
+                v = v.strip()
+                if v:
+                    counts[v] = counts.get(v, 0) + 1
+
+        res = [{"vision_encoder": k, "paper_count": v} for k, v in sorted(counts.items(), key=lambda x: -x[1])]
         return {"success": True, "count": len(res), "vision_models": res}
 
-    def get_training_setups(self, **kwargs):
+    def get_all_robots(self, **kwargs):
         sql = """
-            SELECT paper_id, title, optimizer, learning_rate, batch_size, epochs, augmentations, pretrained_weights
-            FROM papers
-            WHERE optimizer IS NOT NULL OR learning_rate IS NOT NULL OR batch_size IS NOT NULL
+            SELECT r.name, COUNT(DISTINCT pr.paper_id) as paper_count
+            FROM robots r
+            LEFT JOIN paper_robots pr ON r.id = pr.robot_id
+            GROUP BY r.name ORDER BY paper_count DESC
         """
         res = self._query(sql)
-        return {"success": True, "count": len(res), "training_setups": res}
+        return {"success": True, "count": len(res), "robots": res}
 
     def get_all_hardware(self, **kwargs):
         sql = """
@@ -84,5 +89,5 @@ class DatabaseTool:
         stats['total_papers'] = self._query("SELECT COUNT(*) as c FROM papers")[0]['c']
         stats['total_datasets'] = self._query("SELECT COUNT(*) as c FROM datasets")[0]['c']
         stats['total_robots'] = self._query("SELECT COUNT(*) as c FROM robots")[0]['c']
-        stats['papers_with_model_size'] = self._query("SELECT COUNT(*) as c FROM papers WHERE model_size IS NOT NULL")[0]['c']
+        stats['total_hardware'] = self._query("SELECT COUNT(*) as c FROM hardware")[0]['c']
         return {"success": True, "stats": stats}

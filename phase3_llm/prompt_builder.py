@@ -7,14 +7,13 @@ cite paper ids when possible.
 be concise and factual.
 if info isn't in the tool results, say so."""
 
-        # tool descriptions - what they do, not what data exists
         self.tool_catalog = [
-            {"name": "get_all_datasets", "desc": "list datasets mentioned in papers with usage counts"},
-            {"name": "get_all_vision_models", "desc": "list vision encoders used across papers"},
-            {"name": "get_training_setups", "desc": "get training configs from papers"},
-            {"name": "get_all_hardware", "desc": "list hardware and sensors mentioned in papers"},
+            {"name": "get_all_datasets", "desc": "list datasets mentioned in papers"},
+            {"name": "get_all_vision_models", "desc": "list vision encoders used"},
+            {"name": "get_all_robots", "desc": "list robot platforms mentioned"},
+            {"name": "get_all_hardware", "desc": "list gpus and sensors"},
             {"name": "semantic_search", "desc": "search paper content by meaning"},
-            {"name": "search_arxiv", "desc": "search arxiv for external papers not in the corpus"},
+            {"name": "search_arxiv", "desc": "search arxiv for external papers"},
         ]
 
     def get_meta_policy(self, query):
@@ -114,8 +113,8 @@ your response:"""
                 out += self._fmt_datasets(res['datasets'])
             elif 'vision_models' in res:
                 out += self._fmt_models(res['vision_models'])
-            elif 'training_setups' in res:
-                out += self._fmt_training(res['training_setups'])
+            elif 'robots' in res:
+                out += self._fmt_robots(res['robots'])
             elif 'hardware' in res:
                 out += self._fmt_hardware(res['hardware'])
             elif 'results' in res:
@@ -142,18 +141,12 @@ your response:"""
             txt += f"- {name}: {cnt} papers\n"
         return txt
 
-    def _fmt_training(self, setups):
+    def _fmt_robots(self, robots):
         txt = ""
-        for s in setups[:5]:
-            paper = s.get('paper_id', '?')
-            parts = []
-            if s.get('optimizer'): parts.append(f"opt={s['optimizer']}")
-            if s.get('learning_rate'): parts.append(f"lr={s['learning_rate']}")
-            if s.get('batch_size'): parts.append(f"batch={s['batch_size']}")
-            if parts:
-                txt += f"- [{paper}]: {', '.join(parts)}\n"
-        if not txt:
-            txt = "(no training configs available)\n"
+        for r in robots[:10]:
+            name = r.get('name', '?')
+            cnt = r.get('paper_count', 0)
+            txt += f"- {name}: {cnt} papers\n"
         return txt
 
     def _fmt_hardware(self, hw):

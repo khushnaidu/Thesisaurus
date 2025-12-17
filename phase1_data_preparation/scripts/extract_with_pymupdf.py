@@ -1,5 +1,5 @@
 """
-pdf extraction using pymupdf - produces much cleaner text than pdfplumber
+pdf extraction using pymupdfs ince it produces much cleaner text than pdfplumber
 also detects sections for better chunking later
 """
 
@@ -48,11 +48,11 @@ class PDFExtractor:
 
     def _clean_text(self, text):
         """clean up extracted text"""
-        # fix common pdf artifacts
-        text = re.sub(r'\s+', ' ', text)  # normalize whitespace
-        text = re.sub(r'- \n', '', text)  # fix hyphenation
+        # fix common pdf formmating probelms
+        text = re.sub(r'\s+', ' ', text)  # whitespace fizing
+        text = re.sub(r'- \n', '', text)  # fix hyphens
         text = re.sub(r'\n', ' ', text)  # single line
-        text = re.sub(r'\s{2,}', ' ', text)  # multiple spaces
+        text = re.sub(r'\s{2,}', ' ', text)
         text = text.strip()
         return text
 
@@ -61,7 +61,7 @@ class PDFExtractor:
         sections = []
         current_section = {'name': 'preamble', 'start': 0, 'text': ''}
 
-        # split into sentences
+        # plit into sentences
         sentences = re.split(r'(?<=[.!?])\s+', full_text)
         current_pos = 0
 
@@ -100,7 +100,7 @@ class PDFExtractor:
         text_clean = text_clean.strip()
 
         # check first few words against known sections
-        words = text_clean.split()[:4]  # first 4 words
+        words = text_clean.split()[:4]
 
         for i in range(len(words), 0, -1):
             candidate = ' '.join(words[:i])
@@ -145,7 +145,6 @@ class PDFExtractor:
         lines = text.split('.')
         for line in lines[:5]:
             line = line.strip()
-            # title is usually >10 chars, <200 chars
             if 10 < len(line) < 200:
                 # skip if looks like author line
                 if '@' in line or 'university' in line.lower():
@@ -165,10 +164,12 @@ class PDFExtractor:
             author_section = author_section[:abstract_pos]
 
         # look for names (capitalized words with commas)
-        names = re.findall(r'([A-Z][a-z]+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)', author_section)
+        names = re.findall(
+            r'([A-Z][a-z]+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)', author_section)
 
         # filter out common non-name patterns
-        skip_words = ['Abstract', 'Introduction', 'University', 'Institute', 'Department']
+        skip_words = ['Abstract', 'Introduction',
+                      'University', 'Institute', 'Department']
         names = [n for n in names if not any(w in n for w in skip_words)]
 
         return ', '.join(names[:15]) if names else ''

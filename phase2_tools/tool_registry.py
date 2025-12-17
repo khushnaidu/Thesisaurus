@@ -16,7 +16,7 @@ class ToolRegistry:
             # db
             "get_all_datasets": self.db.get_all_datasets,
             "get_all_vision_models": self.db.get_all_vision_models,
-            "get_training_setups": self.db.get_training_setups,
+            "get_all_robots": self.db.get_all_robots,
             "get_all_hardware": self.db.get_all_hardware,
             "get_papers_by_year": self.db.get_papers_by_year,
             "get_paper_metadata": self.db.get_paper_metadata,
