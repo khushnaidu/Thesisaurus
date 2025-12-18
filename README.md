@@ -55,7 +55,7 @@ The whole point of this phase is to turn a pile of PDFs into something an LLM ca
 
 ### Phase 2: Tools
 
-The LLM doesn't query data directly - it calls tools. This is cleaner and lets us control exactly what the model can access.
+The LLM doesn't query data directly, it calls tools. This is cleaner and lets us control exactly what the model can access.
 
 **Database Tool**: Wraps SQLite queries. Has functions like `get_all_datasets()`, `get_all_vision_models()`, `get_papers_by_year()`, etc. When someone asks "what datasets are used," we don't need semantic search - just query the DB directly. Way faster and more accurate for structured lookups.
 
@@ -79,7 +79,7 @@ This is where it all comes together. The `ResearchAssistant` class orchestrates 
 
 **Prompt Caching**: LLM calls are slow and cost money. If we've seen the exact same prompt before, we just return the cached response. Simple hash-based cache, but it makes repeated queries instant.
 
-**Security (InputGuard)**: Users can be creative with prompts. The guard checks for injection attempts - things like "ignore previous instructions" or SQL injection patterns. Honestly, for an academic project the threat model is limited, but it's good practice and demonstrates awareness of prompt injection risks. The philosophy is simple: whitelist expected patterns, reject anything that looks like it's trying to break out of the assistant role.
+**Security (InputGuard)**: Users can be creative with prompts. The guard checks for injection attempts, things like "ignore previous instructions" or SQL injection patterns. Honestly, for an academic project the threat model is limited, but it's good practice and demonstrates awareness of prompt injection risks. The philosophy is simple: whitelist expected patterns, reject anything that looks like it's trying to break out of the assistant role.
 
 ## Models
 
@@ -98,6 +98,7 @@ This is where it all comes together. The `ResearchAssistant` class orchestrates 
 The main demo is in `Thesisaurus_NLP_Project.ipynb` (designed for Google Colab with GPU).
 
 To run locally:
+
 ```bash
 pip install -r phase1_data_preparation/requirements.txt
 pip install transformers torch faiss-cpu sentence-transformers
@@ -108,6 +109,8 @@ python extract_with_pymupdf.py
 python 2_populate_database.py
 python build_section_aware_index.py
 ```
+
+The rest can be run in colab using the notebook.
 
 ## Tech
 
